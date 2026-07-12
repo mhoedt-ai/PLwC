@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+build/
+dist/
+logs/
+workspace/
+private_evidence/
+profiles/*/
+!profiles/template/

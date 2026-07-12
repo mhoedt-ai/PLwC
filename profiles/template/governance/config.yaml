@@ -1,0 +1,8 @@
+schema_version: "1.0"
+profile_source: "plwc-template"
+memory_write_threshold: 2
+persona_write_threshold: 3
+temperament_write_threshold: 2
+# RC8-FEAT-002 Qdrant retrieval index — OFF by default (boundary slice).
+# When false the feature is inert and the optional backends are never imported.
+qdrant_enabled: false

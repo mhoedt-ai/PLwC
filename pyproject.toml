@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plwc-gateway"
+version = "0.2.0rc18.dev9"
+description = "Policy-controlled MCP gateway for PLwC"
+requires-python = ">=3.11"
+dependencies = ["mcp"]
+
+# RC8-FEAT-002 (Qdrant retrieval index) — optional, OFF by default.
+# Kept out of the base dependency set so the gateway installs lean and the
+# vector backend stays off the hot path; imported lazily only when the
+# governance flag qdrant_enabled is true. Pins are exact (no library default,
+# no automatic fallback): the embedding model is fixed in code at
+# plwc_gateway.adapters.qdrant_index (paraphrase-multilingual-MiniLM-L12-v2, dim 384).
+[project.optional-dependencies]
+qdrant = [
+    "fastembed==0.8.0",
+    "qdrant-client==1.18.0",
+]
+
+[project.scripts]
+plwc-gateway = "plwc_gateway.mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = ["-p", "no:cacheprovider"]
+markers = [
+    "symlink_gate: symlink-capable filesystem gate tests; set PLWC_REQUIRE_SYMLINK_TESTS=1 to fail instead of skip when symlink creation is unavailable",
+]

@@ -1,0 +1,80 @@
+execution:
+  host_shell_enabled: false
+  docker_enabled: true
+  default_mode: "auto"
+  fail_closed: true
+  allow_host_shell_fallback: false
+
+safe_mode:
+  enabled_when_docker_missing: true
+  allow_workspace_file_operations: true
+  allow_code_execution: false
+
+docker:
+  image: "python:3.12-slim"
+  network: "none"
+  memory: "512m"
+  cpus: "1"
+  pids_limit: 64
+  timeout_seconds: 20
+  read_only_root: true
+  allow_privileged: false
+  allow_docker_socket_mount: false
+  allow_host_network: false
+  allow_dynamic_image: false
+  allow_dynamic_mounts: false
+
+paths:
+  allowed_roots:
+    - "./workspace"
+  allow_project_root: false
+  profile_root: "./profiles"
+  active_profile_name: "default"
+  protected_paths:
+    - "./profiles/*/CORE.md"
+    - "./profiles/*/PERSONA.md"
+    - "./profiles/*/TEMPERAMENT.md"
+    - "./profiles/*/CONSCIENCE.md"
+    - "./profiles/*/memory.md"
+    - "./profiles/*/reflection.md"
+    - "./profiles/*/journal.md"
+    - "./profiles/*/compiled_prompt.txt"
+    - "./security.yaml"
+    - "./config/*.yaml"
+  protected_read: true
+  protected_write: false
+  deny_symlinks: true
+  deny_parent_traversal: true
+
+audit:
+  enabled: true
+  log_file: "./logs/audit.jsonl"
+  log_denied_actions: true
+  log_allowed_actions: true
+  log_file_contents: false
+
+memory_governance:
+  direct_file_write_allowed: false
+  required_tool: "plwc_propose_memory_update"
+  reject_invalid_protocol: true
+  no_fallback_after_rejection: true
+
+governance:
+  memory_write_threshold: 2
+  persona_write_threshold: 3
+  temperament_write_threshold: 2
+
+reflection_governance:
+  direct_file_write_allowed: false
+  required_tool: "plwc_reflection"
+  reject_invalid_protocol: true
+  no_fallback_after_rejection: true
+
+onboarding:
+  enabled: true
+  require_explicit_workspace_selection: true
+  allow_home_directory_as_default: false
+  allow_system_drive_as_default: false
+  allow_full_access_mode: false
+  allow_host_shell_toggle: false
+  allow_disable_protected_paths: false

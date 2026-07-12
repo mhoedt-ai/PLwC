@@ -1,0 +1,199 @@
+{
+  "manifest_version": "0.4",
+  "name": "plwc-gateway",
+  "display_name": "PLwC Gateway",
+  "version": "0.2.0-rc18.dev9",
+  "description": "Policy-controlled MCP gateway for PLwC. v0.2.0-rc18.dev9 development validation build (PR-005 privacy-filtered package plus RC18-ALIAS-001 English reflection aliases).",
+  "long_description": "PLwC Gateway exposes one policy-controlled MCP boundary with the v0.2 eight-tool public facade, Safe Mode, Docker sandbox policy, scoped workspace file access, profile governance, governed workspace operations, document/PDF/ZIP/Office worker operations, governed reflection/governor flows, read-only schema help, local audit logging, and Node.js sandbox execution. This rc18.dev9 development validation build preserves RC18-ONBOARDING-001, packages PR-005 public payload filtering evidence, and folds in RC18-ALIAS-001 English-first reflection marker/trust aliases while preserving canonical PBA2 storage values. The rc18.dev7 build contains RC18-ONBOARDING-001: FastMCP tool metadata carries non-empty descriptions for all eight public facade tools, first-run and describe metadata expose a Claude Desktop bootstrap route using tool_search(\"plwc\") followed by plwc_status(scope=\"first_run\"), public onboarding guidance uses plwc_governor(operation=\"plan|apply\") rather than legacy non-public governor tool names, and governed profile creation reports configured active-profile precedence instead of implying effective activation when Claude Desktop still selects another profile. It preserves the V1-PERSONA-002 persona-layer and onboarding fixes from rc18.dev6, including persona_layer_disabled extension config, disabled persona compile omission, persona-disabled onboarding question suppression, and role/work-context storage in PERSONA.md. It also preserves RC18-ASSET-001 packaging of the 512 x 512 plwc-icon-512.png bundle icon, RC18-CLU-001 deterministic read-only CLU Doctor diagnostics, RC18-QDRANT-001 Qdrant duplicate-heading source-current consistency, RC17-CLU-001 read-only CLU Doctor diagnostics, RC17-INNER-002 Tagebuch canonical date file guards, RC16-WORKSPACE-001 workspace parameter validation diagnostics, and RC17-TEMPERAMENT-001 temperament_write_threshold configuration plumbing. It is not a final public release and the MCPB is not signed. Qdrant remains optional, off by default unless configured, reconstructable, and not a canonical memory source; boot and full compile do not call Qdrant and no automatic reindex is performed.",
+  "author": {
+    "name": "PLwC"
+  },
+  "server": {
+    "type": "python",
+    "entry_point": "server.py",
+    "mcp_config": {
+      "command": "python",
+      "args": [
+        "${__dirname}/server.py"
+      ],
+      "env": {
+        "PLWC_WORKSPACE_ROOT": "${user_config.workspace_path}",
+        "PLWC_PROFILE_ROOT": "${user_config.profiles_path}",
+        "PLWC_ACTIVE_PROFILE_NAME": "${user_config.active_profile_name}",
+        "PLWC_CONFIG_FILE": "${user_config.security_config}",
+        "PLWC_MEMORY_WRITE_THRESHOLD": "${user_config.memory_write_threshold}",
+        "PLWC_PERSONA_WRITE_THRESHOLD": "${user_config.persona_write_threshold}",
+        "PLWC_QDRANT_ENABLED": "${user_config.qdrant_enabled}",
+        "PLWC_TEMPERAMENT_WRITE_THRESHOLD": "${user_config.temperament_write_threshold}",
+        "PLWC_PERSONA_LAYER_DISABLED": "${user_config.persona_layer_disabled}"
+      },
+      "platform_overrides": {
+        "win32": {
+          "command": "python",
+          "args": [
+            "${__dirname}/server.py"
+          ],
+          "env": {
+            "PLWC_WORKSPACE_ROOT": "${user_config.workspace_path}",
+            "PLWC_PROFILE_ROOT": "${user_config.profiles_path}",
+            "PLWC_ACTIVE_PROFILE_NAME": "${user_config.active_profile_name}",
+            "PLWC_CONFIG_FILE": "${user_config.security_config}",
+            "PLWC_MEMORY_WRITE_THRESHOLD": "${user_config.memory_write_threshold}",
+            "PLWC_PERSONA_WRITE_THRESHOLD": "${user_config.persona_write_threshold}",
+            "PLWC_QDRANT_ENABLED": "${user_config.qdrant_enabled}",
+            "PLWC_TEMPERAMENT_WRITE_THRESHOLD": "${user_config.temperament_write_threshold}",
+            "PLWC_PERSONA_LAYER_DISABLED": "${user_config.persona_layer_disabled}"
+          }
+        },
+        "darwin": {
+          "command": "python3",
+          "args": [
+            "${__dirname}/server.py"
+          ],
+          "env": {
+            "PLWC_WORKSPACE_ROOT": "${user_config.workspace_path}",
+            "PLWC_PROFILE_ROOT": "${user_config.profiles_path}",
+            "PLWC_ACTIVE_PROFILE_NAME": "${user_config.active_profile_name}",
+            "PLWC_CONFIG_FILE": "${user_config.security_config}",
+            "PLWC_MEMORY_WRITE_THRESHOLD": "${user_config.memory_write_threshold}",
+            "PLWC_PERSONA_WRITE_THRESHOLD": "${user_config.persona_write_threshold}",
+            "PLWC_QDRANT_ENABLED": "${user_config.qdrant_enabled}",
+            "PLWC_TEMPERAMENT_WRITE_THRESHOLD": "${user_config.temperament_write_threshold}",
+            "PLWC_PERSONA_LAYER_DISABLED": "${user_config.persona_layer_disabled}"
+          }
+        },
+        "linux": {
+          "command": "python3",
+          "args": [
+            "${__dirname}/server.py"
+          ],
+          "env": {
+            "PLWC_WORKSPACE_ROOT": "${user_config.workspace_path}",
+            "PLWC_PROFILE_ROOT": "${user_config.profiles_path}",
+            "PLWC_ACTIVE_PROFILE_NAME": "${user_config.active_profile_name}",
+            "PLWC_CONFIG_FILE": "${user_config.security_config}",
+            "PLWC_MEMORY_WRITE_THRESHOLD": "${user_config.memory_write_threshold}",
+            "PLWC_PERSONA_WRITE_THRESHOLD": "${user_config.persona_write_threshold}",
+            "PLWC_QDRANT_ENABLED": "${user_config.qdrant_enabled}",
+            "PLWC_TEMPERAMENT_WRITE_THRESHOLD": "${user_config.temperament_write_threshold}",
+            "PLWC_PERSONA_LAYER_DISABLED": "${user_config.persona_layer_disabled}"
+          }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "plwc_status",
+      "description": "Facade for runtime, sandbox, first-run and Claude configuration status via scope=runtime|sandbox|first_run|config."
+    },
+    {
+      "name": "plwc_describe",
+      "description": "Return read-only PLwC facade schemas, allowed dispatch scopes and operations, required fields, and common denial reasons."
+    },
+    {
+      "name": "plwc_profile",
+      "description": "Facade for governed profile status, snapshot, retrieval, Tagebuch scan and compile operations; compile defaults to compile_mode=boot, supports working with task_context and optional fresh Qdrant semantic memory, and full for audit/diagnostics."
+    },
+    {
+      "name": "plwc_reflection",
+      "description": "Facade for governed reflection writes via operation=write with English-first marker/trust aliases, target, candidate_for, evidence and entry_date validation; stored values remain canonical PBA2."
+    },
+    {
+      "name": "plwc_governor",
+      "description": "Facade for governed profile planning, confirmed apply, retire/list_retirable diagnostics, and Qdrant reindex/drop_index operations."
+    },
+    {
+      "name": "plwc_sandbox_run",
+      "description": "Facade for Docker-only sandbox execution via lang=python|shell|node; no host-shell fallback. lang=node runs a workspace-relative .js script in a separate plwc-node-runner:0.1.0 image."
+    },
+    {
+      "name": "plwc_workspace_operation",
+      "description": "Run bounded governed workspace operations: list, search, read, write, file_info, batch_read, create_dir, move, rename, exact_replace, copy (byte-exact file copy), read_binary (returns base64) and write_binary (accepts base64). write with source_path is rejected; use copy."
+    },
+    {
+      "name": "plwc_document_operation",
+      "description": "Create DOCX/XLSX/PPTX/PDF, run DOCX and XLSX Creation V2, read workspace raster images as MCP image content, run PDF MVP and PDF text-layer operations, inspect/extract/create ZIP files, and inspect/extract Office/OpenDocument files through the governed Document Worker; no conversion, non-ZIP archives, encrypted ZIPs, delete, OCR, macro execution, formula execution, signing, redaction, or form filling."
+    }
+  ],
+  "keywords": [
+    "mcp",
+    "policy",
+    "safe-mode",
+    "docker",
+    "governance"
+  ],
+  "license": "Apache-2.0",
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "python": ">=3.11"
+    }
+  },
+  "user_config": {
+    "workspace_path": {
+      "type": "directory",
+      "title": "PLwC workspace path",
+      "description": "Optional workspace directory. Leave empty to use a safe user-scoped PLwC workspace.",
+      "required": false
+    },
+    "profiles_path": {
+      "type": "directory",
+      "title": "PLwC profiles path",
+      "description": "Optional profiles directory. Leave empty to use a safe user-scoped PLwC profiles directory.",
+      "required": false
+    },
+    "active_profile_name": {
+      "type": "string",
+      "title": "Active PLwC profile",
+      "description": "Name of the active PLwC profile inside the profiles path. Default: default.",
+      "required": false,
+      "default": "default"
+    },
+    "security_config": {
+      "type": "file",
+      "title": "PLwC security config",
+      "description": "Optional local security.yaml path. Leave empty to use conservative bundled defaults and user-scoped paths.",
+      "required": false
+    },
+    "memory_write_threshold": {
+      "type": "number",
+      "title": "Memory write threshold",
+      "description": "Minimum confirmed evidence count before memory writes are proposed or applied. Default: 2.",
+      "required": false,
+      "default": 2
+    },
+    "persona_write_threshold": {
+      "type": "number",
+      "title": "Persona write threshold",
+      "description": "Minimum confirmed evidence count before persona writes are proposed or applied. Default: 3.",
+      "required": false,
+      "default": 3
+    },
+    "temperament_write_threshold": {
+      "type": "number",
+      "title": "Temperament write threshold",
+      "description": "Minimum confirmed evidence count before temperament writes are proposed or applied. Default: 2.",
+      "required": false,
+      "default": 2
+    },
+    "qdrant_enabled": {
+      "type": "boolean",
+      "title": "Qdrant retrieval index",
+      "description": "Enable the optional Qdrant semantic retrieval index (off by default). The config-window value is authoritative.",
+      "default": false
+    },
+    "persona_layer_disabled": {
+      "type": "boolean",
+      "title": "Disable persona layer in compile output",
+      "description": "Turn on to omit the PERSONA block from profile compile output by default. Use for Odysseus or other explicit context-injection PoCs; hard gates and governance remain active.",
+      "required": false,
+      "default": false
+    }
+  },
+  "icon": "plwc-icon-512.png"
+}
