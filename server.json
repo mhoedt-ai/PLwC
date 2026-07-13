@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.mhoedt-ai/plwc-gateway",
+  "title": "PLwC - Personality Layer with Conscience",
+  "description": "Governed local MCP gateway for workspace, sandbox, document and profile operations.",
+  "version": "0.2.0-rc18.dev9",
+  "repository": {
+    "url": "https://github.com/mhoedt-ai/PLwC",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/mhoedt-ai/PLwC/releases/download/v0.2.0-rc18.dev9/plwc-gateway-0.2.0-rc18.dev9.mcpb",
+      "fileSha256": "2f71ac903bf85cc70023805ec0f901e84c4294982c1b59940350db3591a2d345",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

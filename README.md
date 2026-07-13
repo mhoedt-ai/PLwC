@@ -4,10 +4,28 @@
   <img src="plwc-icon-512.png" alt="PLwC Gateway logo" width="192">
 </p>
 
-PLwC is a governed MCP gateway for Claude Desktop and compatible local MCP
-clients. It exposes **one visible MCP server**, routes all capabilities through
-policy and governance checks, and provides workspace, document, sandbox,
-profile, reflection and audit-oriented controls.
+PLwC is a local, model-independent governance gateway for AI tool access,
+persistent context and controlled memory. It is not the agent and it is not the
+language model. It is the independent control layer between the AI host, the
+model and local tools.
+
+```text
+AI host / model
+       |
+       v
+PLwC governance gateway
+       |
+       v
+tools, files, profiles, memory and sandbox
+```
+
+PLwC exposes **one visible MCP server**, routes all capabilities through policy
+and governance checks, and provides workspace, document, sandbox, profile,
+reflection and audit-oriented controls. The gateway is designed for MCP-capable
+hosts in general. Claude Desktop is the current primary packaged and
+smoke-tested Open Beta route, but the boundary remains useful when a host, such
+as ChatGPT Work, Claude or another MCP client, also offers its own file access
+or agent features.
 
 ## Status
 
@@ -26,6 +44,28 @@ profile, reflection and audit-oriented controls.
 
 PLwC is not production-certified. It is local infrastructure under
 active development.
+
+## What PLwC is - and what it is not
+
+PLwC is:
+
+- an MCP gateway, not its own agent;
+- a local governance boundary between model requests and tool execution;
+- model- and host-independent policy for MCP-capable hosts;
+- controlled memory, profile and persona management through explicit profile,
+  reflection and Governor flows;
+- a single public MCP boundary named `plwc-gateway`.
+
+PLwC is not:
+
+- a standalone AI platform;
+- a desktop agent;
+- the language model or a replacement for the user's chosen AI host;
+- a full proxy for all model traffic;
+- protection for data that a user or host sends directly to a cloud model
+  outside PLwC;
+- permission to expose raw PLfC/PBA or Desktop Commander MCP servers beside the
+  gateway.
 
 ## What PLwC does
 

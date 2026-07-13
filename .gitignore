@@ -10,3 +10,5 @@ workspace/
 private_evidence/
 profiles/*/
 !profiles/template/
+docker/document-worker/wheelhouse/*
+!docker/document-worker/wheelhouse/.gitkeep
