@@ -127,7 +127,7 @@ web/custom-app status, see [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
 
 ## Documentation
 
-- Program and software description (Dev 9 Open Beta):
+- English program and software description (Dev 9 Open Beta, GitHub edition):
   [`docs/PROGRAM_AND_SOFTWARE_DESCRIPTION_OPEN_BETA.md`](docs/PROGRAM_AND_SOFTWARE_DESCRIPTION_OPEN_BETA.md)
 - Install / quickstart: [`docs/INSTALLATION.md`](docs/INSTALLATION.md),
   [`docs/QUICKSTART_CLAUDE_DESKTOP.md`](docs/QUICKSTART_CLAUDE_DESKTOP.md)
@@ -149,6 +149,16 @@ web/custom-app status, see [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
   [`docs/BUG_REPORT_TEMPLATE.md`](docs/BUG_REPORT_TEMPLATE.md),
   [`docs/GITHUB_BETA_WORKFLOW.md`](docs/GITHUB_BETA_WORKFLOW.md)
 - Audit behavior: [`docs/AUDIT_LOG.md`](docs/AUDIT_LOG.md)
+
+## Project Website and Contact
+
+- Official website: [plwc.de](https://plwc.de/)
+- General inquiries: [info@plwc.de](mailto:info@plwc.de)
+
+Use [GitHub Issues](https://github.com/mhoedt-ai/PLwC/issues) for reproducible
+bugs and feature requests. For security-sensitive reports, contact
+[info@plwc.de](mailto:info@plwc.de) privately. Do not include secrets, real
+profile content, private paths or other sensitive details in public issues.
 
 ## Support
 
