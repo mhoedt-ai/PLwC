@@ -4,7 +4,7 @@
 
 **Document edition:** English GitHub publication edition
 
-**Last updated:** 2026-07-12
+**Last updated:** 2026-07-13
 
 > This document is an English, GitHub-oriented adaptation of the detailed
 > German rc18.dev7 program and software description. Version-specific claims
@@ -422,10 +422,19 @@ private-context documentation.
 The current security posture favors explicit denial and transparent
 limitations over backward compatibility with unsafe legacy behavior.
 
-## 21. License and Support
+## 21. License, Contact and Support
 
 PLwC is licensed under the Apache License 2.0. See the repository `LICENSE`
 file for the complete terms.
+
+Official project website: [plwc.de](https://plwc.de/)
+
+General contact: [info@plwc.de](mailto:info@plwc.de)
+
+Use [GitHub Issues](https://github.com/mhoedt-ai/PLwC/issues) for reproducible
+bugs and feature requests. For security-sensitive reports, contact
+[info@plwc.de](mailto:info@plwc.de) privately. Do not include secrets, real
+profile content, private paths or other sensitive details in public reports.
 
 Development can be supported voluntarily through Ko-fi:
 <https://ko-fi.com/mhoedtai>
