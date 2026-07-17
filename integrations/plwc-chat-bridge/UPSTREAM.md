@@ -31,3 +31,7 @@ surfaces must not use that name or icon.
 Prototype patches must be imported as a reviewable patch series or as a reduced
 PLwC implementation. Do not copy an opaque built extension into this directory
 as the supported source of truth.
+
+The PLwC-owned loopback bridge does not ship the prototype proxy package. Its
+direct runtime dependencies are pinned to `@modelcontextprotocol/sdk@1.29.0`
+and `ws@8.21.1`; older prototype pins remain investigation history only.

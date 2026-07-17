@@ -358,58 +358,59 @@ Status: **IN PROGRESS**
 
 ### P1 - Establish The PLwC Client Integration Boundary
 
-Status: **IN PROGRESS**
+Status: **COMPLETE**
 
 - [x] Create `integrations/plwc-chat-bridge/`.
-- [ ] Decide whether to vendor a reduced fork or build a smaller adapter from
+- [x] Decide whether to vendor a reduced fork or build a smaller adapter from
   extracted MIT components.
-- [ ] Pin the bridge version or move bridge behavior into PLwC-owned code.
+- [x] Pin the bridge version or move bridge behavior into PLwC-owned code.
 - [x] Add a machine-neutral example configuration scaffold.
-- [x] Add a Windows launcher scaffold that refuses unpinned proxy startup.
-- [ ] Launch the current PLwC package, not a stale installed rc9 path.
+- [x] Add a Windows launcher for the pinned PLwC-owned bridge.
+- [x] Launch the current PLwC package, not a stale installed rc9 path.
 - [x] Preserve upstream copyright, MIT license and source attribution.
 
 ### P2 - Make The Adapter PLwC-Specific
 
-Status: **NOT STARTED**
+Status: **COMPLETE (IMPLEMENTATION)**
 
-- [ ] Remove unrelated providers, generic MCP presets and unsupported sites.
-- [ ] Advertise and render only the eight public PLwC tools.
-- [ ] Provide PLwC descriptions and safe default prompts.
-- [ ] Replace generic prompt injection with the versioned PLwC Bridge Primer.
-- [ ] Replace generic tabs with `PLwC Tools`, `Primer`, `Policy`, `Status` and
+- [x] Remove unrelated providers, generic MCP presets and unsupported sites.
+- [x] Advertise and render only the eight public PLwC tools.
+- [x] Provide PLwC descriptions and safe default prompts.
+- [x] Replace generic prompt injection with the versioned PLwC Bridge Primer.
+- [x] Replace generic tabs with `PLwC Tools`, `Primer`, `Policy`, `Status` and
   `Settings`.
-- [ ] Add a PLwC connection/status panel with actionable local diagnostics.
-- [ ] Apply the PLwC Chat Bridge terminal-inspired green/black UI design.
-- [ ] Use `plwc-icon-512.png` as the source icon for the extension, browser
+- [x] Add a PLwC connection/status panel with actionable local diagnostics.
+- [x] Apply the PLwC Chat Bridge terminal-inspired green/black UI design.
+- [x] Use `plwc-icon-512.png` as the source icon for the extension, browser
   action and launcher assets.
-- [ ] Keep the host chat menu reachable while the bridge panel is open,
+- [x] Keep the host chat menu reachable while the bridge panel is open,
   collapsed, connected, disconnected and rendering tool results.
-- [ ] Replace broad Auto Execute with risk-aware execution controls.
-- [ ] Keep manual Run available whenever automatic execution is disabled or
+- [x] Replace broad Auto Execute with risk-aware execution controls.
+- [x] Keep manual Run available whenever automatic execution is disabled or
   fails safely.
 
 ### P3 - Contract And Browser Testing
 
-Status: **NOT STARTED**
+Status: **IN PROGRESS**
 
-- [ ] Unit-test JSONL parsing and visible/hidden duplicate card selection.
+- [x] Unit-test JSONL parsing and visible/hidden duplicate card selection.
 - [ ] Contract-test numeric IDs, timeouts and proxy response routing.
-- [ ] Contract-test all eight tool schemas against the current gateway build.
+- [x] Contract-test all eight tool schemas against the current gateway build.
 - [ ] Test connected-zero-tools, reconnect and extension-context invalidation.
 - [ ] Test read-only, deny, write, sandbox and Governor plan/apply flows.
 - [ ] Browser-test that the bridge UI does not hide or displace the host chat
   menu across desktop, narrow desktop and mobile-width viewports.
-- [ ] Run Playwright/Chromium smoke tests against desktop and narrow viewports.
+- [x] Run Playwright/Chromium fixture tests against desktop, 768 px and 390 px
+  viewports; live ChatGPT DOM verification remains pending.
 - [ ] Record the exact ChatGPT UI build/date used for each smoke run.
 
 ### P4 - Packaging And Documentation
 
-Status: **NOT STARTED**
+Status: **IN PROGRESS**
 
 - [ ] Produce a reproducible extension build with checksums.
-- [ ] Provide one launcher/config flow for Windows.
-- [ ] Document browser permissions and data-flow implications.
+- [x] Provide one launcher/config flow for Windows.
+- [x] Document browser permissions and data-flow implications.
 - [ ] Add troubleshooting that never recommends exposing the raw gateway.
 - [ ] Update `docs/INSTALLATION.md` support status only after all acceptance
   criteria pass.
@@ -463,8 +464,8 @@ The integration is not supportable until all criteria below are true:
 
 ## Next Action
 
-Create an owned prototype branch from MCP SuperAssistant `v0.6.0`, rename the
-extension-facing surface to **PLwC Chat Bridge**, commit the current reviewable
-patch set, then import or replace it with a reduced implementation inside
-`integrations/plwc-chat-bridge/`. The first new smoke must use the current PLwC
-package and cover status plus one confirmed write/read round trip.
+Load the built `extension/dist/` as an unpacked Chrome extension, run it against
+the live ChatGPT DOM with the PLwC-owned bridge, then record one status call and
+one explicitly confirmed write/read round trip. The live smoke must also verify
+that the left chat navigation keeps the same geometry while the panel opens and
+closes.

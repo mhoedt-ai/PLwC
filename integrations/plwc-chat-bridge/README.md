@@ -1,15 +1,15 @@
 # PLwC Chat Bridge
 
-Status: rc19 development scaffold.
+Status: rc19.dev0 implementation prototype.
 
 PLwC Chat Bridge is the proposed PLwC-owned local browser client integration
 for using the signed-in ChatGPT web UI with the local `plwc-gateway` MCP
 server. It is a client-side bridge in front of the governed PLwC gateway, not a
 new backend adapter and not an OpenAI API replacement.
 
-This directory is the rc19 integration boundary. It intentionally starts as a
-scaffold so the upstream-derived proof of concept can be imported, reviewed and
-reduced without turning prototype files into a supported product by accident.
+This directory is the rc19 integration boundary. It contains a reduced,
+PLwC-owned implementation informed by the upstream MIT prototype without
+shipping the generic upstream extension or proxy package.
 
 ## Product Rules
 
@@ -45,10 +45,30 @@ integrations/plwc-chat-bridge/
 
 ## Current State
 
-The extension and bridge implementation are not vendored yet. The launcher is
-a safety scaffold and refuses to start an unpinned proxy. The next implementation
-step is to commit the upstream-derived prototype patch series in an owned fork
-or import a reduced PLwC-specific implementation into `extension/` and `bridge/`.
+- `bridge/` contains the pinned Node.js WebSocket-to-MCP stdio bridge.
+- `extension/` contains the PLwC-only Manifest V3 extension and Shadow DOM UI.
+- `scripts/start-windows.ps1` starts the built bridge with the example config.
+- the live smoke starts the current repository gateway, lists eight tools and
+  calls `plwc_status(scope="runtime")` once;
+- the browser fixture verifies desktop, 768 px and 390 px panel geometry;
+- npm lockfiles are committed and both runtime package audits report zero known
+  vulnerabilities.
+
+This is still an rc19 development prototype. It has not yet completed a fresh
+unpacked-extension smoke on the live ChatGPT DOM or a confirmed write/read
+round trip.
+
+## Build And Run
+
+```powershell
+cd integrations\plwc-chat-bridge
+npm run install:packages
+npm run check
+.\scripts\start-windows.ps1 -DryRun
+.\scripts\start-windows.ps1
+```
+
+Load `extension/dist/` as an unpacked Chrome extension after the build.
 
 ## First rc19 Acceptance Targets
 

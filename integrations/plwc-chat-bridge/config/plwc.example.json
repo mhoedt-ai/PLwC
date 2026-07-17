@@ -6,19 +6,15 @@
     "port": 3007,
     "transport": "websocket",
     "path": "/message",
-    "implementation": "pinned-or-vendored-bridge-required"
+    "implementation": "plwc-owned-node-bridge"
   },
   "gateway": {
     "command": "python",
     "args": [
       "${repoRoot}/server.py"
     ],
-    "env": {
-      "PLWC_WORKSPACE_ROOT": "${workspaceRoot}",
-      "PLWC_PROFILE_ROOT": "${profileRoot}",
-      "PLWC_ACTIVE_PROFILE_NAME": "${activeProfileName}",
-      "PLWC_CONFIG_FILE": "${securityConfig}"
-    }
+    "cwd": "${repoRoot}",
+    "env": {}
   },
   "tools": {
     "publicFacadeOnly": true,
@@ -47,6 +43,6 @@
     "preferredPlacement": "right-dock",
     "mustNotBlockLeftChatMenu": true,
     "collapseBeforeOverlap": true,
-    "styleIsolation": "shadow-dom-or-namespaced-css"
+    "styleIsolation": "shadow-dom"
   }
 }

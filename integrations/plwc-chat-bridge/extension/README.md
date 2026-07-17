@@ -1,19 +1,32 @@
-# Extension Source Boundary
+# PLwC Chat Bridge Extension
 
-This directory will hold the PLwC Chat Bridge browser extension source after
-the upstream-derived prototype is reduced or imported as a reviewable patch
-series.
+Small Chrome Manifest V3 extension for the local PLwC Chat Bridge. It connects
+ChatGPT to the loopback bridge at `ws://127.0.0.1:3007/message`, validates the
+eight-tool PLwC facade, and mounts an isolated terminal-style control panel.
 
-## Required UI Surface
+## Build
 
-- Header name: `PLwC Chat Bridge`.
-- Icon: derived from `../../../plwc-icon-512.png`.
-- Tabs: `PLwC Tools`, `Primer`, `Policy`, `Status`, `Settings`.
-- Theme: black/green terminal style with monospace text.
-- Host layout: right dock or movable panel that never blocks the host chat menu.
-- Prompt flow: versioned PLwC Bridge Primer, not generic prompt injection.
+```powershell
+npm install
+npm run check
+```
 
-## Required Isolation
+The unpacked extension is written to `dist/`. Load that directory through
+Chrome's extension developer mode.
 
-Injected CSS must be shadow-DOM isolated or strongly namespaced. Host
-navigation, chat list and composer styles must remain untouched.
+## Runtime Boundary
+
+- The content script runs only on `chatgpt.com` and `chat.openai.com`.
+- UI styles live in an open Shadow DOM attached to `document.documentElement`.
+- The host page, its body, navigation, and composer styles are never changed.
+- The WebSocket endpoint is fixed to IPv4 loopback.
+- Tool execution is enabled only after `tools/list` returns the exact canonical
+  eight-tool contract.
+- Visible ChatGPT JSONL calls are deduplicated and queued in the `Status` tab.
+- Tool results are inserted into the composer only through an explicit button;
+  the extension does not submit the chat message automatically.
+- Mutating and unknown operations require explicit confirmation. Governor
+  `apply` always requires confirmation.
+
+The source icon is copied unchanged from the repository root during setup and
+referenced for every Chrome manifest icon size.

@@ -1,0 +1,16 @@
+{
+  "name": "@plwc/chat-bridge-workspace",
+  "version": "0.2.0-rc19.dev0",
+  "private": true,
+  "description": "Build coordinator for PLwC Chat Bridge",
+  "license": "Apache-2.0 AND MIT",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "install:packages": "npm --prefix bridge install && npm --prefix extension install",
+    "build": "npm --prefix bridge run build && npm --prefix extension run build",
+    "test": "npm --prefix bridge test && npm --prefix extension test",
+    "check": "npm run build && npm test"
+  }
+}

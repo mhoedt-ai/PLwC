@@ -1,0 +1,486 @@
+import { BridgeClient } from "../content/bridge-client";
+import { insertIntoChatGptComposer } from "../content/composer";
+import type { ParsedPlwcToolCall } from "../content/tool-call-parser";
+import { buildPrimer, type BridgePrimer } from "../primer/build-primer";
+import type { McpTool } from "../shared/contracts";
+import type { BridgeSettings, BridgeStatus, ToolListResponse } from "../shared/messages";
+import { decidePolicy, POLICY_ROWS } from "../shared/policy";
+import { calculatePanelLayout, findLeftNavigationRight } from "./layout";
+import { TERMINAL_THEME } from "./theme";
+
+const TAB_NAMES = ["PLwC Tools", "Primer", "Policy", "Status", "Settings"] as const;
+type TabName = (typeof TAB_NAMES)[number];
+type RunState = "scheduled" | "running" | "succeeded" | "denied" | "failed" | "unknown";
+
+interface ToolRunRecord {
+  call: ParsedPlwcToolCall;
+  state: RunState;
+  result?: unknown;
+  error?: string;
+}
+
+function element<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className = "",
+  text = "",
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  node.className = className;
+  node.textContent = text;
+  return node;
+}
+
+function button(label: string, className = "command-button secondary"): HTMLButtonElement {
+  const node = element("button", className, label);
+  node.type = "button";
+  return node;
+}
+
+function boundedJson(value: unknown, maxCharacters = 12_000): string {
+  const serialized = JSON.stringify(value, null, 2) ?? "null";
+  return serialized.length <= maxCharacters
+    ? serialized
+    : `${serialized.slice(0, maxCharacters)}\n[output truncated by PLwC Chat Bridge]`;
+}
+
+export class PlwcPanel {
+  private readonly root = element("div", "bridge-root");
+  private readonly panel = element("section", "bridge-panel");
+  private readonly launcher = button("", "bridge-launcher");
+  private readonly statusDot = element("span", "status-dot");
+  private readonly views = new Map<TabName, HTMLElement>();
+  private activeTab: TabName = "PLwC Tools";
+  private userCollapsed: boolean | undefined;
+  private tools: McpTool[] = [];
+  private primer: BridgePrimer | null = null;
+  private statusValue: BridgeStatus | null = null;
+  private settings: BridgeSettings = { readOnlyAutoRun: false };
+  private readonly toolRuns = new Map<string, ToolRunRecord>();
+  private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly onResize = () => {
+    if (this.resizeTimer) clearTimeout(this.resizeTimer);
+    this.resizeTimer = setTimeout(() => this.applyLayout(), 80);
+  };
+
+  constructor(
+    private readonly shadowRoot: ShadowRoot,
+    private readonly client: BridgeClient,
+  ) {}
+
+  mount(): void {
+    const style = element("style");
+    style.textContent = TERMINAL_THEME;
+    this.buildLauncher();
+    this.buildPanel();
+    this.shadowRoot.append(style, this.root);
+    this.applyLayout();
+
+    window.addEventListener("resize", this.onResize, { passive: true });
+    this.client.onStatus((status) => {
+      this.statusValue = status;
+      this.renderStatus();
+    });
+
+    void this.initialize();
+  }
+
+  offerToolCall(call: ParsedPlwcToolCall): void {
+    if (this.toolRuns.has(call.callKey)) return;
+    this.toolRuns.set(call.callKey, { call, state: "scheduled" });
+    this.renderStatus();
+    const policy = decidePolicy(call.name, { ...call.arguments });
+    if (this.settings.readOnlyAutoRun && policy.readOnly) {
+      void this.executeToolCall(call.callKey, false);
+    }
+  }
+
+  private buildLauncher(): void {
+    this.launcher.title = "Open PLwC Chat Bridge";
+    this.launcher.setAttribute("aria-label", "Open PLwC Chat Bridge");
+    const image = element("img");
+    image.src = chrome.runtime.getURL("icons/plwc-icon-512.png");
+    image.alt = "";
+    this.launcher.append(image);
+    this.launcher.addEventListener("click", () => {
+      this.userCollapsed = false;
+      this.applyLayout();
+    });
+    this.root.append(this.launcher);
+  }
+
+  private buildPanel(): void {
+    this.panel.setAttribute("aria-label", "PLwC Chat Bridge");
+    this.panel.append(this.buildHeader(), this.buildTabs(), this.buildViews());
+    this.root.append(this.panel);
+  }
+
+  private buildHeader(): HTMLElement {
+    const header = element("header", "bridge-header");
+    const image = element("img");
+    image.src = chrome.runtime.getURL("icons/plwc-icon-512.png");
+    image.alt = "PLwC Gateway";
+    const title = element("div", "bridge-title", "PLwC Chat Bridge");
+    const collapse = button("<", "icon-button");
+    collapse.title = "Collapse bridge";
+    collapse.setAttribute("aria-label", "Collapse bridge");
+    collapse.addEventListener("click", () => {
+      this.userCollapsed = true;
+      this.applyLayout();
+    });
+    header.append(image, title, this.statusDot, collapse);
+    return header;
+  }
+
+  private buildTabs(): HTMLElement {
+    const tabs = element("div", "tabs");
+    tabs.setAttribute("role", "tablist");
+    for (const name of TAB_NAMES) {
+      const tab = button(name, "tab");
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", String(name === this.activeTab));
+      tab.addEventListener("click", () => this.selectTab(name));
+      tabs.append(tab);
+    }
+    return tabs;
+  }
+
+  private buildViews(): HTMLElement {
+    const container = element("main", "views");
+    for (const name of TAB_NAMES) {
+      const view = element("section", `view${name === this.activeTab ? " active" : ""}`);
+      view.dataset.tab = name;
+      this.views.set(name, view);
+      container.append(view);
+    }
+    this.renderTools();
+    this.renderPrimer();
+    this.renderPolicy();
+    this.renderStatus();
+    this.renderSettings();
+    return container;
+  }
+
+  private selectTab(name: TabName): void {
+    this.activeTab = name;
+    for (const tab of this.panel.querySelectorAll<HTMLButtonElement>(".tab")) {
+      tab.setAttribute("aria-selected", String(tab.textContent === name));
+    }
+    for (const [tabName, view] of this.views) view.classList.toggle("active", tabName === name);
+  }
+
+  private async initialize(): Promise<void> {
+    try {
+      this.settings = await this.client.getSettings();
+      await this.refreshTools();
+    } catch (error) {
+      this.showError("Status", error);
+    } finally {
+      this.renderSettings();
+      this.renderStatus();
+    }
+  }
+
+  private async refreshTools(): Promise<void> {
+    await this.client.connect();
+    const response = await this.client.listTools();
+    this.acceptToolList(response);
+  }
+
+  private acceptToolList(response: ToolListResponse): void {
+    this.tools = response.validation.valid ? response.tools : [];
+    this.primer = null;
+    this.renderTools(response);
+    this.renderPrimer();
+    this.renderStatus();
+  }
+
+  private renderTools(response?: ToolListResponse): void {
+    const view = this.views.get("PLwC Tools");
+    if (!view) return;
+    view.replaceChildren();
+    const toolbar = element("div", "toolbar");
+    toolbar.append(element("span", "label", "PUBLIC FACADE"), element("span", "spacer"));
+    const refresh = button("Refresh");
+    refresh.addEventListener("click", () => void this.runAction(refresh, () => this.refreshTools()));
+    toolbar.append(refresh);
+    view.append(toolbar);
+
+    const valid = response?.validation.valid ?? this.tools.length === 8;
+    const contract = element("div", "contract-state");
+    contract.append(
+      element("div", valid ? "label" : "error-text", valid ? "8 / 8 tools verified" : "Tool contract locked"),
+      element(
+        "div",
+        "muted",
+        valid
+          ? "Schemas loaded live from the local PLwC Gateway."
+          : "Primer and execution stay disabled until exactly eight canonical tools are present.",
+      ),
+    );
+    view.append(contract);
+
+    if (response && !response.validation.valid) {
+      view.append(
+        element(
+          "pre",
+          "error-text",
+          boundedJson({
+            duplicates: response.validation.duplicates,
+            extra: response.validation.extra,
+            invalidSchemas: response.validation.invalidSchemas,
+            missing: response.validation.missing,
+          }),
+        ),
+      );
+    }
+
+    for (const tool of this.tools) {
+      const item = element("article", "tool");
+      item.append(
+        element("div", "tool-name", tool.name),
+        element("div", "tool-description", tool.description ?? "No gateway description."),
+      );
+      const details = element("details");
+      details.append(element("summary", "", "Schema"), element("pre", "", boundedJson(tool.inputSchema)));
+      item.append(details);
+      view.append(item);
+    }
+  }
+
+  private renderPrimer(): void {
+    const view = this.views.get("Primer");
+    if (!view) return;
+    view.replaceChildren();
+    const toolbar = element("div", "toolbar");
+    toolbar.append(element("span", "label", "BRIDGE PRIMER"), element("span", "spacer"));
+    const generate = button("Generate");
+    generate.disabled = this.tools.length !== 8;
+    toolbar.append(generate);
+    view.append(toolbar);
+
+    const preview = element("textarea", "primer-preview") as HTMLTextAreaElement;
+    preview.readOnly = true;
+    preview.placeholder = "Connect to the PLwC Gateway to generate the versioned primer.";
+    const hash = element("code", "hash", "schema_sha256: pending");
+    const insert = button("Insert Bridge Primer");
+    insert.disabled = true;
+    view.append(preview, hash, insert);
+
+    const update = async () => {
+      this.primer = await buildPrimer({ tools: this.tools });
+      preview.value = this.primer.text;
+      hash.textContent = `schema_sha256: ${this.primer.hash}`;
+      insert.disabled = false;
+    };
+    generate.addEventListener("click", () => void this.runAction(generate, update));
+    insert.addEventListener("click", () => {
+      if (!this.primer || !insertIntoChatGptComposer(this.primer.text)) {
+        this.showError("Primer", new Error("ChatGPT composer was not found."));
+        return;
+      }
+      insert.textContent = "Inserted";
+      setTimeout(() => (insert.textContent = "Insert Bridge Primer"), 1_500);
+    });
+  }
+
+  private renderPolicy(): void {
+    const view = this.views.get("Policy");
+    if (!view) return;
+    view.replaceChildren(element("div", "label", "EXECUTION POLICY"));
+    const table = element("table", "policy-table");
+    const head = element("thead");
+    const headRow = element("tr");
+    headRow.append(element("th", "", "Capability"), element("th", "", "Rule"));
+    head.append(headRow);
+    const body = element("tbody");
+    for (const [capability, rule] of POLICY_ROWS) {
+      const row = element("tr");
+      row.append(element("td", "", capability), element("td", "", rule));
+      body.append(row);
+    }
+    table.append(head, body);
+    view.append(table, element("p", "muted", "The PLwC Gateway remains the final allow or deny boundary."));
+  }
+
+  private renderStatus(): void {
+    const view = this.views.get("Status");
+    if (!view) return;
+    view.replaceChildren();
+    const toolbar = element("div", "toolbar");
+    toolbar.append(element("span", "label", "LOCAL STATUS"), element("span", "spacer"));
+    const reconnect = button("Reconnect");
+    toolbar.append(reconnect);
+    view.append(toolbar);
+    const values = this.statusValue ?? {
+      connection: "disconnected",
+      endpoint: "ws://127.0.0.1:3007/message",
+      lastError: "",
+      pendingRequests: 0,
+      toolSet: null,
+    };
+    this.statusDot.className = `status-dot ${values.connection}`;
+    const grid = element("dl", "status-grid");
+    for (const [label, value] of [
+      ["Bridge", values.connection],
+      ["Endpoint", values.endpoint],
+      ["Tools", `${this.tools.length} / 8`],
+      ["Pending", String(values.pendingRequests)],
+      ["Error", values.lastError || "none"],
+    ]) {
+      grid.append(element("dt", "", label), element("dd", "", value));
+    }
+    const runtime = button("Run Runtime Status", "command-button");
+    runtime.disabled = this.tools.length !== 8;
+    const result = element("pre", "", "No status call run in this panel session.");
+    reconnect.addEventListener("click", () => void this.runAction(reconnect, () => this.refreshTools()));
+    runtime.addEventListener("click", () =>
+      void this.runAction(runtime, async () => {
+        const response = await this.client.callTool("plwc_status", { scope: "runtime" });
+        result.textContent = boundedJson(response.result);
+      }),
+    );
+    view.append(grid, runtime, result);
+    view.append(this.renderToolRuns());
+  }
+
+  private renderToolRuns(): HTMLElement {
+    const section = element("section", "run-queue");
+    section.append(element("div", "label", "DETECTED TOOL CALLS"));
+    if (this.toolRuns.size === 0) {
+      section.append(element("p", "muted", "No visible PLwC JSONL call detected in this chat."));
+      return section;
+    }
+
+    for (const record of this.toolRuns.values()) {
+      const policy = decidePolicy(record.call.name, { ...record.call.arguments });
+      const card = element("article", "run-card");
+      const header = element("div", "run-header");
+      header.append(
+        element("code", "tool-name", record.call.name),
+        element("span", `run-state ${record.state}`, record.state.toUpperCase()),
+      );
+      card.append(header, element("pre", "run-arguments", boundedJson(record.call.arguments, 4_000)));
+
+      const actions = element("div", "toolbar");
+      const run = button(policy.requiresConfirmation ? "Confirm & Run" : "Run", "command-button");
+      const terminalState = ["running", "succeeded", "denied", "unknown"].includes(record.state);
+      run.disabled = terminalState || policy.requiresConfirmation;
+      if (policy.requiresConfirmation && record.state === "scheduled") {
+        const confirmation = element("label", "setting-row run-confirmation");
+        const checkbox = element("input") as HTMLInputElement;
+        checkbox.type = "checkbox";
+        checkbox.addEventListener("change", () => (run.disabled = !checkbox.checked));
+        confirmation.append(checkbox, element("span", "", "I confirm this mutating PLwC call."));
+        card.append(confirmation);
+      }
+      run.addEventListener("click", () => void this.executeToolCall(record.call.callKey, policy.requiresConfirmation));
+      actions.append(run);
+
+      if (record.state === "succeeded" || record.state === "denied") {
+        const insert = button("Insert Result");
+        insert.addEventListener("click", () => {
+          const payload = boundedJson(
+            { call_id: record.call.callId, name: record.call.name, result: record.result },
+            12_000,
+          );
+          if (!insertIntoChatGptComposer(`# PLwC Tool Result\n${payload}\n`)) {
+            this.showError("Status", new Error("ChatGPT composer was not found."));
+          }
+        });
+        actions.append(insert);
+      }
+      card.append(actions);
+      if (record.error) card.append(element("p", "error-text", record.error));
+      if (record.result !== undefined) card.append(element("pre", "run-result", boundedJson(record.result)));
+      section.append(card);
+    }
+    return section;
+  }
+
+  private async executeToolCall(callKey: string, confirmed: boolean): Promise<void> {
+    const record = this.toolRuns.get(callKey);
+    if (!record || record.state !== "scheduled" && record.state !== "failed") return;
+    record.state = "running";
+    record.error = undefined;
+    this.renderStatus();
+    try {
+      const response = await this.client.callTool(record.call.name, { ...record.call.arguments }, confirmed);
+      record.result = response.result;
+      const serialized = boundedJson(response.result).toLowerCase();
+      const resultObject =
+        typeof response.result === "object" && response.result !== null
+          ? (response.result as Record<string, unknown>)
+          : null;
+      record.state = resultObject?.isError === true && /denied|policy/.test(serialized) ? "denied" : "succeeded";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Tool call failed.";
+      record.error = message;
+      record.state = /timed out|connection closed/i.test(message) ? "unknown" : "failed";
+    }
+    this.renderStatus();
+  }
+
+  private renderSettings(): void {
+    const view = this.views.get("Settings");
+    if (!view) return;
+    view.replaceChildren(element("div", "label", "LOCAL SETTINGS"));
+    const block = element("div", "settings-block");
+    const row = element("label", "setting-row");
+    const checkbox = element("input") as HTMLInputElement;
+    checkbox.type = "checkbox";
+    checkbox.checked = this.settings.readOnlyAutoRun;
+    checkbox.addEventListener("change", async () => {
+      checkbox.disabled = true;
+      try {
+        this.settings = await this.client.updateSettings({ readOnlyAutoRun: checkbox.checked });
+      } catch (error) {
+        checkbox.checked = this.settings.readOnlyAutoRun;
+        this.showError("Settings", error);
+      } finally {
+        checkbox.disabled = false;
+      }
+    });
+    row.append(
+      checkbox,
+      element("span", "", "Allow automatic execution only for operations classified as read-only."),
+    );
+    block.append(row, element("p", "muted", "Endpoint is fixed to IPv4 loopback in rc19.dev0."));
+    view.append(block);
+  }
+
+  private applyLayout(): void {
+    const layout = calculatePanelLayout({
+      leftNavigationRight: findLeftNavigationRight(),
+      userCollapsed: this.userCollapsed,
+      viewportWidth: window.innerWidth,
+    });
+    this.root.style.setProperty("--plwc-panel-width", `${layout.width}px`);
+    this.root.classList.toggle("is-collapsed", layout.collapsed);
+    this.launcher.disabled = !layout.canOpen;
+    this.launcher.title = layout.canOpen
+      ? "Open PLwC Chat Bridge"
+      : "PLwC Chat Bridge is collapsed to keep the chat navigation reachable";
+  }
+
+  private async runAction(control: HTMLButtonElement, action: () => Promise<void>): Promise<void> {
+    const label = control.textContent ?? "Action";
+    control.disabled = true;
+    control.textContent = "Working...";
+    try {
+      await action();
+    } catch (error) {
+      this.showError(this.activeTab, error);
+    } finally {
+      control.textContent = label;
+      control.disabled = false;
+    }
+  }
+
+  private showError(tab: TabName, error: unknown): void {
+    const view = this.views.get(tab);
+    if (!view) return;
+    const message = error instanceof Error ? error.message : "Unexpected PLwC Chat Bridge error.";
+    const notice = element("p", "error-text", message);
+    view.prepend(notice);
+  }
+}

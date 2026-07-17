@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PLwC Chat Bridge Layout Fixture</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { width: 100%; min-height: 100%; margin: 0; font-family: Arial, sans-serif; background: #212121; color: #f3f3f3; }
+      body { display: grid; grid-template-columns: 260px minmax(0, 1fr); }
+      nav { position: fixed; inset: 0 auto 0 0; width: 260px; padding: 16px; background: #171717; border-right: 1px solid #343434; }
+      nav h1 { margin: 0 0 20px; font-size: 17px; }
+      nav button { width: 100%; padding: 10px; color: inherit; text-align: left; background: #252525; border: 0; }
+      main { grid-column: 2; min-height: 100vh; padding: 28px 40px 120px; }
+      .message { max-width: 660px; margin: 0 auto 20px; line-height: 1.55; }
+      #prompt-textarea { position: fixed; right: 10%; bottom: 24px; left: calc(260px + 10%); min-height: 54px; padding: 14px; color: #fff; background: #303030; border: 1px solid #505050; }
+      @media (max-width: 699px) {
+        body { display: block; }
+        nav { display: none; }
+        main { padding: 20px 18px 100px; }
+        #prompt-textarea { right: 18px; left: 18px; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav data-testid="sidebar" aria-label="Chat history">
+      <h1>MChat</h1>
+      <button type="button">New chat</button>
+    </nav>
+    <main>
+      <div class="message">Local layout fixture for PLwC Chat Bridge.</div>
+      <div id="prompt-textarea" contenteditable="true" role="textbox" aria-label="Message composer"></div>
+    </main>
+    <script src="fixture.js"></script>
+  </body>
+</html>
