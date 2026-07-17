@@ -35,6 +35,14 @@ local gateway. Hosted ChatGPT web/custom apps are a different deployment class:
 they connect through remote MCP infrastructure and do not directly install a
 Claude Desktop MCPB.
 
+A separate local browser-extension proof of concept is tracked as
+`V1-LOCAL-CHATGPT-ADAPTER-001` under the working name **PLwC Chat Bridge**. It
+connects ChatGPT web to a loopback bridge and then to the PLwC stdio gateway
+without a public tunnel. It is proposed for the v0.2.0-rc19 development track,
+is not a supported Dev 9 installation path yet and does not replace the hosted
+remote-facade plan. See
+[`LOCAL_CHATGPT_CLIENT_ADAPTER.md`](LOCAL_CHATGPT_CLIENT_ADAPTER.md).
+
 ## Requirements
 
 Windows is the fully smoke-tested Open Beta target. The package manifest also

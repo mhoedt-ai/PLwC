@@ -182,6 +182,9 @@ web/custom-app status, see [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
 - Configuration and troubleshooting:
   [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md),
   [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
+- Maintainer client-integration design and scaffold:
+  [`docs/LOCAL_CHATGPT_CLIENT_ADAPTER.md`](docs/LOCAL_CHATGPT_CLIENT_ADAPTER.md),
+  [`integrations/plwc-chat-bridge/`](integrations/plwc-chat-bridge/)
 - Open beta / external testing - **start here:**
   [`BETA_TESTING.md`](BETA_TESTING.md). Details:
   [`docs/EXTERNAL_TESTER_GUIDE.md`](docs/EXTERNAL_TESTER_GUIDE.md),
