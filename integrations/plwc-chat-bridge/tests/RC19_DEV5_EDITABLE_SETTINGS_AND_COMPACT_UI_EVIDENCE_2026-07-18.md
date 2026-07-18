@@ -57,6 +57,21 @@ desktop viewport with a 260 px host navigation column.
 | Composer launcher | PASS | Computed width and height were 40 px and border radius was 50 percent. |
 | Host layout | PASS | Navigation remained left 0/right 260; cards ended at x=876 and the open panel began at x=888. |
 
+## Signed-in Chrome Follow-up
+
+- A live ChatGPT measurement found the inner `#prompt-textarea` center at
+  y=947.1 px and the rounded composer shell center at y=939.6 px. The old
+  launcher center matched the inner field and therefore appeared 7.5 px too
+  low.
+- Launcher positioning now keeps the inner field's horizontal anchor but uses
+  the rounded shell for vertical centering. A focused regression test covers
+  shell selection and rejects a wider rounded ancestor.
+- The three `Method not found.` messages were traced to a still-running older
+  loopback bridge process. After restarting the managed bridge, a live
+  extension-origin WebSocket probe returned all eight canonical tools and
+  recognized `settings/update`; invalid input correctly returned JSON-RPC
+  `-32602` instead of `-32601`.
+
 ## Security Notes
 
 - Saved gateway settings contain only the nine public configuration values;

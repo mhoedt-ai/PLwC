@@ -1,6 +1,7 @@
 import { BridgeClient } from "../content/bridge-client";
 import {
   findChatGptComposer,
+  findChatGptComposerSurface,
   insertAndSubmitToChatGpt,
   insertIntoChatGptComposer,
 } from "../content/composer";
@@ -780,8 +781,15 @@ export class PlwcPanel {
       this.root.classList.remove("has-composer-launcher");
       return;
     }
+    const composerRect = composer.getBoundingClientRect();
+    const surfaceRect = findChatGptComposerSurface(composer).getBoundingClientRect();
     const position = calculateComposerLauncherPosition({
-      composer: composer.getBoundingClientRect(),
+      composer: {
+        bottom: surfaceRect.bottom,
+        left: composerRect.left,
+        right: composerRect.right,
+        top: surfaceRect.top,
+      },
       leftNavigationRight,
       viewportHeight: window.innerHeight,
       viewportWidth: window.innerWidth,

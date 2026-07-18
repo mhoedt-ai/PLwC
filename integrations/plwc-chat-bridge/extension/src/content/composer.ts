@@ -29,6 +29,39 @@ export function findChatGptComposer(documentValue: Document = document): HTMLEle
   ) ?? null;
 }
 
+export function findChatGptComposerSurface(
+  composer: HTMLElement,
+  documentValue: Document = document,
+): HTMLElement {
+  const containmentTolerance = 4;
+  const composerRect = composer.getBoundingClientRect();
+  let surface = composer;
+  let current = composer.parentElement;
+  for (let depth = 0; current && depth < 6; depth += 1, current = current.parentElement) {
+    const rect = current.getBoundingClientRect();
+    const style = documentValue.defaultView?.getComputedStyle(current);
+    const radius = Math.max(
+      Number.parseFloat(style?.borderTopLeftRadius ?? "0") || 0,
+      Number.parseFloat(style?.borderTopRightRadius ?? "0") || 0,
+      Number.parseFloat(style?.borderBottomLeftRadius ?? "0") || 0,
+      Number.parseFloat(style?.borderBottomRightRadius ?? "0") || 0,
+    );
+    const containsComposer =
+      rect.top <= composerRect.top + containmentTolerance &&
+      rect.bottom >= composerRect.bottom - containmentTolerance &&
+      rect.left <= composerRect.left + containmentTolerance &&
+      rect.right >= composerRect.right - containmentTolerance;
+    const plausibleComposerRow =
+      containsComposer &&
+      rect.height >= 40 &&
+      rect.height <= 120 &&
+      rect.width >= composerRect.width &&
+      rect.width <= composerRect.width + 360;
+    if (plausibleComposerRow && radius >= 16) surface = current;
+  }
+  return surface;
+}
+
 export function insertIntoChatGptComposer(text: string, documentValue: Document = document): boolean {
   const composer = findChatGptComposer(documentValue);
   if (!composer) return false;
