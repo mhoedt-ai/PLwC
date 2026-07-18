@@ -65,6 +65,12 @@ function boundedJson(value: unknown, maxCharacters = 12_000): string {
     : `${serialized.slice(0, maxCharacters)}\n[output truncated by PLwC Chat Bridge]`;
 }
 
+function waitSeconds(seconds: number): Promise<void> {
+  return seconds <= 0
+    ? Promise.resolve()
+    : new Promise((resolve) => setTimeout(resolve, seconds * 1_000));
+}
+
 export class PlwcPanel {
   private readonly root = element("div", "bridge-root");
   private readonly panel = element("section", "bridge-panel");
@@ -79,6 +85,9 @@ export class PlwcPanel {
   private statusValue: BridgeStatus | null = null;
   private settings: BridgeSettings = {
     autoConfirmWrites: false,
+    autoExecuteDelay: 2,
+    autoInsertDelay: 2,
+    autoSubmitDelay: 2,
     autoSubmitResults: true,
     readOnlyAutoRun: true,
     renderChatCards: true,
@@ -130,7 +139,12 @@ export class PlwcPanel {
     this.renderStatus();
     const policy = decidePolicy(call.name, { ...call.arguments });
     if (shouldAutoRun(this.settings, policy)) {
-      void this.executeToolCall(call.callKey, policy.requiresConfirmation && this.settings.autoConfirmWrites);
+      const confirmed = policy.requiresConfirmation && this.settings.autoConfirmWrites;
+      const delay = this.settings.autoExecuteDelay;
+      void (async () => {
+        await waitSeconds(delay);
+        await this.executeToolCall(call.callKey, confirmed);
+      })();
     }
   }
 
@@ -537,7 +551,12 @@ export class PlwcPanel {
   }
 
   private async submitToolResult(record: ToolRunRecord): Promise<void> {
-    const outcome = await insertAndSubmitToChatGpt(this.buildToolResultMessage(record));
+    await waitSeconds(this.settings.autoInsertDelay);
+    const outcome = await insertAndSubmitToChatGpt(
+      this.buildToolResultMessage(record),
+      document,
+      { autoSubmitDelayMs: this.settings.autoSubmitDelay * 1_000 },
+    );
     if (outcome === "submitted") {
       record.resultSubmitted = true;
       return;
@@ -712,7 +731,12 @@ export class PlwcPanel {
     view.append(configuration, element("div", "label settings-section-label", "BRIDGE BEHAVIOR"));
 
     const block = element("div", "settings-block behavior-settings");
-    const behaviors: Array<[keyof BridgeSettings, string]> = [
+    type BooleanBridgeSetting =
+      | "renderChatCards"
+      | "readOnlyAutoRun"
+      | "autoConfirmWrites"
+      | "autoSubmitResults";
+    const behaviors: Array<[BooleanBridgeSetting, string]> = [
       ["renderChatCards", "Render PLwC calls and results as terminal cards in the chat."],
       ["readOnlyAutoRun", "Automatically execute only operations classified as read-only."],
       ["autoConfirmWrites", "Automatically confirm and execute recognized PLwC write operations."],
@@ -747,6 +771,44 @@ export class PlwcPanel {
         );
       }
     }
+    block.append(element("div", "label timing-label", "AUTOMATION TIMING (SECONDS)"));
+    type TimingBridgeSetting = "autoExecuteDelay" | "autoInsertDelay" | "autoSubmitDelay";
+    const timings: Array<[TimingBridgeSetting, string]> = [
+      ["autoExecuteDelay", "Auto-execute delay"],
+      ["autoInsertDelay", "Auto-insert delay"],
+      ["autoSubmitDelay", "Auto-submit delay"],
+    ];
+    const timingGrid = element("div", "timing-grid");
+    for (const [key, label] of timings) {
+      const field = element("label", "configuration-field timing-field");
+      const input = element("input") as HTMLInputElement;
+      input.type = "number";
+      input.min = "0";
+      input.max = "60";
+      input.step = "0.5";
+      input.value = String(this.settings[key]);
+      input.addEventListener("change", async () => {
+        const value = Number(input.value);
+        if (!Number.isFinite(value) || value < 0 || value > 60) {
+          input.value = String(this.settings[key]);
+          this.showError("Settings", new Error(`${label} must be between 0 and 60 seconds.`));
+          return;
+        }
+        input.disabled = true;
+        try {
+          this.settings = await this.client.updateSettings({ [key]: Math.round(value * 10) / 10 });
+          input.value = String(this.settings[key]);
+        } catch (error) {
+          input.value = String(this.settings[key]);
+          this.showError("Settings", error);
+        } finally {
+          input.disabled = false;
+        }
+      });
+      field.append(element("span", "", label), input);
+      timingGrid.append(field);
+    }
+    block.append(timingGrid);
     block.append(element("p", "muted", "Endpoint remains fixed to IPv4 loopback."));
     view.append(block);
   }

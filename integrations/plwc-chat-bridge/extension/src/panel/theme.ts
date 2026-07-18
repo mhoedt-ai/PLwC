@@ -165,6 +165,9 @@ pre { max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: a
 .behavior-settings .setting-row + .setting-row { margin-top: 10px; }
 .setting-row input { accent-color: #5cff7a; }
 .setting-warning { margin: 6px 0 12px 24px; line-height: 1.4; }
+.timing-label { margin: 18px 0 9px; }
+.timing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.timing-field input { min-height: 32px; }
 .settings-source { margin: 0 0 9px; color: #6f9d78; overflow-wrap: anywhere; }
 .settings-section-label { margin: 16px 0 9px; }
 .configuration-form { display: grid; gap: 9px; }
@@ -189,6 +192,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 
 @media (max-width: 899px) {
   .bridge-panel { max-width: calc(100vw - 24px); }
+  .timing-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -5,6 +5,7 @@ import {
   activateChatGptSendButton,
   findChatGptComposerSurface,
   isChatGptSendButtonCandidate,
+  submitInsertedChatGptComposer,
 } from "./composer";
 
 type Rect = Pick<DOMRect, "bottom" | "height" | "left" | "right" | "top" | "width">;
@@ -66,6 +67,7 @@ test("accepts the current localized composer submit control", () => {
 test("does not mistake the shared composer voice control for submit", () => {
   assert.equal(isChatGptSendButtonCandidate(mockButton("Voice starten")), false);
   assert.equal(isChatGptSendButtonCandidate(mockButton("Diktat starten")), false);
+  assert.equal(isChatGptSendButtonCandidate(mockButton("Antwortgenerierung beenden")), false);
 });
 
 test("submits through the owning ChatGPT form with the active button", () => {
@@ -99,4 +101,50 @@ test("falls back to a direct click outside a submit form", () => {
 
   assert.equal(activateChatGptSendButton(send), "click");
   assert.equal(clicks, 1);
+});
+
+test("retries a rejected native submit with a direct click", async () => {
+  let composerEmpty = false;
+  let nativeSubmits = 0;
+  let clicks = 0;
+  const form = {
+    requestSubmit: () => { nativeSubmits += 1; },
+  } as unknown as HTMLFormElement;
+  const send = {
+    click: () => {
+      clicks += 1;
+      composerEmpty = true;
+    },
+    closest: () => form,
+    form,
+    type: "submit",
+  } as unknown as HTMLButtonElement;
+
+  const result = await submitInsertedChatGptComposer(
+    {
+      findSendButton: () => send,
+      isComposerEmpty: () => composerEmpty,
+      wait: async () => undefined,
+    },
+    { confirmationAttempts: 1, maxSubmitAttempts: 2, pollIntervalMs: 0 },
+  );
+
+  assert.equal(result, "submitted");
+  assert.equal(nativeSubmits, 1);
+  assert.equal(clicks, 1);
+});
+
+test("reports a missing submit control only after the configured wait", async () => {
+  let waits = 0;
+  const result = await submitInsertedChatGptComposer(
+    {
+      findSendButton: () => null,
+      isComposerEmpty: () => false,
+      wait: async () => { waits += 1; },
+    },
+    { pollIntervalMs: 0, sendButtonWaitAttempts: 3 },
+  );
+
+  assert.equal(result, "send-button-not-found");
+  assert.equal(waits, 3);
 });

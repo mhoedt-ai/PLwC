@@ -13,9 +13,18 @@ export interface BridgeStatus {
 
 export interface BridgeSettings {
   autoConfirmWrites: boolean;
+  autoExecuteDelay: number;
+  autoInsertDelay: number;
+  autoSubmitDelay: number;
   autoSubmitResults: boolean;
   renderChatCards: boolean;
   readOnlyAutoRun: boolean;
+}
+
+export function normalizeAutomationDelay(value: unknown, fallback = 2): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 60
+    ? Math.round(value * 10) / 10
+    : fallback;
 }
 
 export interface GatewaySettingsSnapshot {

@@ -16,13 +16,17 @@ import type {
   ToolCallResponse,
   ToolListResponse,
 } from "../shared/messages";
-import { parseGatewaySettings, parseGatewaySettingsUpdate } from "../shared/messages";
+import {
+  normalizeAutomationDelay,
+  parseGatewaySettings,
+  parseGatewaySettingsUpdate,
+} from "../shared/messages";
 import { decidePolicy, withConfirmedToolArguments } from "../shared/policy";
 import { normalizeToolResult } from "../shared/tool-result";
 
 const transport = new JsonRpcWebSocketClient(BRIDGE_ENDPOINT);
 const HEARTBEAT_INTERVAL_MS = 20_000;
-const SETTINGS_REVISION = 3;
+const SETTINGS_REVISION = 4;
 const GATEWAY_SETTINGS_STORAGE_KEY = "gatewaySettingsOverrides";
 let currentToolSet: ReturnType<typeof validateToolSet> | null = null;
 
@@ -43,6 +47,9 @@ function isCanonicalToolName(name: string): name is CanonicalToolName {
 async function getSettings(): Promise<BridgeSettings> {
   const stored = await chrome.storage.local.get([
     "autoConfirmWrites",
+    "autoExecuteDelay",
+    "autoInsertDelay",
+    "autoSubmitDelay",
     "autoSubmitResults",
     "bridgeSettingsRevision",
     "readOnlyAutoRun",
@@ -50,7 +57,10 @@ async function getSettings(): Promise<BridgeSettings> {
   ]);
   const isCurrent = stored.bridgeSettingsRevision === SETTINGS_REVISION;
   const settings: BridgeSettings = {
-    autoConfirmWrites: isCurrent ? stored.autoConfirmWrites === true : false,
+    autoConfirmWrites: stored.autoConfirmWrites === true,
+    autoExecuteDelay: normalizeAutomationDelay(stored.autoExecuteDelay),
+    autoInsertDelay: normalizeAutomationDelay(stored.autoInsertDelay),
+    autoSubmitDelay: normalizeAutomationDelay(stored.autoSubmitDelay),
     autoSubmitResults: stored.autoSubmitResults !== false,
     readOnlyAutoRun: stored.readOnlyAutoRun !== false,
     renderChatCards: stored.renderChatCards !== false,
@@ -141,6 +151,9 @@ async function handleRequest(request: BridgeRequest): Promise<unknown> {
           typeof request.settings.autoConfirmWrites === "boolean"
             ? request.settings.autoConfirmWrites
             : settings.autoConfirmWrites,
+        autoExecuteDelay: normalizeAutomationDelay(request.settings.autoExecuteDelay, settings.autoExecuteDelay),
+        autoInsertDelay: normalizeAutomationDelay(request.settings.autoInsertDelay, settings.autoInsertDelay),
+        autoSubmitDelay: normalizeAutomationDelay(request.settings.autoSubmitDelay, settings.autoSubmitDelay),
         autoSubmitResults:
           typeof request.settings.autoSubmitResults === "boolean"
             ? request.settings.autoSubmitResults

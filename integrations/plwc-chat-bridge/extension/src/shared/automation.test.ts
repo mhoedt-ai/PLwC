@@ -6,6 +6,9 @@ import type { BridgeSettings } from "./messages";
 
 const settings: BridgeSettings = {
   autoConfirmWrites: false,
+  autoExecuteDelay: 2,
+  autoInsertDelay: 2,
+  autoSubmitDelay: 2,
   autoSubmitResults: true,
   readOnlyAutoRun: true,
   renderChatCards: true,

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseGatewaySettings, parseGatewaySettingsUpdate, type GatewaySettingsUpdate } from "./messages";
+import {
+  normalizeAutomationDelay,
+  parseGatewaySettings,
+  parseGatewaySettingsUpdate,
+  type GatewaySettingsUpdate,
+} from "./messages";
 
 const editableSettings: GatewaySettingsUpdate = {
   activeProfileName: "WasIstDas",
@@ -45,4 +50,13 @@ test("editable gateway settings accept only the validated nine-field contract", 
   assert.throws(() => parseGatewaySettingsUpdate({ ...editableSettings, memoryWriteThreshold: "2.5" }));
   assert.throws(() => parseGatewaySettingsUpdate({ ...editableSettings, qdrantEnabled: "yes" }));
   assert.throws(() => parseGatewaySettingsUpdate({ ...editableSettings, secret: "no" }));
+});
+
+test("automation delays accept tenths from zero through sixty seconds", () => {
+  assert.equal(normalizeAutomationDelay(0), 0);
+  assert.equal(normalizeAutomationDelay(2.54), 2.5);
+  assert.equal(normalizeAutomationDelay(60), 60);
+  assert.equal(normalizeAutomationDelay(-1), 2);
+  assert.equal(normalizeAutomationDelay(61), 2);
+  assert.equal(normalizeAutomationDelay("2"), 2);
 });

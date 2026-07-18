@@ -1,6 +1,6 @@
 {
   "name": "@plwc/chat-bridge-loopback",
-  "version": "0.2.0-rc19.dev6",
+  "version": "0.2.0-rc19.dev7",
   "private": true,
   "type": "module",
   "engines": {

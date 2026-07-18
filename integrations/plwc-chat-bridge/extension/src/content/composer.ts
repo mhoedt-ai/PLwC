@@ -26,7 +26,7 @@ const SEND_BUTTON_STRUCTURAL_SELECTORS = [
 ];
 
 const NON_SEND_COMPOSER_CONTROL_PATTERN =
-  /voice|speech|dictat|diktat|microphone|mikrofon|recording|aufnahme/i;
+  /voice|speech|dictat|diktat|microphone|mikrofon|recording|aufnahme|stop|cancel|abbrechen|beenden|generating|generation/i;
 
 export type ComposerSubmitResult =
   | "submitted"
@@ -36,6 +36,25 @@ export type ComposerSubmitResult =
   | "submission-not-accepted";
 
 export type ComposerSubmitActivation = "form" | "click";
+
+type InsertedComposerSubmitResult = Extract<
+  ComposerSubmitResult,
+  "submitted" | "send-button-not-found" | "submission-not-accepted"
+>;
+
+export interface ComposerSubmitOptions {
+  autoSubmitDelayMs?: number;
+  confirmationAttempts?: number;
+  maxSubmitAttempts?: number;
+  pollIntervalMs?: number;
+  sendButtonWaitAttempts?: number;
+}
+
+interface ComposerSubmissionHooks {
+  findSendButton: () => HTMLButtonElement | null;
+  isComposerEmpty: () => boolean;
+  wait: (milliseconds: number) => Promise<void>;
+}
 
 export function findChatGptComposer(documentValue: Document = document): HTMLElement | null {
   return COMPOSER_SELECTORS.map((selector) => documentValue.querySelector(selector)).find(
@@ -152,6 +171,41 @@ export function activateChatGptSendButton(send: HTMLButtonElement): ComposerSubm
   return "click";
 }
 
+export async function submitInsertedChatGptComposer(
+  hooks: ComposerSubmissionHooks,
+  options: ComposerSubmitOptions = {},
+): Promise<InsertedComposerSubmitResult> {
+  const pollIntervalMs = options.pollIntervalMs ?? 100;
+  const confirmationAttempts = options.confirmationAttempts ?? 25;
+  const maxSubmitAttempts = options.maxSubmitAttempts ?? 6;
+  const sendButtonWaitAttempts = options.sendButtonWaitAttempts ?? 300;
+  const autoSubmitDelayMs = Math.max(0, options.autoSubmitDelayMs ?? 0);
+  if (autoSubmitDelayMs > 0) await hooks.wait(autoSubmitDelayMs);
+
+  let sawSendButton = false;
+  let submitAttempts = 0;
+  for (let waitAttempt = 0; waitAttempt < sendButtonWaitAttempts; waitAttempt += 1) {
+    if (hooks.isComposerEmpty()) return "submitted";
+    const send = hooks.findSendButton();
+    if (!send) {
+      await hooks.wait(pollIntervalMs);
+      continue;
+    }
+    sawSendButton = true;
+    if (submitAttempts >= maxSubmitAttempts) break;
+
+    if (submitAttempts % 2 === 0) activateChatGptSendButton(send);
+    else send.click();
+    submitAttempts += 1;
+
+    for (let confirmationAttempt = 0; confirmationAttempt < confirmationAttempts; confirmationAttempt += 1) {
+      await hooks.wait(pollIntervalMs);
+      if (hooks.isComposerEmpty()) return "submitted";
+    }
+  }
+  return sawSendButton ? "submission-not-accepted" : "send-button-not-found";
+}
+
 function findEnabledButton(
   documentValue: Document,
   selectors: readonly string[],
@@ -174,29 +228,18 @@ function findEnabledButton(
 export async function insertAndSubmitToChatGpt(
   text: string,
   documentValue: Document = document,
+  options: ComposerSubmitOptions = {},
 ): Promise<ComposerSubmitResult> {
   const composer = findChatGptComposer(documentValue);
   if (!composer) return "composer-not-found";
   if (!isChatGptComposerEmpty(documentValue)) return "composer-not-empty";
   if (!insertIntoChatGptComposer(text, documentValue)) return "composer-not-found";
-
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const send = findChatGptSendButton(documentValue);
-    if (send) {
-      activateChatGptSendButton(send);
-      for (let confirmationAttempt = 0; confirmationAttempt < 25; confirmationAttempt += 1) {
-        if (
-          isChatGptComposerEmpty(documentValue) ||
-          send.disabled ||
-          send.getAttribute("aria-disabled") === "true"
-        ) {
-          return "submitted";
-        }
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-      return "submission-not-accepted";
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  return "send-button-not-found";
+  return submitInsertedChatGptComposer(
+    {
+      findSendButton: () => findChatGptSendButton(documentValue),
+      isComposerEmpty: () => isChatGptComposerEmpty(documentValue),
+      wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    },
+    options,
+  );
 }

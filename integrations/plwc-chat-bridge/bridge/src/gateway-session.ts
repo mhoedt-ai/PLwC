@@ -156,7 +156,7 @@ export class GatewayClientSession implements BridgeSession {
       ...(this.gateway.cwd === undefined ? {} : { cwd: this.gateway.cwd }),
     };
     const transport = new StdioClientTransport(transportOptions);
-    const client = new Client({ name: "plwc-chat-bridge", version: "0.2.0-rc19.dev6" }, { capabilities: {} });
+    const client = new Client({ name: "plwc-chat-bridge", version: "0.2.0-rc19.dev7" }, { capabilities: {} });
     this.transport = transport;
     this.client = client;
 

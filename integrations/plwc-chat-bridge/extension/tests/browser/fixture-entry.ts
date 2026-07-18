@@ -45,6 +45,9 @@ const importedGatewaySettings: GatewaySettingsSnapshot = {
 let gatewaySettings: GatewaySettingsSnapshot = { ...importedGatewaySettings };
 let bridgeSettings: BridgeSettings = {
   autoConfirmWrites: false,
+  autoExecuteDelay: 2,
+  autoInsertDelay: 2,
+  autoSubmitDelay: 2,
   autoSubmitResults: true,
   readOnlyAutoRun: true,
   renderChatCards: true,
