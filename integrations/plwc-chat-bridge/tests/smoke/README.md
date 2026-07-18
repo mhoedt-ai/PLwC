@@ -1,5 +1,9 @@
 # Smoke Tests
 
+Recorded execution evidence:
+
+- [rc19.dev0 test evidence, 2026-07-18](../RC19_DEV0_TEST_EVIDENCE_2026-07-18.md)
+
 First rc19 smoke matrix:
 
 1. Start bridge on loopback.

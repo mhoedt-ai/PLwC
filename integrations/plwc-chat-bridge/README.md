@@ -54,6 +54,10 @@ integrations/plwc-chat-bridge/
 - npm lockfiles are committed and both runtime package audits report zero known
   vulnerabilities.
 
+Recorded test execution:
+
+- [rc19.dev0 test evidence, 2026-07-18](tests/RC19_DEV0_TEST_EVIDENCE_2026-07-18.md)
+
 This is still an rc19 development prototype. It has not yet completed a fresh
 unpacked-extension smoke on the live ChatGPT DOM or a confirmed write/read
 round trip.
