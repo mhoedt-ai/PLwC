@@ -1,6 +1,6 @@
 # PLwC Chat Bridge
 
-Status: rc19.dev7 implementation prototype.
+Status: rc19.dev8 implementation prototype.
 
 PLwC Chat Bridge is the proposed PLwC-owned local browser client integration
 for using the signed-in ChatGPT web UI with the local `plwc-gateway` MCP
@@ -56,6 +56,9 @@ integrations/plwc-chat-bridge/
   after a Chrome service-worker restart;
 - MCP envelopes are normalized once and runtime status is presented as a
   compact result instead of duplicated escaped JSON;
+- complete tool results, including full compiled profile layers, are returned
+  to ChatGPT without bridge-side truncation; only expanded visual details are
+  display-bounded;
 - visible PLwC JSONL calls and marked JSON results are replaced by compact,
   collapsed terminal rows; details and `Show JSON` are available on demand;
 - policy-approved read-only calls run automatically by default and their
@@ -81,6 +84,7 @@ Recorded test execution:
 - [rc19.dev5 editable settings and compact UI evidence, 2026-07-18](tests/RC19_DEV5_EDITABLE_SETTINGS_AND_COMPACT_UI_EVIDENCE_2026-07-18.md)
 - [rc19.dev6 native auto-submit evidence, 2026-07-18](tests/RC19_DEV6_NATIVE_AUTO_SUBMIT_EVIDENCE_2026-07-18.md)
 - [rc19.dev7 automation timing and retry evidence, 2026-07-18](tests/RC19_DEV7_AUTOMATION_TIMING_AND_RETRY_EVIDENCE_2026-07-18.md)
+- [rc19.dev8 complete result transport evidence, 2026-07-18](tests/RC19_DEV8_COMPLETE_RESULT_TRANSPORT_EVIDENCE_2026-07-18.md)
 
 This is still an rc19 development prototype. It has not yet completed a fresh
 unpacked-extension smoke on the live ChatGPT DOM or a confirmed write/read

@@ -1,8 +1,6 @@
 import { isPlwcToolName, type PlwcToolName } from "./tool-call-parser";
 
 export const PLWC_TOOL_RESULT_MARKER = "# PLwC Tool Result";
-const MAX_RESULT_MESSAGE_CHARACTERS = 12_000;
-const MAX_RESULT_PREVIEW_CHARACTERS = 4_000;
 
 export interface PlwcToolResultEnvelope {
   call_id: string;
@@ -12,22 +10,7 @@ export interface PlwcToolResultEnvelope {
 }
 
 export function formatPlwcToolResultMessage(envelope: PlwcToolResultEnvelope): string {
-  let payload = JSON.stringify(envelope, null, 2);
-  if (payload.length > MAX_RESULT_MESSAGE_CHARACTERS) {
-    payload = JSON.stringify(
-      {
-        call_id: envelope.call_id,
-        is_error: envelope.is_error,
-        name: envelope.name,
-        result: {
-          preview: payload.slice(0, MAX_RESULT_PREVIEW_CHARACTERS),
-          truncated_by: "PLwC Chat Bridge",
-        },
-      },
-      null,
-      2,
-    );
-  }
+  const payload = JSON.stringify(envelope, null, 2);
   return `${PLWC_TOOL_RESULT_MARKER}\n\n\`\`\`json\n${payload}\n\`\`\``;
 }
 

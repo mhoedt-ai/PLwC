@@ -50,18 +50,24 @@ test("rejects generic and malformed JSON objects", () => {
   );
 });
 
-test("bounds oversized result messages with a structured preview", () => {
-  const message = formatPlwcToolResultMessage({
+test("preserves a complete oversized compiled layer in the transported result", () => {
+  const envelope = {
     call_id: "large-1",
     is_error: false,
-    name: "plwc_workspace_operation",
-    result: { content: '\\"'.repeat(20_000) },
-  });
+    name: "plwc_profile" as const,
+    result: {
+      data: {
+        compile_mode: "full",
+        compiled_layer: "Mirco korrigierte explizit: Meta-Kommentare bleiben erhalten.\n".repeat(500),
+      },
+      ok: true,
+      policy_decision: "ALLOW",
+    },
+  };
+  const message = formatPlwcToolResultMessage(envelope);
   const parsed = parsePlwcToolResultMessage(message);
 
-  assert.ok(message.length < 12_000);
-  assert.deepEqual(
-    (parsed?.result as { truncated_by?: string }).truncated_by,
-    "PLwC Chat Bridge",
-  );
+  assert.ok(message.length > 12_000);
+  assert.equal(message.includes("truncated_by"), false);
+  assert.deepEqual(parsed, envelope);
 });

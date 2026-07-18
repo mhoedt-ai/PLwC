@@ -9,6 +9,7 @@ Recorded live-fix evidence:
 - [rc19.dev5 editable settings and compact UI evidence, 2026-07-18](../RC19_DEV5_EDITABLE_SETTINGS_AND_COMPACT_UI_EVIDENCE_2026-07-18.md)
 - [rc19.dev6 native auto-submit evidence, 2026-07-18](../RC19_DEV6_NATIVE_AUTO_SUBMIT_EVIDENCE_2026-07-18.md)
 - [rc19.dev7 automation timing and retry evidence, 2026-07-18](../RC19_DEV7_AUTOMATION_TIMING_AND_RETRY_EVIDENCE_2026-07-18.md)
+- [rc19.dev8 complete result transport evidence, 2026-07-18](../RC19_DEV8_COMPLETE_RESULT_TRANSPORT_EVIDENCE_2026-07-18.md)
 
 Planned browser coverage:
 
