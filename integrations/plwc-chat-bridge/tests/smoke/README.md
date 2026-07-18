@@ -3,6 +3,7 @@
 Recorded execution evidence:
 
 - [rc19.dev0 test evidence, 2026-07-18](../RC19_DEV0_TEST_EVIDENCE_2026-07-18.md)
+- [rc19.dev1 live-fix evidence, 2026-07-18](../RC19_DEV1_LIVE_FIX_EVIDENCE_2026-07-18.md)
 
 First rc19 smoke matrix:
 

@@ -23,6 +23,11 @@ Chrome's extension developer mode.
 - Tool execution is enabled only after `tools/list` returns the exact canonical
   eight-tool contract.
 - Visible ChatGPT JSONL calls are deduplicated and queued in the `Status` tab.
+- Calls already visible when the extension loads are treated as the session
+  baseline and are not queued for execution.
+- The generated primer uses the same event-based JSONL protocol enforced by the
+  parser.
+- A 20-second loopback ping keeps an active MV3 WebSocket session alive.
 - Tool results are inserted into the composer only through an explicit button;
   the extension does not submit the chat message automatically.
 - Mutating and unknown operations require explicit confirmation. Governor

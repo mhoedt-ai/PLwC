@@ -38,19 +38,34 @@ export function collectToolCallCandidates(documentValue: Document = document): T
   });
 }
 
+export function recordExistingToolCalls(
+  candidates: ToolCallTextCandidate[],
+  seen: Set<string>,
+): void {
+  for (const call of parseVisiblePlwcToolCalls(candidates)) seen.add(call.callKey);
+}
+
+export function takeNewToolCalls(
+  candidates: ToolCallTextCandidate[],
+  seen: Set<string>,
+): ParsedPlwcToolCall[] {
+  return parseVisiblePlwcToolCalls(candidates).filter((call) => {
+    if (seen.has(call.callKey)) return false;
+    seen.add(call.callKey);
+    return true;
+  });
+}
+
 export function observePlwcToolCalls(
   onCall: (call: ParsedPlwcToolCall) => void,
   documentValue: Document = document,
 ): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const seen = new Set<string>();
+  recordExistingToolCalls(collectToolCallCandidates(documentValue), seen);
   const scan = () => {
     timer = null;
-    for (const call of parseVisiblePlwcToolCalls(collectToolCallCandidates(documentValue))) {
-      if (seen.has(call.callKey)) continue;
-      seen.add(call.callKey);
-      onCall(call);
-    }
+    for (const call of takeNewToolCalls(collectToolCallCandidates(documentValue), seen)) onCall(call);
   };
   const schedule = () => {
     if (timer) clearTimeout(timer);
@@ -62,7 +77,6 @@ export function observePlwcToolCalls(
     characterData: true,
     subtree: true,
   });
-  schedule();
   return () => {
     observer.disconnect();
     if (timer) clearTimeout(timer);

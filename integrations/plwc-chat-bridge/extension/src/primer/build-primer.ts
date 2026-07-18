@@ -27,19 +27,34 @@ function exampleValue(schema: unknown): unknown {
   return `<${typeof record.type === "string" ? record.type : "value"}>`;
 }
 
-function callMask(tool: McpTool): string {
+function callArguments(tool: McpTool): JsonObject {
   const properties =
     typeof tool.inputSchema.properties === "object" && tool.inputSchema.properties !== null
       ? (tool.inputSchema.properties as JsonObject)
       : {};
   const required = new Set(Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required : []);
-  const argumentsValue = Object.fromEntries(
+  const argumentsValue: JsonObject = Object.fromEntries(
     Object.keys(properties)
       .filter((name) => required.has(name))
       .sort()
       .map((name) => [name, exampleValue(properties[name])]),
   );
-  return stableStringify({ arguments: argumentsValue, name: tool.name });
+  if (tool.name === "plwc_status" && Object.hasOwn(properties, "scope")) {
+    argumentsValue.scope = "runtime";
+  }
+  return argumentsValue;
+}
+
+function callMask(tool: McpTool): string[] {
+  const callId = `${tool.name}-example`;
+  const parameters = Object.entries(callArguments(tool)).map(([key, value]) =>
+    stableStringify({ call_id: callId, key, type: "parameter", value }),
+  );
+  return [
+    stableStringify({ call_id: callId, name: tool.name, type: "function_call_start" }),
+    ...parameters,
+    stableStringify({ call_id: callId, type: "function_call_end" }),
+  ];
 }
 
 export async function buildPrimer(value: unknown): Promise<BridgePrimer> {
@@ -70,14 +85,20 @@ export async function buildPrimer(value: unknown): Promise<BridgePrimer> {
     "- Workspace writes, document creation or mutation, reflection writes, and sandbox execution require explicit confirmation.",
     "- plwc_governor with operation=apply always requires explicit confirmation.",
     "- Unknown tools or operations must not run. Never retry a mutating call after an ambiguous timeout.",
-    "tool_call_format: Emit one JSON object per line with exactly name and arguments. Do not wrap it in Markdown.",
+    "tool_call_format: Emit each requested tool call as one fenced jsonl code block containing only the event lines below.",
+    "tool_call_protocol:",
+    "- Begin with one function_call_start event containing type, name, and a unique call_id.",
+    "- Emit one parameter event per argument with the same call_id, key, and JSON value.",
+    "- Finish with one function_call_end event containing the same call_id.",
+    "- Never emit placeholders, prose inside the block, direct name/arguments objects, or calls not requested by the user.",
     "tools:",
   ];
 
   for (const tool of validation.tools) {
     lines.push(`- ${tool.name}`);
     lines.push(`  description: ${JSON.stringify(tool.description ?? "")}`);
-    lines.push(`  call_mask: ${callMask(tool)}`);
+    lines.push("  call_mask_jsonl: |");
+    for (const event of callMask(tool)) lines.push(`    ${event}`);
     lines.push(`  input_schema: ${stableStringify(tool.inputSchema)}`);
   }
 

@@ -1,5 +1,9 @@
 # Browser Tests
 
+Recorded live-fix evidence:
+
+- [rc19.dev1 live-fix evidence, 2026-07-18](../RC19_DEV1_LIVE_FIX_EVIDENCE_2026-07-18.md)
+
 Planned browser coverage:
 
 - PLwC Chat Bridge uses the PLwC Gateway icon and product name;

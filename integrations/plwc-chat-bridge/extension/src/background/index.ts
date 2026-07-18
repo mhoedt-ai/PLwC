@@ -17,6 +17,7 @@ import type {
 import { decidePolicy } from "../shared/policy";
 
 const transport = new JsonRpcWebSocketClient(BRIDGE_ENDPOINT);
+const HEARTBEAT_INTERVAL_MS = 20_000;
 let currentToolSet: ReturnType<typeof validateToolSet> | null = null;
 
 function status(): BridgeStatus {
@@ -104,5 +105,10 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
 transport.onStateChange(() => {
   void chrome.runtime.sendMessage({ type: "bridge.status.changed", value: status() }).catch(() => undefined);
 });
+
+setInterval(() => {
+  if (transport.state !== "connected") return;
+  void transport.request("ping", {}).catch(() => undefined);
+}, HEARTBEAT_INTERVAL_MS);
 
 void getSettings().then((settings) => chrome.storage.local.set(settings));

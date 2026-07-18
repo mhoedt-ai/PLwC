@@ -444,7 +444,7 @@ export class PlwcPanel {
       checkbox,
       element("span", "", "Allow automatic execution only for operations classified as read-only."),
     );
-    block.append(row, element("p", "muted", "Endpoint is fixed to IPv4 loopback in rc19.dev0."));
+    block.append(row, element("p", "muted", "Endpoint is fixed to IPv4 loopback in rc19.dev1."));
     view.append(block);
   }
 

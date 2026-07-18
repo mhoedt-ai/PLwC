@@ -70,3 +70,9 @@ def test_extension_manifest_is_plwc_only_and_uses_narrow_permissions() -> None:
         }
     ]
     assert set(manifest["icons"].values()) == {"icons/plwc-icon-512.png"}
+    assert manifest["web_accessible_resources"] == [
+        {
+            "resources": ["icons/plwc-icon-512.png"],
+            "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+        }
+    ]
