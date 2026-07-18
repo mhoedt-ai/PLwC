@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { findChatGptComposerSurface } from "./composer";
+import { findChatGptComposerSurface, isChatGptSendButtonCandidate } from "./composer";
 
 type Rect = Pick<DOMRect, "bottom" | "height" | "left" | "right" | "top" | "width">;
 
@@ -45,4 +45,21 @@ test("uses the rounded composer shell for vertical launcher alignment", () => {
   } as unknown as Document;
 
   assert.equal(findChatGptComposerSurface(composer, documentValue), shell);
+});
+
+function mockButton(label: string | null): HTMLButtonElement {
+  return {
+    getAttribute: (name: string) => name === "aria-label" ? label : null,
+    textContent: "",
+  } as unknown as HTMLButtonElement;
+}
+
+test("accepts the current localized composer submit control", () => {
+  assert.equal(isChatGptSendButtonCandidate(mockButton("Nachricht übermitteln")), true);
+  assert.equal(isChatGptSendButtonCandidate(mockButton("Send message")), true);
+});
+
+test("does not mistake the shared composer voice control for submit", () => {
+  assert.equal(isChatGptSendButtonCandidate(mockButton("Voice starten")), false);
+  assert.equal(isChatGptSendButtonCandidate(mockButton("Diktat starten")), false);
 });

@@ -14,7 +14,19 @@ const SEND_BUTTON_TEST_ID_SELECTORS = [
 const SEND_BUTTON_LABEL_SELECTORS = [
   "button[aria-label*='Send' i]",
   "button[aria-label*='Senden' i]",
+  "button[aria-label*='Übermitteln' i]",
+  "button[title*='Send' i]",
+  "button[title*='Senden' i]",
+  "button[title*='Übermitteln' i]",
 ];
+
+const SEND_BUTTON_STRUCTURAL_SELECTORS = [
+  "button[class*='composer-submit-button']",
+  "button[type='submit']",
+];
+
+const NON_SEND_COMPOSER_CONTROL_PATTERN =
+  /voice|speech|dictat|diktat|microphone|mikrofon|recording|aufnahme/i;
 
 export type ComposerSubmitResult =
   | "submitted"
@@ -103,20 +115,39 @@ export function findChatGptSendButton(documentValue: Document = document): HTMLB
   for (let depth = 0; scope && depth < 7; depth += 1, scope = scope.parentElement) {
     const byLabel = findEnabledButton(documentValue, SEND_BUTTON_LABEL_SELECTORS, scope);
     if (byLabel) return byLabel;
+    const byStructure = findEnabledButton(
+      documentValue,
+      SEND_BUTTON_STRUCTURAL_SELECTORS,
+      scope,
+      isChatGptSendButtonCandidate,
+    );
+    if (byStructure) return byStructure;
   }
   return null;
+}
+
+export function isChatGptSendButtonCandidate(candidate: HTMLButtonElement): boolean {
+  const descriptor = [
+    candidate.getAttribute("aria-label"),
+    candidate.getAttribute("title"),
+    candidate.getAttribute("data-testid"),
+    candidate.textContent,
+  ].filter(Boolean).join(" ");
+  return !NON_SEND_COMPOSER_CONTROL_PATTERN.test(descriptor);
 }
 
 function findEnabledButton(
   documentValue: Document,
   selectors: readonly string[],
   scope: ParentNode,
+  accept: (candidate: HTMLButtonElement) => boolean = () => true,
 ): HTMLButtonElement | null {
   for (const selector of selectors) {
     for (const candidate of scope.querySelectorAll<HTMLButtonElement>(selector)) {
       if (candidate.disabled || candidate.getAttribute("aria-disabled") === "true") continue;
       const style = documentValue.defaultView?.getComputedStyle(candidate);
       if (style?.display === "none" || style?.visibility === "hidden") continue;
+      if (!accept(candidate)) continue;
       return candidate;
     }
   }

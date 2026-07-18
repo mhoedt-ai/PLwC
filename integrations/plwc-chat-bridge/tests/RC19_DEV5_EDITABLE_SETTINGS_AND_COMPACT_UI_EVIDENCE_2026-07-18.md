@@ -36,7 +36,7 @@
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Bridge build and tests | PASS | 12 of 12 passed, including settings update/reset RPC and strict validation. |
-| Extension typecheck, tests and build | PASS | Typecheck passed; 33 of 33 tests passed; production build completed. |
+| Extension typecheck, tests and build | PASS | Typecheck passed; 36 of 36 tests passed; production build completed. |
 | Python bridge contract | PASS | 6 of 6 passed. |
 | Browser fixture build | PASS | Fixture rebuilt from rc19.dev5 sources. |
 | Version consistency | PASS | Bridge, extension, manifest, shared contract, config and package metadata report `0.2.0-rc19.dev5`. |
@@ -71,6 +71,12 @@ desktop viewport with a 260 px host navigation column.
   extension-origin WebSocket probe returned all eight canonical tools and
   recognized `settings/update`; invalid input correctly returned JSON-RPC
   `-32602` instead of `-32601`.
+- A later signed-in status run exposed a ChatGPT submit-control change: the
+  inserted result remained in the composer because the current localized
+  button was not covered by the former test-id and `Send`/`Senden` selectors.
+  The adapter now recognizes `Übermitteln` and the current structural composer
+  submit class while explicitly rejecting the same button's `Voice` and
+  `Diktat` states.
 
 ## Security Notes
 

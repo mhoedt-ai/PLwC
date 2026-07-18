@@ -16,7 +16,7 @@
       .message pre { padding: 14px; overflow: auto; background: #2b2b2b; border-radius: 6px; }
       .composer { position: fixed; right: 10%; bottom: 24px; left: calc(260px + 10%); display: flex; gap: 8px; }
       #prompt-textarea { min-height: 54px; flex: 1; padding: 14px; color: #fff; background: #303030; border: 1px solid #505050; }
-      [data-testid="send-button"] { width: 54px; border: 0; color: #111; background: #fff; }
+      .composer-submit-button-color { width: 54px; border: 0; color: #111; background: #fff; }
       @media (max-width: 699px) {
         body { display: block; }
         nav { display: none; }
@@ -45,7 +45,7 @@
       </div>
       <div class="composer">
         <div id="prompt-textarea" contenteditable="true" role="textbox" aria-label="Message composer"></div>
-        <button type="button" data-testid="send-button">Send</button>
+        <button type="button" class="composer-submit-button-color" aria-label="Nachricht übermitteln">Send</button>
       </div>
     </main>
     <script src="fixture.js"></script>
