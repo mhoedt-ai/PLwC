@@ -20,6 +20,7 @@ import { normalizeToolResult } from "../shared/tool-result";
 
 const transport = new JsonRpcWebSocketClient(BRIDGE_ENDPOINT);
 const HEARTBEAT_INTERVAL_MS = 20_000;
+const SETTINGS_REVISION = 2;
 let currentToolSet: ReturnType<typeof validateToolSet> | null = null;
 
 function status(): BridgeStatus {
@@ -37,8 +38,22 @@ function isCanonicalToolName(name: string): name is CanonicalToolName {
 }
 
 async function getSettings(): Promise<BridgeSettings> {
-  const stored = await chrome.storage.local.get("readOnlyAutoRun");
-  return { readOnlyAutoRun: stored.readOnlyAutoRun === true };
+  const stored = await chrome.storage.local.get([
+    "autoSubmitResults",
+    "bridgeSettingsRevision",
+    "readOnlyAutoRun",
+    "renderChatCards",
+  ]);
+  const isCurrent = stored.bridgeSettingsRevision === SETTINGS_REVISION;
+  const settings: BridgeSettings = {
+    autoSubmitResults: isCurrent ? stored.autoSubmitResults !== false : true,
+    readOnlyAutoRun: isCurrent ? stored.readOnlyAutoRun !== false : true,
+    renderChatCards: isCurrent ? stored.renderChatCards !== false : true,
+  };
+  if (!isCurrent) {
+    await chrome.storage.local.set({ ...settings, bridgeSettingsRevision: SETTINGS_REVISION });
+  }
+  return settings;
 }
 
 async function loadToolSet(): Promise<ToolListResponse> {
@@ -82,12 +97,20 @@ async function handleRequest(request: BridgeRequest): Promise<unknown> {
     case "bridge.settings.update": {
       const settings = await getSettings();
       const next: BridgeSettings = {
+        autoSubmitResults:
+          typeof request.settings.autoSubmitResults === "boolean"
+            ? request.settings.autoSubmitResults
+            : settings.autoSubmitResults,
         readOnlyAutoRun:
           typeof request.settings.readOnlyAutoRun === "boolean"
             ? request.settings.readOnlyAutoRun
             : settings.readOnlyAutoRun,
+        renderChatCards:
+          typeof request.settings.renderChatCards === "boolean"
+            ? request.settings.renderChatCards
+            : settings.renderChatCards,
       };
-      await chrome.storage.local.set(next);
+      await chrome.storage.local.set({ ...next, bridgeSettingsRevision: SETTINGS_REVISION });
       return next;
     }
   }

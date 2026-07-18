@@ -8,6 +8,7 @@ const MAX_CANDIDATES = 240;
 const MAX_CANDIDATE_CHARACTERS = 160_000;
 
 function isVisible(element: HTMLElement): boolean {
+  if (element.dataset.plwcMasked === "true") return true;
   const rect = element.getBoundingClientRect();
   const style = getComputedStyle(element);
   return (

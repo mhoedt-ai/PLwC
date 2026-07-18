@@ -1,4 +1,5 @@
 import { BridgeClient } from "./bridge-client";
+import { PlwcChatRenderer } from "./chat-renderer";
 import { observePlwcToolCalls } from "./tool-call-observer";
 import { PlwcPanel } from "../panel/plwc-panel";
 
@@ -10,7 +11,9 @@ if (ALLOWED_HOSTS.has(location.hostname) && !document.getElementById(HOST_ID)) {
   host.id = HOST_ID;
   const shadowRoot = host.attachShadow({ mode: "open" });
   document.documentElement.append(host);
-  const panel = new PlwcPanel(shadowRoot, new BridgeClient());
+  const chatRenderer = new PlwcChatRenderer();
+  const panel = new PlwcPanel(shadowRoot, new BridgeClient(), chatRenderer);
   panel.mount();
+  chatRenderer.mount();
   observePlwcToolCalls((call) => panel.offerToolCall(call));
 }

@@ -1,6 +1,6 @@
 {
   "name": "PLwC Chat Bridge",
-  "track": "v0.2.0-rc19.dev3",
+  "track": "v0.2.0-rc19.dev4",
   "bridge": {
     "host": "127.0.0.1",
     "port": 3007,
@@ -21,7 +21,8 @@
     "expectedPublicToolCount": 8
   },
   "executionPolicy": {
-    "readOnlyAutoExecution": "optional",
+    "readOnlyAutoExecution": "default-enabled-user-configurable",
+    "automaticResultSubmission": "read-only-or-explicitly-confirmed",
     "writesRequireConfirmation": true,
     "sandboxRequiresConfirmation": true,
     "governorApplyRequiresConfirmation": true,

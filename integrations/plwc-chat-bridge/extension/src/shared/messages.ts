@@ -12,6 +12,8 @@ export interface BridgeStatus {
 }
 
 export interface BridgeSettings {
+  autoSubmitResults: boolean;
+  renderChatCards: boolean;
   readOnlyAutoRun: boolean;
 }
 

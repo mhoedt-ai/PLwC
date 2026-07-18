@@ -1,5 +1,6 @@
 import { PlwcPanel } from "../../src/panel/plwc-panel";
 import { BridgeClient } from "../../src/content/bridge-client";
+import { PlwcChatRenderer } from "../../src/content/chat-renderer";
 import { CANONICAL_TOOL_NAMES } from "../../src/shared/contracts";
 
 const tools = CANONICAL_TOOL_NAMES.map((name) => ({
@@ -55,8 +56,16 @@ const fakeChrome = {
           qdrantEnabled: "true",
           personaLayerDisabled: "true",
         },
-        "bridge.settings.get": { readOnlyAutoRun: false },
-        "bridge.settings.update": { readOnlyAutoRun: false },
+        "bridge.settings.get": {
+          autoSubmitResults: true,
+          readOnlyAutoRun: true,
+          renderChatCards: true,
+        },
+        "bridge.settings.update": {
+          autoSubmitResults: true,
+          readOnlyAutoRun: true,
+          renderChatCards: true,
+        },
       };
       callback?.({ ok: true, value: values[request.type] });
       return Promise.resolve();
@@ -65,6 +74,14 @@ const fakeChrome = {
 };
 
 Object.assign(globalThis.chrome, fakeChrome);
+
+document.querySelector<HTMLButtonElement>("[data-testid='send-button']")?.addEventListener("click", () => {
+  const composer = document.querySelector<HTMLElement>("#prompt-textarea");
+  if (composer) {
+    document.documentElement.dataset.plwcLastSubmittedText = composer.textContent ?? "";
+    composer.textContent = "";
+  }
+});
 
 const navigation = document.querySelector<HTMLElement>("[data-testid='sidebar']");
 if (navigation) {
@@ -76,4 +93,6 @@ const host = document.createElement("div");
 host.id = "plwc-chat-bridge-host";
 const shadowRoot = host.attachShadow({ mode: "open" });
 document.documentElement.append(host);
-new PlwcPanel(shadowRoot, new BridgeClient()).mount();
+const chatRenderer = new PlwcChatRenderer();
+new PlwcPanel(shadowRoot, new BridgeClient(), chatRenderer).mount();
+chatRenderer.mount();

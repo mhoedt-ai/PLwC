@@ -1,6 +1,6 @@
 # PLwC Chat Bridge
 
-Status: rc19.dev3 implementation prototype.
+Status: rc19.dev4 implementation prototype.
 
 PLwC Chat Bridge is the proposed PLwC-owned local browser client integration
 for using the signed-in ChatGPT web UI with the local `plwc-gateway` MCP
@@ -53,6 +53,13 @@ integrations/plwc-chat-bridge/
   after a Chrome service-worker restart;
 - MCP envelopes are normalized once and runtime status is presented as a
   compact result instead of duplicated escaped JSON;
+- visible PLwC JSONL calls and marked JSON results are replaced by terminal
+  cards in the ChatGPT conversation, with a deliberate `Show JSON` control;
+- policy-approved read-only calls run automatically by default and their
+  results are inserted and submitted through the ChatGPT composer;
+- mutating calls remain blocked behind explicit confirmation; after that
+  confirmation, the result may be returned automatically without a second
+  execution confirmation;
 - `scripts/start-windows.ps1` imports the enabled Claude PLwC MCPB settings and
   starts the built bridge with the example config;
 - the live smoke starts the current repository gateway, lists eight tools and
@@ -67,6 +74,7 @@ Recorded test execution:
 - [rc19.dev1 live-fix evidence, 2026-07-18](tests/RC19_DEV1_LIVE_FIX_EVIDENCE_2026-07-18.md)
 - [rc19.dev2 settings and composer evidence, 2026-07-18](tests/RC19_DEV2_SETTINGS_AND_COMPOSER_EVIDENCE_2026-07-18.md)
 - [rc19.dev3 connection and result evidence, 2026-07-18](tests/RC19_DEV3_CONNECTION_AND_RESULT_EVIDENCE_2026-07-18.md)
+- [rc19.dev4 chat automation evidence, 2026-07-18](tests/RC19_DEV4_CHAT_AUTOMATION_EVIDENCE_2026-07-18.md)
 
 This is still an rc19 development prototype. It has not yet completed a fresh
 unpacked-extension smoke on the live ChatGPT DOM or a confirmed write/read

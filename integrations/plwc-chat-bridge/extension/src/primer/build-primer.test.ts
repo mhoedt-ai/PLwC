@@ -23,6 +23,7 @@ test("builds the same primer and schema hash for equivalent tool sets", async ()
   assert.match(first.text, /plwc_governor/);
   assert.match(first.text, /always requires explicit confirmation/);
   assert.match(first.text, /fenced jsonl code block/);
+  assert.match(first.text, /summarize it naturally/);
   assert.match(first.text, /"type":"function_call_start"/);
   assert.match(first.text, /"key":"scope","type":"parameter","value":"runtime"/);
   assert.match(first.text, /"type":"function_call_end"/);

@@ -52,7 +52,7 @@ export function decidePolicy(toolName: CanonicalToolName, argumentsValue: JsonOb
 }
 
 export const POLICY_ROWS = [
-  ["Status / Describe / Profile", "Read-only; manual by default"],
+  ["Status / Describe / Profile", "Read-only; eligible for automatic execution"],
   ["Workspace / Document", "Reads may run; writes require confirmation"],
   ["Reflection / Sandbox", "Always require confirmation"],
   ["Governor plan", "Read-only planning"],

@@ -5,6 +5,7 @@ Recorded live-fix evidence:
 - [rc19.dev1 live-fix evidence, 2026-07-18](../RC19_DEV1_LIVE_FIX_EVIDENCE_2026-07-18.md)
 - [rc19.dev2 settings and composer evidence, 2026-07-18](../RC19_DEV2_SETTINGS_AND_COMPOSER_EVIDENCE_2026-07-18.md)
 - [rc19.dev3 connection and result evidence, 2026-07-18](../RC19_DEV3_CONNECTION_AND_RESULT_EVIDENCE_2026-07-18.md)
+- [rc19.dev4 chat automation evidence, 2026-07-18](../RC19_DEV4_CHAT_AUTOMATION_EVIDENCE_2026-07-18.md)
 
 Planned browser coverage:
 
@@ -15,3 +16,7 @@ Planned browser coverage:
 - host chat menu remains reachable while connected, disconnected and rendering
   tool results;
 - reduced-motion settings disable decorative motion effects.
+- visible JSONL calls and marked results render as one PLwC card each while raw
+  JSON remains available through `Show JSON`;
+- read-only execution reaches `SUCCEEDED` and returns one marked result through
+  the host composer.

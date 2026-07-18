@@ -91,6 +91,10 @@ export async function buildPrimer(value: unknown): Promise<BridgePrimer> {
     "- Emit one parameter event per argument with the same call_id, key, and JSON value.",
     "- Finish with one function_call_end event containing the same call_id.",
     "- Never emit placeholders, prose inside the block, direct name/arguments objects, or calls not requested by the user.",
+    "tool_result_protocol:",
+    "- The bridge returns a marked PLwC Tool Result message with the same call_id after execution.",
+    "- Continue from that result and summarize it naturally. Do not reproduce the raw result JSON unless the user asks for it.",
+    "- Never request confirmation a second time for a call whose marked result has already been returned.",
     "tools:",
   ];
 

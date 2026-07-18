@@ -1,7 +1,14 @@
 import { BridgeClient } from "../content/bridge-client";
-import { findChatGptComposer, insertIntoChatGptComposer } from "../content/composer";
+import {
+  findChatGptComposer,
+  insertAndSubmitToChatGpt,
+  insertIntoChatGptComposer,
+} from "../content/composer";
+import type { ChatRunState, PlwcChatRenderer } from "../content/chat-renderer";
 import type { ParsedPlwcToolCall } from "../content/tool-call-parser";
+import { formatPlwcToolResultMessage } from "../content/tool-result-message";
 import { buildPrimer, type BridgePrimer } from "../primer/build-primer";
+import { shouldAutoRun, shouldAutoSubmitResult } from "../shared/automation";
 import type { McpTool } from "../shared/contracts";
 import type {
   BridgeSettings,
@@ -15,17 +22,20 @@ import {
   calculateComposerLauncherPosition,
   calculatePanelLayout,
   findLeftNavigationRight,
+  PANEL_GAP,
 } from "./layout";
 import { TERMINAL_THEME } from "./theme";
 
 const TAB_NAMES = ["PLwC Tools", "Primer", "Policy", "Status", "Settings"] as const;
 type TabName = (typeof TAB_NAMES)[number];
-type RunState = "scheduled" | "running" | "succeeded" | "denied" | "failed" | "unknown";
+type RunState = ChatRunState;
 
 interface ToolRunRecord {
   call: ParsedPlwcToolCall;
   state: RunState;
   result?: unknown;
+  resultSubmitted?: boolean;
+  isError?: boolean;
   error?: string;
 }
 
@@ -65,7 +75,11 @@ export class PlwcPanel {
   private tools: McpTool[] = [];
   private primer: BridgePrimer | null = null;
   private statusValue: BridgeStatus | null = null;
-  private settings: BridgeSettings = { readOnlyAutoRun: false };
+  private settings: BridgeSettings = {
+    autoSubmitResults: true,
+    readOnlyAutoRun: true,
+    renderChatCards: true,
+  };
   private gatewaySettings: GatewaySettingsSnapshot | null = null;
   private readonly toolRuns = new Map<string, ToolRunRecord>();
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -77,7 +91,13 @@ export class PlwcPanel {
   constructor(
     private readonly shadowRoot: ShadowRoot,
     private readonly client: BridgeClient,
-  ) {}
+    private readonly chatRenderer?: PlwcChatRenderer,
+  ) {
+    this.chatRenderer?.setHandlers({
+      onInsertResult: (call) => this.insertToolResultForCall(call),
+      onRun: (call, confirmed) => this.runToolCallFromChat(call, confirmed),
+    });
+  }
 
   mount(): void {
     const style = element("style");
@@ -101,10 +121,12 @@ export class PlwcPanel {
 
   offerToolCall(call: ParsedPlwcToolCall): void {
     if (this.toolRuns.has(call.callKey)) return;
-    this.toolRuns.set(call.callKey, { call, state: "scheduled" });
+    const record: ToolRunRecord = { call, state: "scheduled" };
+    this.toolRuns.set(call.callKey, record);
+    this.syncChatCard(record);
     this.renderStatus();
     const policy = decidePolicy(call.name, { ...call.arguments });
-    if (this.settings.readOnlyAutoRun && policy.readOnly) {
+    if (shouldAutoRun(this.settings, policy)) {
       void this.executeToolCall(call.callKey, false);
     }
   }
@@ -201,6 +223,7 @@ export class PlwcPanel {
   private async initialize(): Promise<void> {
     try {
       this.settings = await this.client.getSettings();
+      this.chatRenderer?.setEnabled(this.settings.renderChatCards);
       await this.refreshTools();
       await this.refreshGatewaySettings();
     } catch (error) {
@@ -431,17 +454,13 @@ export class PlwcPanel {
       run.addEventListener("click", () => void this.executeToolCall(record.call.callKey, policy.requiresConfirmation));
       actions.append(run);
 
-      if (record.state === "succeeded" || record.state === "denied") {
+      const canInsertResult = ["succeeded", "denied", "failed"].includes(record.state);
+      if (record.result !== undefined && canInsertResult) {
         const insert = button("Insert Result");
         insert.addEventListener("click", () => {
-          const result = presentToolResult(record.call.name, record.result);
-          const payload = boundedJson(
-            { call_id: record.call.callId, name: record.call.name, result },
-            6_000,
-          );
-          if (!insertIntoChatGptComposer(`# PLwC Tool Result\n${payload}\n`)) {
-            this.showError("Status", new Error("ChatGPT composer was not found."));
-          }
+          if (!this.insertToolResult(record)) return;
+          insert.textContent = "Inserted";
+          insert.disabled = true;
         });
         actions.append(insert);
       }
@@ -457,15 +476,31 @@ export class PlwcPanel {
     return section;
   }
 
+  private async runToolCallFromChat(call: ParsedPlwcToolCall, confirmed: boolean): Promise<void> {
+    if (!this.toolRuns.has(call.callKey)) {
+      const record: ToolRunRecord = { call, state: "scheduled" };
+      this.toolRuns.set(call.callKey, record);
+      this.syncChatCard(record);
+    }
+    await this.executeToolCall(call.callKey, confirmed);
+  }
+
   private async executeToolCall(callKey: string, confirmed: boolean): Promise<void> {
     const record = this.toolRuns.get(callKey);
     if (!record || record.state !== "scheduled" && record.state !== "failed") return;
+    const policy = decidePolicy(record.call.name, { ...record.call.arguments });
+    if (policy.requiresConfirmation && !confirmed) return;
     record.state = "running";
     record.error = undefined;
+    record.result = undefined;
+    record.isError = undefined;
+    record.resultSubmitted = undefined;
+    this.syncChatCard(record);
     this.renderStatus();
     try {
       const response = await this.client.callTool(record.call.name, { ...record.call.arguments }, confirmed);
       record.result = response.result;
+      record.isError = response.isError;
       const serialized = boundedJson(response.result).toLowerCase();
       if (response.isError) {
         record.state = /denied|policy/.test(serialized) ? "denied" : "failed";
@@ -474,12 +509,62 @@ export class PlwcPanel {
         record.state = "succeeded";
       }
       this.statusValue = await this.client.status();
+      if (shouldAutoSubmitResult(this.settings, policy, confirmed)) {
+        await this.submitToolResult(record);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Tool call failed.";
       record.error = message;
       record.state = /timed out|connection closed/i.test(message) ? "unknown" : "failed";
     }
+    this.syncChatCard(record);
     this.renderStatus();
+  }
+
+  private insertToolResultForCall(call: ParsedPlwcToolCall): void {
+    const record = this.toolRuns.get(call.callKey);
+    if (record) this.insertToolResult(record);
+  }
+
+  private insertToolResult(record: ToolRunRecord): boolean {
+    const message = this.buildToolResultMessage(record);
+    if (insertIntoChatGptComposer(message)) return true;
+    this.showError("Status", new Error("ChatGPT composer was not found."));
+    return false;
+  }
+
+  private async submitToolResult(record: ToolRunRecord): Promise<void> {
+    const outcome = await insertAndSubmitToChatGpt(this.buildToolResultMessage(record));
+    if (outcome === "submitted") {
+      record.resultSubmitted = true;
+      return;
+    }
+    const reasons: Record<Exclude<typeof outcome, "submitted">, string> = {
+      "composer-not-empty": "Automatic result return paused because the composer contains a draft.",
+      "composer-not-found": "Automatic result return paused because the ChatGPT composer was not found.",
+      "send-button-not-found": "Result inserted, but the ChatGPT send button did not become available.",
+      "submission-not-accepted": "Result inserted, but ChatGPT did not accept the automatic submission.",
+    };
+    record.error = reasons[outcome];
+  }
+
+  private buildToolResultMessage(record: ToolRunRecord): string {
+    return formatPlwcToolResultMessage({
+      call_id: record.call.callId,
+      is_error: record.isError === true,
+      name: record.call.name,
+      result: presentToolResult(record.call.name, record.result),
+    });
+  }
+
+  private syncChatCard(record: ToolRunRecord): void {
+    this.chatRenderer?.updateToolRun({
+      call: record.call,
+      ...(record.error === undefined ? {} : { error: record.error }),
+      ...(record.result === undefined ? {} : { result: presentToolResult(record.call.name, record.result) }),
+      ...(record.resultSubmitted === undefined ? {} : { resultSubmitted: record.resultSubmitted }),
+      state: record.state,
+    });
   }
 
   private renderSettings(): void {
@@ -525,27 +610,33 @@ export class PlwcPanel {
     configuration.append(grid);
     view.append(configuration, element("div", "label settings-section-label", "BRIDGE BEHAVIOR"));
 
-    const block = element("div", "settings-block");
-    const row = element("label", "setting-row");
-    const checkbox = element("input") as HTMLInputElement;
-    checkbox.type = "checkbox";
-    checkbox.checked = this.settings.readOnlyAutoRun;
-    checkbox.addEventListener("change", async () => {
-      checkbox.disabled = true;
-      try {
-        this.settings = await this.client.updateSettings({ readOnlyAutoRun: checkbox.checked });
-      } catch (error) {
-        checkbox.checked = this.settings.readOnlyAutoRun;
-        this.showError("Settings", error);
-      } finally {
-        checkbox.disabled = false;
-      }
-    });
-    row.append(
-      checkbox,
-      element("span", "", "Allow automatic execution only for operations classified as read-only."),
-    );
-    block.append(row, element("p", "muted", "Endpoint is fixed to IPv4 loopback in rc19.dev3."));
+    const block = element("div", "settings-block behavior-settings");
+    const behaviors: Array<[keyof BridgeSettings, string]> = [
+      ["renderChatCards", "Render PLwC calls and results as terminal cards in the chat."],
+      ["readOnlyAutoRun", "Automatically execute only operations classified as read-only."],
+      ["autoSubmitResults", "Automatically submit results after read-only or explicitly confirmed calls."],
+    ];
+    for (const [key, label] of behaviors) {
+      const row = element("label", "setting-row");
+      const checkbox = element("input") as HTMLInputElement;
+      checkbox.type = "checkbox";
+      checkbox.checked = this.settings[key];
+      checkbox.addEventListener("change", async () => {
+        checkbox.disabled = true;
+        try {
+          this.settings = await this.client.updateSettings({ [key]: checkbox.checked });
+          this.chatRenderer?.setEnabled(this.settings.renderChatCards);
+        } catch (error) {
+          checkbox.checked = this.settings[key];
+          this.showError("Settings", error);
+        } finally {
+          checkbox.disabled = false;
+        }
+      });
+      row.append(checkbox, element("span", "", label));
+      block.append(row);
+    }
+    block.append(element("p", "muted", "Endpoint is fixed to IPv4 loopback in rc19.dev4."));
     view.append(block);
   }
 
@@ -559,6 +650,7 @@ export class PlwcPanel {
     });
     this.root.style.setProperty("--plwc-panel-width", `${layout.width}px`);
     this.root.classList.toggle("is-collapsed", layout.collapsed);
+    this.chatRenderer?.setRightReserve(layout.collapsed ? 0 : layout.width + PANEL_GAP * 2);
     this.launcher.disabled = !layout.canOpen;
     this.launcher.title = layout.canOpen
       ? "Open PLwC Chat Bridge"

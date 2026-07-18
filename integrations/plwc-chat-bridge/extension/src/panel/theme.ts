@@ -161,6 +161,7 @@ pre { max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: a
 .status-grid dt { color: #6f9d78; }
 .status-grid dd { margin: 0; overflow-wrap: anywhere; }
 .setting-row { display: flex; align-items: flex-start; gap: 8px; }
+.behavior-settings .setting-row + .setting-row { margin-top: 10px; }
 .setting-row input { accent-color: #5cff7a; }
 .settings-source { margin: 0 0 9px; color: #6f9d78; overflow-wrap: anywhere; }
 .settings-section-label { margin: 16px 0 9px; }
