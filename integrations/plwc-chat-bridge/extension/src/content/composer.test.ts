@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { findChatGptComposerSurface, isChatGptSendButtonCandidate } from "./composer";
+import {
+  activateChatGptSendButton,
+  findChatGptComposerSurface,
+  isChatGptSendButtonCandidate,
+} from "./composer";
 
 type Rect = Pick<DOMRect, "bottom" | "height" | "left" | "right" | "top" | "width">;
 
@@ -62,4 +66,37 @@ test("accepts the current localized composer submit control", () => {
 test("does not mistake the shared composer voice control for submit", () => {
   assert.equal(isChatGptSendButtonCandidate(mockButton("Voice starten")), false);
   assert.equal(isChatGptSendButtonCandidate(mockButton("Diktat starten")), false);
+});
+
+test("submits through the owning ChatGPT form with the active button", () => {
+  let requestedWith: HTMLButtonElement | null = null;
+  let clicks = 0;
+  const form = {
+    requestSubmit: (button: HTMLButtonElement) => {
+      requestedWith = button;
+    },
+  } as unknown as HTMLFormElement;
+  const send = {
+    click: () => { clicks += 1; },
+    closest: () => form,
+    form,
+    type: "submit",
+  } as unknown as HTMLButtonElement;
+
+  assert.equal(activateChatGptSendButton(send), "form");
+  assert.equal(requestedWith, send);
+  assert.equal(clicks, 0);
+});
+
+test("falls back to a direct click outside a submit form", () => {
+  let clicks = 0;
+  const send = {
+    click: () => { clicks += 1; },
+    closest: () => null,
+    form: null,
+    type: "button",
+  } as unknown as HTMLButtonElement;
+
+  assert.equal(activateChatGptSendButton(send), "click");
+  assert.equal(clicks, 1);
 });

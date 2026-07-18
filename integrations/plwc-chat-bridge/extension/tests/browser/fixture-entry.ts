@@ -91,7 +91,8 @@ const fakeChrome = {
 
 Object.assign(globalThis.chrome, fakeChrome);
 
-document.querySelector<HTMLButtonElement>(".composer-submit-button-color")?.addEventListener("click", () => {
+document.querySelector<HTMLFormElement>("form.composer")?.addEventListener("submit", (event) => {
+  event.preventDefault();
   const composer = document.querySelector<HTMLElement>("#prompt-textarea");
   if (composer) {
     document.documentElement.dataset.plwcLastSubmittedText = composer.textContent ?? "";

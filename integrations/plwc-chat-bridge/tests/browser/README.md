@@ -7,6 +7,7 @@ Recorded live-fix evidence:
 - [rc19.dev3 connection and result evidence, 2026-07-18](../RC19_DEV3_CONNECTION_AND_RESULT_EVIDENCE_2026-07-18.md)
 - [rc19.dev4 chat automation evidence, 2026-07-18](../RC19_DEV4_CHAT_AUTOMATION_EVIDENCE_2026-07-18.md)
 - [rc19.dev5 editable settings and compact UI evidence, 2026-07-18](../RC19_DEV5_EDITABLE_SETTINGS_AND_COMPACT_UI_EVIDENCE_2026-07-18.md)
+- [rc19.dev6 native auto-submit evidence, 2026-07-18](../RC19_DEV6_NATIVE_AUTO_SUBMIT_EVIDENCE_2026-07-18.md)
 
 Planned browser coverage:
 

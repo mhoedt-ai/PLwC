@@ -35,6 +35,8 @@ export type ComposerSubmitResult =
   | "send-button-not-found"
   | "submission-not-accepted";
 
+export type ComposerSubmitActivation = "form" | "click";
+
 export function findChatGptComposer(documentValue: Document = document): HTMLElement | null {
   return COMPOSER_SELECTORS.map((selector) => documentValue.querySelector(selector)).find(
     (candidate): candidate is HTMLElement => candidate instanceof HTMLElement,
@@ -136,6 +138,20 @@ export function isChatGptSendButtonCandidate(candidate: HTMLButtonElement): bool
   return !NON_SEND_COMPOSER_CONTROL_PATTERN.test(descriptor);
 }
 
+export function activateChatGptSendButton(send: HTMLButtonElement): ComposerSubmitActivation {
+  const form = send.form ?? send.closest<HTMLFormElement>("form");
+  if (form && send.type === "submit" && typeof form.requestSubmit === "function") {
+    try {
+      form.requestSubmit(send);
+      return "form";
+    } catch {
+      // Fall through for host forms that reject an isolated-world submitter.
+    }
+  }
+  send.click();
+  return "click";
+}
+
 function findEnabledButton(
   documentValue: Document,
   selectors: readonly string[],
@@ -167,8 +183,8 @@ export async function insertAndSubmitToChatGpt(
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const send = findChatGptSendButton(documentValue);
     if (send) {
-      send.click();
-      for (let confirmationAttempt = 0; confirmationAttempt < 15; confirmationAttempt += 1) {
+      activateChatGptSendButton(send);
+      for (let confirmationAttempt = 0; confirmationAttempt < 25; confirmationAttempt += 1) {
         if (
           isChatGptComposerEmpty(documentValue) ||
           send.disabled ||
