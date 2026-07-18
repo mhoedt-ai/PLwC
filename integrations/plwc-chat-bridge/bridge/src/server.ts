@@ -2,7 +2,7 @@ import { WebSocket, WebSocketServer } from "ws";
 
 import type { BridgeConfig } from "./config.js";
 import { ToolContractError } from "./contract.js";
-import type { BridgeSession } from "./gateway-session.js";
+import { parseGatewaySettingsUpdate, type BridgeSession } from "./gateway-session.js";
 import { failure, parseRequest, RpcFault, success, type JsonRpcRequest } from "./rpc.js";
 
 const MAX_PAYLOAD_BYTES = 1024 * 1024;
@@ -24,6 +24,14 @@ function toolCallParams(request: JsonRpcRequest): { name: string; args: Record<s
     throw new RpcFault(-32602, "tools/call arguments must be an object.");
   }
   return { name: params.name, args: args as Record<string, unknown> };
+}
+
+function settingsUpdateParams(request: JsonRpcRequest) {
+  try {
+    return parseGatewaySettingsUpdate(request.params?.settings);
+  } catch {
+    throw new RpcFault(-32602, "Invalid PLwC gateway settings.");
+  }
 }
 
 function publicFault(error: unknown): RpcFault {
@@ -131,6 +139,11 @@ export class LoopbackBridgeServer {
       case "settings/get":
         requireEmptyParams(request);
         return this.session.settings();
+      case "settings/update":
+        return this.session.updateSettings(settingsUpdateParams(request));
+      case "settings/reset":
+        requireEmptyParams(request);
+        return this.session.resetSettings();
       case "tools/call": {
         const { name, args } = toolCallParams(request);
         return this.session.callTool(name, args);

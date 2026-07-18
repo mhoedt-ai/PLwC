@@ -2,6 +2,7 @@ import { PlwcPanel } from "../../src/panel/plwc-panel";
 import { BridgeClient } from "../../src/content/bridge-client";
 import { PlwcChatRenderer } from "../../src/content/chat-renderer";
 import { CANONICAL_TOOL_NAMES } from "../../src/shared/contracts";
+import type { BridgeSettings, GatewaySettingsSnapshot, GatewaySettingsUpdate } from "../../src/shared/messages";
 
 const tools = CANONICAL_TOOL_NAMES.map((name) => ({
   name,
@@ -29,6 +30,26 @@ const status = {
   toolSet: validation,
 };
 
+const importedGatewaySettings: GatewaySettingsSnapshot = {
+  source: "Claude PLwC configuration",
+  workspacePath: "C:\\Users\\USER\\Claude_Arbeitsumgebung",
+  profilesPath: null,
+  activeProfileName: "WasIstDas",
+  securityConfig: null,
+  memoryWriteThreshold: "2",
+  personaWriteThreshold: "3",
+  temperamentWriteThreshold: "6",
+  qdrantEnabled: "true",
+  personaLayerDisabled: "true",
+};
+let gatewaySettings: GatewaySettingsSnapshot = { ...importedGatewaySettings };
+let bridgeSettings: BridgeSettings = {
+  autoConfirmWrites: false,
+  autoSubmitResults: true,
+  readOnlyAutoRun: true,
+  renderChatCards: true,
+};
+
 const listeners = new Set<(message: unknown) => void>();
 const fakeChrome = {
   runtime: {
@@ -38,34 +59,29 @@ const fakeChrome = {
       addListener: (listener: (message: unknown) => void) => listeners.add(listener),
       removeListener: (listener: (message: unknown) => void) => listeners.delete(listener),
     },
-    sendMessage: (request: { type: string }, callback?: (response: unknown) => void) => {
+    sendMessage: (
+      request: { type: string; settings?: GatewaySettingsUpdate | Partial<BridgeSettings> },
+      callback?: (response: unknown) => void,
+    ) => {
+      if (request.type === "bridge.gateway.settings.update" && request.settings) {
+        gatewaySettings = { ...(request.settings as GatewaySettingsUpdate), source: "PLwC Chat Bridge saved settings" };
+      }
+      if (request.type === "bridge.gateway.settings.reset") {
+        gatewaySettings = { ...importedGatewaySettings };
+      }
+      if (request.type === "bridge.settings.update" && request.settings) {
+        bridgeSettings = { ...bridgeSettings, ...(request.settings as Partial<BridgeSettings>) };
+      }
       const values: Record<string, unknown> = {
         "bridge.connect": status,
         "bridge.status": status,
         "bridge.tools.list": { tools, validation },
         "bridge.tools.call": { isError: false, policy: { readOnly: true }, result: { ok: true } },
-        "bridge.gateway.settings.get": {
-          source: "Claude PLwC configuration",
-          workspacePath: "C:\\Users\\USER\\Claude_Arbeitsumgebung",
-          profilesPath: null,
-          activeProfileName: "WasIstDas",
-          securityConfig: null,
-          memoryWriteThreshold: "2",
-          personaWriteThreshold: "3",
-          temperamentWriteThreshold: "6",
-          qdrantEnabled: "true",
-          personaLayerDisabled: "true",
-        },
-        "bridge.settings.get": {
-          autoSubmitResults: true,
-          readOnlyAutoRun: true,
-          renderChatCards: true,
-        },
-        "bridge.settings.update": {
-          autoSubmitResults: true,
-          readOnlyAutoRun: true,
-          renderChatCards: true,
-        },
+        "bridge.gateway.settings.get": gatewaySettings,
+        "bridge.gateway.settings.update": gatewaySettings,
+        "bridge.gateway.settings.reset": gatewaySettings,
+        "bridge.settings.get": bridgeSettings,
+        "bridge.settings.update": bridgeSettings,
       };
       callback?.({ ok: true, value: values[request.type] });
       return Promise.resolve();

@@ -1,6 +1,6 @@
 # PLwC Chat Bridge
 
-Status: rc19.dev4 implementation prototype.
+Status: rc19.dev5 implementation prototype.
 
 PLwC Chat Bridge is the proposed PLwC-owned local browser client integration
 for using the signed-in ChatGPT web UI with the local `plwc-gateway` MCP
@@ -21,7 +21,8 @@ shipping the generic upstream extension or proxy package.
 - Gateway: start exactly one `plwc-gateway` stdio child.
 - Tools: advertise only the eight public `plwc-gateway` facade tools.
 - Primer: replace generic prompt injection with a versioned PLwC Bridge Primer.
-- Policy: writes and Governor `apply` require deliberate confirmation.
+- Policy: writes and Governor `apply` require confirmation by default; an
+  explicit, warned standing-confirmation option may automate that bridge step.
 
 ## Directory Layout
 
@@ -48,18 +49,20 @@ integrations/plwc-chat-bridge/
 - `bridge/` contains the pinned Node.js WebSocket-to-MCP stdio bridge.
 - `extension/` contains the PLwC-only Manifest V3 extension and Shadow DOM UI.
 - the panel can be toggled from the PLwC icon beside the ChatGPT composer;
-- the Settings tab mirrors all nine PLwC MCPB configuration fields read-only;
+- the Settings tab edits and validates all nine PLwC MCPB configuration fields,
+  persists overrides, restarts only the managed gateway child and can restore
+  imported Claude/launcher values;
 - the content script restores the loopback connection and eight-tool contract
   after a Chrome service-worker restart;
 - MCP envelopes are normalized once and runtime status is presented as a
   compact result instead of duplicated escaped JSON;
-- visible PLwC JSONL calls and marked JSON results are replaced by terminal
-  cards in the ChatGPT conversation, with a deliberate `Show JSON` control;
+- visible PLwC JSONL calls and marked JSON results are replaced by compact,
+  collapsed terminal rows; details and `Show JSON` are available on demand;
 - policy-approved read-only calls run automatically by default and their
   results are inserted and submitted through the ChatGPT composer;
-- mutating calls remain blocked behind explicit confirmation; after that
-  confirmation, the result may be returned automatically without a second
-  execution confirmation;
+- mutating calls require explicit confirmation by default; a default-off
+  automatic confirmation option covers recognized writes and is paired with a
+  red mutation warning, while sandbox and unknown operations stay manual;
 - `scripts/start-windows.ps1` imports the enabled Claude PLwC MCPB settings and
   starts the built bridge with the example config;
 - the live smoke starts the current repository gateway, lists eight tools and
@@ -75,6 +78,7 @@ Recorded test execution:
 - [rc19.dev2 settings and composer evidence, 2026-07-18](tests/RC19_DEV2_SETTINGS_AND_COMPOSER_EVIDENCE_2026-07-18.md)
 - [rc19.dev3 connection and result evidence, 2026-07-18](tests/RC19_DEV3_CONNECTION_AND_RESULT_EVIDENCE_2026-07-18.md)
 - [rc19.dev4 chat automation evidence, 2026-07-18](tests/RC19_DEV4_CHAT_AUTOMATION_EVIDENCE_2026-07-18.md)
+- [rc19.dev5 editable settings and compact UI evidence, 2026-07-18](tests/RC19_DEV5_EDITABLE_SETTINGS_AND_COMPACT_UI_EVIDENCE_2026-07-18.md)
 
 This is still an rc19 development prototype. It has not yet completed a fresh
 unpacked-extension smoke on the live ChatGPT DOM or a confirmed write/read
@@ -107,5 +111,6 @@ there, especially when the repository is on a mapped network drive.
 3. One confirmed workspace write creates exactly one expected file.
 4. Read-after-write verifies the content without duplicate execution.
 5. A denied protected-path write remains denied and creates nothing.
-6. Governor `apply` cannot run without explicit confirmation.
+6. With automatic write confirmation disabled, Governor `apply` cannot run
+   without explicit confirmation.
 7. The bridge panel never blocks the host chat menu.

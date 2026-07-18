@@ -7,8 +7,10 @@ import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { CANONICAL_TOOL_NAMES } from "../src/contract.js";
 import {
   gatewaySettingsFromEnvironment,
+  parseGatewaySettingsUpdate,
   type BridgeSession,
   type GatewaySettingsSnapshot,
+  type GatewaySettingsUpdate,
 } from "../src/gateway-session.js";
 import { LoopbackBridgeServer } from "../src/server.js";
 
@@ -17,6 +19,9 @@ const tools: Tool[] = CANONICAL_TOOL_NAMES.map((name) => ({ name, inputSchema: {
 class FakeSession implements BridgeSession {
   starts = 0;
   calls = 0;
+  updates = 0;
+  resets = 0;
+  private currentSettings = importedSettings();
 
   async start(): Promise<void> {
     this.starts += 1;
@@ -32,20 +37,48 @@ class FakeSession implements BridgeSession {
   }
 
   settings(): GatewaySettingsSnapshot {
-    return gatewaySettingsFromEnvironment({
-      PLWC_ACTIVE_PROFILE_NAME: "WasIstDas",
-      PLWC_CHAT_BRIDGE_SETTINGS_SOURCE: "Claude PLwC configuration",
-      PLWC_MEMORY_WRITE_THRESHOLD: "2",
-      PLWC_PERSONA_LAYER_DISABLED: "true",
-      PLWC_PERSONA_WRITE_THRESHOLD: "3",
-      PLWC_QDRANT_ENABLED: "true",
-      PLWC_TEMPERAMENT_WRITE_THRESHOLD: "6",
-      PLWC_WORKSPACE_ROOT: "C:\\Users\\USER\\Claude_Arbeitsumgebung",
-    });
+    return { ...this.currentSettings };
+  }
+
+  async updateSettings(settings: GatewaySettingsUpdate): Promise<GatewaySettingsSnapshot> {
+    this.updates += 1;
+    this.currentSettings = { source: "PLwC Chat Bridge saved settings", ...settings };
+    return this.settings();
+  }
+
+  async resetSettings(): Promise<GatewaySettingsSnapshot> {
+    this.resets += 1;
+    this.currentSettings = importedSettings();
+    return this.settings();
   }
 
   async close(): Promise<void> {}
 }
+
+function importedSettings(): GatewaySettingsSnapshot {
+  return gatewaySettingsFromEnvironment({
+    PLWC_ACTIVE_PROFILE_NAME: "WasIstDas",
+    PLWC_CHAT_BRIDGE_SETTINGS_SOURCE: "Claude PLwC configuration",
+    PLWC_MEMORY_WRITE_THRESHOLD: "2",
+    PLWC_PERSONA_LAYER_DISABLED: "true",
+    PLWC_PERSONA_WRITE_THRESHOLD: "3",
+    PLWC_QDRANT_ENABLED: "true",
+    PLWC_TEMPERAMENT_WRITE_THRESHOLD: "6",
+    PLWC_WORKSPACE_ROOT: "C:\\Users\\USER\\Claude_Arbeitsumgebung",
+  });
+}
+
+const editableSettings: GatewaySettingsUpdate = {
+  activeProfileName: "WasIstDas",
+  memoryWriteThreshold: "4",
+  personaLayerDisabled: "false",
+  personaWriteThreshold: "5",
+  profilesPath: "C:\\Users\\USER\\AppData\\Roaming\\PLwC\\profiles",
+  qdrantEnabled: "true",
+  securityConfig: "C:\\Users\\USER\\Claude_Arbeitsumgebung\\config\\security.yaml",
+  temperamentWriteThreshold: "6",
+  workspacePath: "C:\\Users\\USER\\Claude_Arbeitsumgebung",
+};
 
 async function freePort(): Promise<number> {
   const probe = createServer();
@@ -76,7 +109,7 @@ async function request(socket: WebSocket, value: unknown): Promise<Record<string
   return response;
 }
 
-test("serves ping, allowlisted settings, and forwards a mutating call exactly once", async () => {
+test("serves, updates, and resets allowlisted settings before forwarding a call exactly once", async () => {
   const port = await freePort();
   const session = new FakeSession();
   const bridge = new LoopbackBridgeServer({ host: "127.0.0.1", port, path: "/message" }, session);
@@ -105,19 +138,53 @@ test("serves ping, allowlisted settings, and forwards a mutating call exactly on
       },
     });
 
-    const result = await request(socket, {
+    const updated = await request(socket, {
       jsonrpc: "2.0",
       id: 3,
+      method: "settings/update",
+      params: { settings: editableSettings },
+    });
+    assert.deepEqual(updated, {
+      jsonrpc: "2.0",
+      id: 3,
+      result: { source: "PLwC Chat Bridge saved settings", ...editableSettings },
+    });
+
+    const reset = await request(socket, {
+      jsonrpc: "2.0",
+      id: 4,
+      method: "settings/reset",
+    });
+    assert.equal((reset.result as GatewaySettingsSnapshot).source, "Claude PLwC configuration");
+
+    const result = await request(socket, {
+      jsonrpc: "2.0",
+      id: 5,
       method: "tools/call",
       params: { name: "plwc_governor", arguments: { operation: "apply" } },
     });
     assert.equal((result.result as CallToolResult).isError, true);
     assert.equal(session.starts, 1);
     assert.equal(session.calls, 1);
+    assert.equal(session.updates, 1);
+    assert.equal(session.resets, 1);
   } finally {
     socket.close();
     await bridge.stop();
   }
+});
+
+test("validates the complete editable gateway settings contract", () => {
+  assert.deepEqual(parseGatewaySettingsUpdate(editableSettings), editableSettings);
+  assert.throws(() => parseGatewaySettingsUpdate({ ...editableSettings, workspacePath: "relative" }));
+  assert.throws(() => parseGatewaySettingsUpdate({ ...editableSettings, memoryWriteThreshold: "-1" }));
+  assert.throws(() => parseGatewaySettingsUpdate({ ...editableSettings, qdrantEnabled: "yes" }));
+  assert.throws(() => parseGatewaySettingsUpdate({ ...editableSettings, activeProfileName: "bad\nname" }));
+  assert.throws(() => {
+    const { qdrantEnabled: _removed, ...missing } = editableSettings;
+    parseGatewaySettingsUpdate(missing);
+  });
+  assert.throws(() => parseGatewaySettingsUpdate({ ...editableSettings, secretToken: "must-not-pass" }));
 });
 
 test("settings snapshot contains only the nine supported PLwC values", () => {

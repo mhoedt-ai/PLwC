@@ -35,7 +35,7 @@ test("anchors the composer launcher outside the input without crossing left navi
       viewportHeight: 900,
       viewportWidth: 1_440,
     }),
-    { left: 374, top: 772, visible: true },
+    { left: 372, top: 765, visible: true },
   );
 });
 
@@ -47,6 +47,6 @@ test("moves the composer launcher above the input when neither side has room", (
       viewportHeight: 844,
       viewportWidth: 390,
     }),
-    { left: 12, top: 704, visible: true },
+    { left: 12, top: 702, visible: true },
   );
 });

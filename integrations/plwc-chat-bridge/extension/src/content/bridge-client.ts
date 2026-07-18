@@ -5,6 +5,7 @@ import type {
   BridgeSettings,
   BridgeStatus,
   GatewaySettingsSnapshot,
+  GatewaySettingsUpdate,
   ToolCallResponse,
   ToolListResponse,
 } from "../shared/messages";
@@ -33,6 +34,14 @@ export class BridgeClient {
 
   getGatewaySettings(): Promise<GatewaySettingsSnapshot> {
     return this.send<GatewaySettingsSnapshot>({ type: "bridge.gateway.settings.get" });
+  }
+
+  updateGatewaySettings(settings: GatewaySettingsUpdate): Promise<GatewaySettingsSnapshot> {
+    return this.send<GatewaySettingsSnapshot>({ settings, type: "bridge.gateway.settings.update" });
+  }
+
+  resetGatewaySettings(): Promise<GatewaySettingsSnapshot> {
+    return this.send<GatewaySettingsSnapshot>({ type: "bridge.gateway.settings.reset" });
   }
 
   getSettings(): Promise<BridgeSettings> {

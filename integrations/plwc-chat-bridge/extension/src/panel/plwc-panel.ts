@@ -14,6 +14,7 @@ import type {
   BridgeSettings,
   BridgeStatus,
   GatewaySettingsSnapshot,
+  GatewaySettingsUpdate,
   ToolListResponse,
 } from "../shared/messages";
 import { decidePolicy, POLICY_ROWS } from "../shared/policy";
@@ -76,6 +77,7 @@ export class PlwcPanel {
   private primer: BridgePrimer | null = null;
   private statusValue: BridgeStatus | null = null;
   private settings: BridgeSettings = {
+    autoConfirmWrites: false,
     autoSubmitResults: true,
     readOnlyAutoRun: true,
     renderChatCards: true,
@@ -127,7 +129,7 @@ export class PlwcPanel {
     this.renderStatus();
     const policy = decidePolicy(call.name, { ...call.arguments });
     if (shouldAutoRun(this.settings, policy)) {
-      void this.executeToolCall(call.callKey, false);
+      void this.executeToolCall(call.callKey, policy.requiresConfirmation && this.settings.autoConfirmWrites);
     }
   }
 
@@ -588,32 +590,131 @@ export class PlwcPanel {
         `Source: ${this.gatewaySettings?.source ?? "Connect to load PLwC settings"}`,
       ),
     );
-    const values: Array<[string, string | null | undefined]> = [
-      ["Workspace path", this.gatewaySettings?.workspacePath],
-      ["Profiles path", this.gatewaySettings?.profilesPath],
-      ["Active profile", this.gatewaySettings?.activeProfileName],
-      ["Security config", this.gatewaySettings?.securityConfig],
-      ["Memory write threshold", this.gatewaySettings?.memoryWriteThreshold],
-      ["Persona write threshold", this.gatewaySettings?.personaWriteThreshold],
-      ["Temperament threshold", this.gatewaySettings?.temperamentWriteThreshold],
-      ["Qdrant enabled", this.gatewaySettings?.qdrantEnabled],
-      ["Persona layer disabled", this.gatewaySettings?.personaLayerDisabled],
-    ];
-    const grid = element("dl", "configuration-grid");
-    const emptyValue = this.gatewaySettings ? "PLwC default" : "not loaded";
-    for (const [label, value] of values) {
-      grid.append(
-        element("dt", "", label),
-        element("dd", value ? "" : "muted", value ?? emptyValue),
-      );
-    }
-    configuration.append(grid);
+    const form = element("form", "configuration-form");
+    const fields = new Map<keyof GatewaySettingsUpdate, HTMLInputElement | HTMLSelectElement>();
+    const addInput = (
+      key: keyof GatewaySettingsUpdate,
+      label: string,
+      type: "text" | "number",
+    ) => {
+      const field = element("label", "configuration-field");
+      const input = element("input") as HTMLInputElement;
+      input.type = type;
+      input.value = this.gatewaySettings?.[key] ?? "";
+      input.placeholder = "PLwC default";
+      input.autocomplete = "off";
+      input.spellcheck = false;
+      if (type === "number") {
+        input.min = "0";
+        input.max = "1000000";
+        input.step = "1";
+      }
+      field.append(element("span", "", label), input);
+      fields.set(key, input);
+      form.append(field);
+    };
+    const addBoolean = (key: keyof GatewaySettingsUpdate, label: string) => {
+      const field = element("label", "configuration-field");
+      const select = element("select") as HTMLSelectElement;
+      const options: Array<[string, string]> = [["", "PLwC default"], ["true", "true"], ["false", "false"]];
+      for (const [value, text] of options) {
+        const option = element("option", "", text) as HTMLOptionElement;
+        option.value = value;
+        select.append(option);
+      }
+      select.value = this.gatewaySettings?.[key] ?? "";
+      field.append(element("span", "", label), select);
+      fields.set(key, select);
+      form.append(field);
+    };
+
+    addInput("workspacePath", "Workspace path", "text");
+    addInput("profilesPath", "Profiles path", "text");
+    addInput("activeProfileName", "Active profile", "text");
+    addInput("securityConfig", "Security config", "text");
+    addInput("memoryWriteThreshold", "Memory write threshold", "number");
+    addInput("personaWriteThreshold", "Persona write threshold", "number");
+    addInput("temperamentWriteThreshold", "Temperament threshold", "number");
+    addBoolean("qdrantEnabled", "Qdrant enabled");
+    addBoolean("personaLayerDisabled", "Persona layer disabled");
+
+    const actions = element("div", "toolbar configuration-actions");
+    const save = button("Save & Restart", "command-button");
+    save.type = "submit";
+    const reset = button("Use Imported Settings");
+    actions.append(save, reset);
+    form.append(actions);
+
+    const fieldValue = (key: keyof GatewaySettingsUpdate): string | null => {
+      const value = fields.get(key)?.value.trim() ?? "";
+      return value === "" ? null : value;
+    };
+    const readUpdate = (): GatewaySettingsUpdate => {
+      const update: GatewaySettingsUpdate = {
+        activeProfileName: fieldValue("activeProfileName"),
+        memoryWriteThreshold: fieldValue("memoryWriteThreshold"),
+        personaLayerDisabled: fieldValue("personaLayerDisabled"),
+        personaWriteThreshold: fieldValue("personaWriteThreshold"),
+        profilesPath: fieldValue("profilesPath"),
+        qdrantEnabled: fieldValue("qdrantEnabled"),
+        securityConfig: fieldValue("securityConfig"),
+        temperamentWriteThreshold: fieldValue("temperamentWriteThreshold"),
+        workspacePath: fieldValue("workspacePath"),
+      };
+      for (const key of ["workspacePath", "profilesPath", "securityConfig"] as const) {
+        const value = update[key];
+        if (value !== null && !/^(?:[A-Za-z]:[\\/]|\\\\|\/)/u.test(value)) {
+          throw new Error(`${key} must be an absolute path.`);
+        }
+      }
+      for (const key of ["memoryWriteThreshold", "personaWriteThreshold", "temperamentWriteThreshold"] as const) {
+        const value = update[key];
+        if (value !== null && (!/^(?:0|[1-9][0-9]*)$/u.test(value) || Number(value) > 1_000_000)) {
+          throw new Error(`${key} must be a nonnegative integer.`);
+        }
+      }
+      return update;
+    };
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const originalLabel = save.textContent;
+      save.disabled = true;
+      reset.disabled = true;
+      save.textContent = "Restarting...";
+      void (async () => {
+        try {
+          this.gatewaySettings = await this.client.updateGatewaySettings(readUpdate());
+          await this.refreshTools();
+          this.statusValue = await this.client.status();
+          this.renderSettings();
+          this.renderStatus();
+        } catch (error) {
+          this.showError("Settings", error);
+          save.disabled = false;
+          reset.disabled = false;
+          save.textContent = originalLabel;
+        }
+      })();
+    });
+    reset.addEventListener("click", () =>
+      void this.runAction(reset, async () => {
+        save.disabled = true;
+        this.gatewaySettings = await this.client.resetGatewaySettings();
+        await this.refreshTools();
+        this.statusValue = await this.client.status();
+        this.renderSettings();
+        this.renderStatus();
+      }),
+    );
+    configuration.append(form);
     view.append(configuration, element("div", "label settings-section-label", "BRIDGE BEHAVIOR"));
 
     const block = element("div", "settings-block behavior-settings");
     const behaviors: Array<[keyof BridgeSettings, string]> = [
       ["renderChatCards", "Render PLwC calls and results as terminal cards in the chat."],
       ["readOnlyAutoRun", "Automatically execute only operations classified as read-only."],
+      ["autoConfirmWrites", "Automatically confirm and execute recognized PLwC write operations."],
       ["autoSubmitResults", "Automatically submit results after read-only or explicitly confirmed calls."],
     ];
     for (const [key, label] of behaviors) {
@@ -635,8 +736,17 @@ export class PlwcPanel {
       });
       row.append(checkbox, element("span", "", label));
       block.append(row);
+      if (key === "autoConfirmWrites") {
+        block.append(
+          element(
+            "p",
+            "danger-text setting-warning",
+            "WARNING: Recognized writes run without an individual click and may change workspace files, documents, profiles, or persistent PLwC data. Sandbox and unknown operations still require confirmation.",
+          ),
+        );
+      }
     }
-    block.append(element("p", "muted", "Endpoint is fixed to IPv4 loopback in rc19.dev4."));
+    block.append(element("p", "muted", "Endpoint remains fixed to IPv4 loopback."));
     view.append(block);
   }
 

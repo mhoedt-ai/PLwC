@@ -11,16 +11,19 @@ import type {
   BridgeResponse,
   BridgeSettings,
   BridgeStatus,
+  GatewaySettingsSnapshot,
+  GatewaySettingsUpdate,
   ToolCallResponse,
   ToolListResponse,
 } from "../shared/messages";
-import { parseGatewaySettings } from "../shared/messages";
-import { decidePolicy } from "../shared/policy";
+import { parseGatewaySettings, parseGatewaySettingsUpdate } from "../shared/messages";
+import { decidePolicy, withConfirmedToolArguments } from "../shared/policy";
 import { normalizeToolResult } from "../shared/tool-result";
 
 const transport = new JsonRpcWebSocketClient(BRIDGE_ENDPOINT);
 const HEARTBEAT_INTERVAL_MS = 20_000;
-const SETTINGS_REVISION = 2;
+const SETTINGS_REVISION = 3;
+const GATEWAY_SETTINGS_STORAGE_KEY = "gatewaySettingsOverrides";
 let currentToolSet: ReturnType<typeof validateToolSet> | null = null;
 
 function status(): BridgeStatus {
@@ -39,6 +42,7 @@ function isCanonicalToolName(name: string): name is CanonicalToolName {
 
 async function getSettings(): Promise<BridgeSettings> {
   const stored = await chrome.storage.local.get([
+    "autoConfirmWrites",
     "autoSubmitResults",
     "bridgeSettingsRevision",
     "readOnlyAutoRun",
@@ -46,9 +50,10 @@ async function getSettings(): Promise<BridgeSettings> {
   ]);
   const isCurrent = stored.bridgeSettingsRevision === SETTINGS_REVISION;
   const settings: BridgeSettings = {
-    autoSubmitResults: isCurrent ? stored.autoSubmitResults !== false : true,
-    readOnlyAutoRun: isCurrent ? stored.readOnlyAutoRun !== false : true,
-    renderChatCards: isCurrent ? stored.renderChatCards !== false : true,
+    autoConfirmWrites: isCurrent ? stored.autoConfirmWrites === true : false,
+    autoSubmitResults: stored.autoSubmitResults !== false,
+    readOnlyAutoRun: stored.readOnlyAutoRun !== false,
+    renderChatCards: stored.renderChatCards !== false,
   };
   if (!isCurrent) {
     await chrome.storage.local.set({ ...settings, bridgeSettingsRevision: SETTINGS_REVISION });
@@ -57,9 +62,28 @@ async function getSettings(): Promise<BridgeSettings> {
 }
 
 async function loadToolSet(): Promise<ToolListResponse> {
+  await applySavedGatewaySettings();
   const payload = await transport.request("tools/list", {});
   currentToolSet = validateToolSet(payload);
   return { tools: currentToolSet.tools, validation: currentToolSet };
+}
+
+async function savedGatewaySettings(): Promise<GatewaySettingsUpdate | null> {
+  const stored = await chrome.storage.local.get(GATEWAY_SETTINGS_STORAGE_KEY);
+  const value = stored[GATEWAY_SETTINGS_STORAGE_KEY];
+  if (value === undefined) return null;
+  try {
+    return parseGatewaySettingsUpdate(value);
+  } catch {
+    await chrome.storage.local.remove(GATEWAY_SETTINGS_STORAGE_KEY);
+    return null;
+  }
+}
+
+async function applySavedGatewaySettings(): Promise<GatewaySettingsSnapshot | null> {
+  const settings = await savedGatewaySettings();
+  if (settings === null) return null;
+  return parseGatewaySettings(await transport.request("settings/update", { settings }));
 }
 
 async function handleRequest(request: BridgeRequest): Promise<unknown> {
@@ -83,20 +107,40 @@ async function handleRequest(request: BridgeRequest): Promise<unknown> {
       if (policy.requiresConfirmation && !request.confirmed) {
         throw new RpcRequestError(policy.reason, "confirmation_required");
       }
+      const forwardedArguments = withConfirmedToolArguments(request.name, request.arguments, request.confirmed);
       const rawResult = await transport.request("tools/call", {
-        arguments: request.arguments,
+        arguments: forwardedArguments,
         name: request.name,
       });
       const { isError, result } = normalizeToolResult(rawResult);
       return { isError, policy, result } satisfies ToolCallResponse;
     }
-    case "bridge.gateway.settings.get":
-      return parseGatewaySettings(await transport.request("settings/get", {}));
+    case "bridge.gateway.settings.get": {
+      const applied = await applySavedGatewaySettings();
+      return applied ?? parseGatewaySettings(await transport.request("settings/get", {}));
+    }
+    case "bridge.gateway.settings.update": {
+      const settings = parseGatewaySettingsUpdate(request.settings);
+      const updated = parseGatewaySettings(await transport.request("settings/update", { settings }));
+      await chrome.storage.local.set({ [GATEWAY_SETTINGS_STORAGE_KEY]: settings });
+      currentToolSet = null;
+      return updated;
+    }
+    case "bridge.gateway.settings.reset": {
+      const reset = parseGatewaySettings(await transport.request("settings/reset", {}));
+      await chrome.storage.local.remove(GATEWAY_SETTINGS_STORAGE_KEY);
+      currentToolSet = null;
+      return reset;
+    }
     case "bridge.settings.get":
       return getSettings();
     case "bridge.settings.update": {
       const settings = await getSettings();
       const next: BridgeSettings = {
+        autoConfirmWrites:
+          typeof request.settings.autoConfirmWrites === "boolean"
+            ? request.settings.autoConfirmWrites
+            : settings.autoConfirmWrites,
         autoSubmitResults:
           typeof request.settings.autoSubmitResults === "boolean"
             ? request.settings.autoSubmitResults

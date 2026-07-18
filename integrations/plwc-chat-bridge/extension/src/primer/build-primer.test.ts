@@ -21,7 +21,8 @@ test("builds the same primer and schema hash for equivalent tool sets", async ()
   assert.equal(first.hash, second.hash);
   assert.equal(first.text, second.text);
   assert.match(first.text, /plwc_governor/);
-  assert.match(first.text, /always requires explicit confirmation/);
+  assert.match(first.text, /standing write confirmation/);
+  assert.match(first.text, /Sandbox execution and unknown operations always require individual confirmation/);
   assert.match(first.text, /fenced jsonl code block/);
   assert.match(first.text, /summarize it naturally/);
   assert.match(first.text, /"type":"function_call_start"/);

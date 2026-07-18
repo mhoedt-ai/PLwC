@@ -2,8 +2,8 @@
 
 This package is the local WebSocket-to-MCP bridge for PLwC Chat Bridge. It is
 an ESM TypeScript application for Node.js 22 or newer. It starts one
-`plwc-gateway` stdio process through the MCP SDK and never restarts or retries a
-tool call automatically.
+`plwc-gateway` stdio process through the MCP SDK and never retries a tool call
+automatically. A validated settings update may restart only that managed child.
 
 ## Security boundary
 
@@ -14,10 +14,12 @@ tool call automatically.
 - The tool contract is checked at startup and again before every tool call.
 - Unknown, missing or duplicate tools fail closed.
 - WebSocket requests require JSON-RPC 2.0 and non-negative numeric IDs.
-- Only `ping`, `tools/list`, `tools/call` and read-only `settings/get` are
-  exposed.
+- Only `ping`, `tools/list`, `tools/call`, `settings/get`, `settings/update` and
+  `settings/reset` are exposed.
 - `settings/get` returns only the nine PLwC MCPB configuration values; it never
   serializes the complete bridge environment.
+- `settings/update` accepts exactly those nine values and serializes child
+  restarts; `settings/reset` restores the launcher's imported environment.
 - Gateway and configuration errors returned to clients are bounded and never
   contain command lines, environment values or local paths.
 

@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { isAbsolute } from "node:path";
 
 import type { BridgeConfig } from "./config.js";
 import { assertCanonicalTools, isCanonicalToolName, ToolContractError } from "./contract.js";
@@ -10,6 +11,8 @@ export interface BridgeSession {
   listTools(): Promise<Tool[]>;
   callTool(name: string, args: Record<string, unknown>): Promise<unknown>;
   settings(): GatewaySettingsSnapshot;
+  updateSettings(settings: GatewaySettingsUpdate): Promise<GatewaySettingsSnapshot>;
+  resetSettings(): Promise<GatewaySettingsSnapshot>;
   close(): Promise<void>;
 }
 
@@ -25,6 +28,36 @@ export interface GatewaySettingsSnapshot {
   qdrantEnabled: string | null;
   personaLayerDisabled: string | null;
 }
+
+export type GatewaySettingsUpdate = Omit<GatewaySettingsSnapshot, "source">;
+
+const SETTINGS_ENVIRONMENT = {
+  activeProfileName: "PLWC_ACTIVE_PROFILE_NAME",
+  memoryWriteThreshold: "PLWC_MEMORY_WRITE_THRESHOLD",
+  personaLayerDisabled: "PLWC_PERSONA_LAYER_DISABLED",
+  personaWriteThreshold: "PLWC_PERSONA_WRITE_THRESHOLD",
+  profilesPath: "PLWC_PROFILE_ROOT",
+  qdrantEnabled: "PLWC_QDRANT_ENABLED",
+  securityConfig: "PLWC_CONFIG_FILE",
+  temperamentWriteThreshold: "PLWC_TEMPERAMENT_WRITE_THRESHOLD",
+  workspacePath: "PLWC_WORKSPACE_ROOT",
+} as const satisfies Record<keyof GatewaySettingsUpdate, string>;
+
+const SETTING_KEYS = Object.keys(SETTINGS_ENVIRONMENT) as Array<keyof GatewaySettingsUpdate>;
+const PATH_SETTING_KEYS = new Set<keyof GatewaySettingsUpdate>([
+  "workspacePath",
+  "profilesPath",
+  "securityConfig",
+]);
+const THRESHOLD_SETTING_KEYS = new Set<keyof GatewaySettingsUpdate>([
+  "memoryWriteThreshold",
+  "personaWriteThreshold",
+  "temperamentWriteThreshold",
+]);
+const BOOLEAN_SETTING_KEYS = new Set<keyof GatewaySettingsUpdate>([
+  "qdrantEnabled",
+  "personaLayerDisabled",
+]);
 
 function setting(
   environment: Readonly<Record<string, string | undefined>>,
@@ -51,6 +84,48 @@ export function gatewaySettingsFromEnvironment(
   };
 }
 
+export function parseGatewaySettingsUpdate(value: unknown): GatewaySettingsUpdate {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Gateway settings must be an object.");
+  }
+  const record = value as Record<string, unknown>;
+  if (
+    Object.keys(record).length !== SETTING_KEYS.length ||
+    Object.keys(record).some((key) => !SETTING_KEYS.includes(key as keyof GatewaySettingsUpdate))
+  ) {
+    throw new Error("Gateway settings must contain exactly the supported fields.");
+  }
+
+  const parsed = {} as GatewaySettingsUpdate;
+  for (const key of SETTING_KEYS) {
+    const raw = record[key];
+    if (raw === null) {
+      parsed[key] = null;
+      continue;
+    }
+    if (typeof raw !== "string" || raw.trim() === "" || raw.length > 4_096) {
+      throw new Error(`Gateway setting ${key} is invalid.`);
+    }
+    const normalized = raw.trim();
+    if (/[\u0000-\u001f\u007f]/u.test(normalized)) {
+      throw new Error(`Gateway setting ${key} contains control characters.`);
+    }
+    if (PATH_SETTING_KEYS.has(key) && !isAbsolute(normalized)) {
+      throw new Error(`Gateway setting ${key} must be an absolute path.`);
+    }
+    if (THRESHOLD_SETTING_KEYS.has(key)) {
+      if (!/^(?:0|[1-9][0-9]*)$/u.test(normalized) || Number(normalized) > 1_000_000) {
+        throw new Error(`Gateway setting ${key} must be a nonnegative integer.`);
+      }
+    }
+    if (BOOLEAN_SETTING_KEYS.has(key) && normalized !== "true" && normalized !== "false") {
+      throw new Error(`Gateway setting ${key} must be true or false.`);
+    }
+    parsed[key] = normalized;
+  }
+  return parsed;
+}
+
 function childEnvironment(overrides: Readonly<Record<string, string>>): Record<string, string> {
   const inherited = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -61,7 +136,9 @@ function childEnvironment(overrides: Readonly<Record<string, string>>): Record<s
 export class GatewayClientSession implements BridgeSession {
   private client: Client | undefined;
   private transport: StdioClientTransport | undefined;
-  private state: "idle" | "starting" | "ready" | "closed" = "idle";
+  private state: "idle" | "starting" | "ready" | "restarting" | "closed" = "idle";
+  private runtimeSettings: GatewaySettingsUpdate | null = null;
+  private settingsUpdate: Promise<GatewaySettingsSnapshot> | null = null;
 
   constructor(private readonly gateway: BridgeConfig["gateway"]) {}
 
@@ -74,12 +151,12 @@ export class GatewayClientSession implements BridgeSession {
     const transportOptions = {
       command: this.gateway.command,
       args: this.gateway.args,
-      env: childEnvironment(this.gateway.env),
+      env: this.effectiveEnvironment(),
       stderr: "pipe" as const,
       ...(this.gateway.cwd === undefined ? {} : { cwd: this.gateway.cwd }),
     };
     const transport = new StdioClientTransport(transportOptions);
-    const client = new Client({ name: "plwc-chat-bridge", version: "0.2.0-rc19.dev4" }, { capabilities: {} });
+    const client = new Client({ name: "plwc-chat-bridge", version: "0.2.0-rc19.dev5" }, { capabilities: {} });
     this.transport = transport;
     this.client = client;
 
@@ -115,7 +192,20 @@ export class GatewayClientSession implements BridgeSession {
   }
 
   settings(): GatewaySettingsSnapshot {
-    return gatewaySettingsFromEnvironment({ ...process.env, ...this.gateway.env });
+    const settings = gatewaySettingsFromEnvironment(this.effectiveEnvironment());
+    if (this.runtimeSettings !== null) {
+      settings.source = "PLwC Chat Bridge saved settings";
+    }
+    return settings;
+  }
+
+  async updateSettings(settings: GatewaySettingsUpdate): Promise<GatewaySettingsSnapshot> {
+    const normalized = parseGatewaySettingsUpdate(settings);
+    return this.runSettingsUpdate(normalized);
+  }
+
+  async resetSettings(): Promise<GatewaySettingsSnapshot> {
+    return this.runSettingsUpdate(null);
   }
 
   async close(): Promise<void> {
@@ -129,6 +219,63 @@ export class GatewayClientSession implements BridgeSession {
   private assertReady(): void {
     if (this.state !== "ready" || this.client === undefined) {
       throw new Error("The PLwC gateway session is not available.");
+    }
+  }
+
+  private effectiveEnvironment(): Record<string, string> {
+    const environment = childEnvironment(this.gateway.env);
+    if (this.runtimeSettings === null) return environment;
+    for (const key of SETTING_KEYS) {
+      const environmentName = SETTINGS_ENVIRONMENT[key];
+      const value = this.runtimeSettings[key];
+      if (value === null) {
+        delete environment[environmentName];
+      } else {
+        environment[environmentName] = value;
+      }
+    }
+    environment.PLWC_CHAT_BRIDGE_SETTINGS_SOURCE = "PLwC Chat Bridge saved settings";
+    return environment;
+  }
+
+  private runSettingsUpdate(next: GatewaySettingsUpdate | null): Promise<GatewaySettingsSnapshot> {
+    if (this.settingsUpdate !== null) {
+      throw new Error("A gateway settings update is already in progress.");
+    }
+    if (JSON.stringify(next) === JSON.stringify(this.runtimeSettings)) {
+      return Promise.resolve(this.settings());
+    }
+    const operation = this.restartWithSettings(next);
+    this.settingsUpdate = operation;
+    operation.then(
+      () => {
+        this.settingsUpdate = null;
+      },
+      () => {
+        this.settingsUpdate = null;
+      },
+    );
+    return operation;
+  }
+
+  private async restartWithSettings(next: GatewaySettingsUpdate | null): Promise<GatewaySettingsSnapshot> {
+    const previous = this.runtimeSettings;
+    this.state = "restarting";
+    await this.closeResources();
+    this.runtimeSettings = next;
+    this.state = "idle";
+    try {
+      await this.start();
+      return this.settings();
+    } catch {
+      this.runtimeSettings = previous;
+      this.state = "idle";
+      try {
+        await this.start();
+      } catch {
+        // The public error remains generic even when rollback cannot restore the child.
+      }
+      throw new Error("Updated PLwC settings could not be applied.");
     }
   }
 

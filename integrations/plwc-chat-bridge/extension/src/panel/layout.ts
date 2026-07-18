@@ -27,7 +27,7 @@ export interface ComposerLauncherPosition {
   visible: boolean;
 }
 
-const COMPOSER_LAUNCHER_SIZE = 38;
+const COMPOSER_LAUNCHER_SIZE = 40;
 const COMPOSER_LAUNCHER_GAP = 8;
 
 export function calculateComposerLauncherPosition(input: ComposerLauncherInput): ComposerLauncherPosition {
@@ -37,7 +37,7 @@ export function calculateComposerLauncherPosition(input: ComposerLauncherInput):
     COMPOSER_LAUNCHER_GAP,
     Math.min(
       input.viewportHeight - COMPOSER_LAUNCHER_SIZE - COMPOSER_LAUNCHER_GAP,
-      input.composer.bottom - COMPOSER_LAUNCHER_SIZE - 10,
+      input.composer.top + (input.composer.bottom - input.composer.top - COMPOSER_LAUNCHER_SIZE) / 2,
     ),
   );
   const leftSide = input.composer.left - COMPOSER_LAUNCHER_SIZE - COMPOSER_LAUNCHER_GAP;

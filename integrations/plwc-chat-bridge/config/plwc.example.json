@@ -1,6 +1,6 @@
 {
   "name": "PLwC Chat Bridge",
-  "track": "v0.2.0-rc19.dev4",
+  "track": "v0.2.0-rc19.dev5",
   "bridge": {
     "host": "127.0.0.1",
     "port": 3007,

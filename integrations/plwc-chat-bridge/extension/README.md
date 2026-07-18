@@ -22,7 +22,8 @@ Chrome's extension developer mode.
 - A PLwC icon beside the host composer toggles the panel without occupying the
   text input; the right-edge launcher remains a fallback.
 - The WebSocket endpoint is fixed to IPv4 loopback.
-- The Settings tab mirrors all nine effective PLwC MCPB values read-only.
+- The Settings tab edits all nine effective PLwC MCPB values, saves validated
+  overrides, restarts the managed gateway child and restores imported values.
 - Tool execution is enabled only after `tools/list` returns the exact canonical
   eight-tool contract.
 - Visible ChatGPT JSONL calls are deduplicated and queued in the `Status` tab.
@@ -37,10 +38,12 @@ Chrome's extension developer mode.
   contract synchronously before it can execute.
 - MCP result envelopes are normalized once; runtime status views and inserted
   results omit duplicated profile diagnostics and escaped JSON copies.
-- Tool results are inserted into the composer only through an explicit button;
-  the extension does not submit the chat message automatically.
-- Mutating and unknown operations require explicit confirmation. Governor
-  `apply` always requires confirmation.
+- Policy-approved read-only results are inserted and submitted automatically
+  when the composer contains no user draft.
+- Mutating and unknown operations require explicit confirmation by default.
+  A default-off setting may automate recognized writes with a red mutation
+  warning; sandbox and unknown operations remain manual, and confirmed
+  Governor calls are forwarded with `confirmed=true`.
 
 The source icon is copied unchanged from the repository root during setup and
 referenced for every Chrome manifest icon size.

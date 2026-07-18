@@ -12,6 +12,7 @@ export interface BridgeStatus {
 }
 
 export interface BridgeSettings {
+  autoConfirmWrites: boolean;
   autoSubmitResults: boolean;
   renderChatCards: boolean;
   readOnlyAutoRun: boolean;
@@ -29,6 +30,20 @@ export interface GatewaySettingsSnapshot {
   qdrantEnabled: string | null;
   personaLayerDisabled: string | null;
 }
+
+export type GatewaySettingsUpdate = Omit<GatewaySettingsSnapshot, "source">;
+
+const GATEWAY_SETTING_KEYS = [
+  "workspacePath",
+  "profilesPath",
+  "activeProfileName",
+  "securityConfig",
+  "memoryWriteThreshold",
+  "personaWriteThreshold",
+  "temperamentWriteThreshold",
+  "qdrantEnabled",
+  "personaLayerDisabled",
+] as const satisfies ReadonlyArray<keyof GatewaySettingsUpdate>;
 
 function nullableSetting(value: unknown, field: string): string | null {
   if (value === null) return null;
@@ -60,12 +75,55 @@ export function parseGatewaySettings(value: unknown): GatewaySettingsSnapshot {
   };
 }
 
+export function parseGatewaySettingsUpdate(value: unknown): GatewaySettingsUpdate {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Invalid editable PLwC gateway settings.");
+  }
+  const record = value as Record<string, unknown>;
+  if (
+    Object.keys(record).length !== GATEWAY_SETTING_KEYS.length ||
+    Object.keys(record).some((key) => !GATEWAY_SETTING_KEYS.includes(key as keyof GatewaySettingsUpdate))
+  ) {
+    throw new Error("Editable PLwC gateway settings must contain exactly the supported fields.");
+  }
+  const parsed = Object.fromEntries(
+    GATEWAY_SETTING_KEYS.map((key) => [key, nullableSetting(record[key], key)]),
+  ) as unknown as GatewaySettingsUpdate;
+  for (const key of ["workspacePath", "profilesPath", "securityConfig"] as const) {
+    const settingValue = parsed[key];
+    if (settingValue !== null && !/^(?:[A-Za-z]:[\\/]|\\\\|\/)/u.test(settingValue)) {
+      throw new Error(`Invalid absolute PLwC path: ${key}.`);
+    }
+  }
+  for (const key of ["memoryWriteThreshold", "personaWriteThreshold", "temperamentWriteThreshold"] as const) {
+    const settingValue = parsed[key];
+    if (
+      settingValue !== null &&
+      (!/^(?:0|[1-9][0-9]*)$/u.test(settingValue) || Number(settingValue) > 1_000_000)
+    ) {
+      throw new Error(`Invalid PLwC threshold: ${key}.`);
+    }
+  }
+  for (const key of ["qdrantEnabled", "personaLayerDisabled"] as const) {
+    const settingValue = parsed[key];
+    if (settingValue !== null && settingValue !== "true" && settingValue !== "false") {
+      throw new Error(`Invalid PLwC boolean: ${key}.`);
+    }
+  }
+  if (Object.values(parsed).some((settingValue) => settingValue !== null && /[\u0000-\u001f\u007f]/u.test(settingValue))) {
+    throw new Error("PLwC gateway settings must not contain control characters.");
+  }
+  return parsed;
+}
+
 export type BridgeRequest =
   | { type: "bridge.connect" }
   | { type: "bridge.status" }
   | { type: "bridge.tools.list" }
   | { type: "bridge.tools.call"; name: string; arguments: JsonObject; confirmed: boolean }
   | { type: "bridge.gateway.settings.get" }
+  | { type: "bridge.gateway.settings.update"; settings: GatewaySettingsUpdate }
+  | { type: "bridge.gateway.settings.reset" }
   | { type: "bridge.settings.get" }
   | { type: "bridge.settings.update"; settings: Partial<BridgeSettings> };
 

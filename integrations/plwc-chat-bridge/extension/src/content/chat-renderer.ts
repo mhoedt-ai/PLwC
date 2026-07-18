@@ -17,6 +17,7 @@ export interface ChatToolRunSnapshot {
 }
 
 interface CardBinding {
+  expanded: boolean;
   host: HTMLElement;
   raw: HTMLElement;
   rawDisplay: string;
@@ -35,12 +36,15 @@ const CARD_THEME = `
 button, input { font: inherit; letter-spacing: 0; }
 .card {
   width: 100%; overflow: hidden; color: #8fd99a; background: #020403;
-  border: 1px solid #1b5b2b; border-radius: 2px;
+  border: 1px solid #1b5b2b; border-radius: 8px;
   font-family: Consolas, "Lucida Console", "Courier New", monospace;
   font-size: 13px; line-height: 1.45; letter-spacing: 0;
 }
-.header { min-height: 44px; display: flex; align-items: center; gap: 9px; padding: 7px 10px; background: #050806; border-bottom: 1px solid #123d1e; }
-.header img { width: 28px; height: 28px; flex: 0 0 28px; }
+.header { min-height: 42px; display: flex; align-items: center; gap: 9px; padding: 6px 9px; background: #050806; }
+.card.expanded .header { border-bottom: 1px solid #123d1e; }
+.compact-title { min-width: 0; flex: 1; color: #5cff7a; font-weight: 700; overflow-wrap: anywhere; }
+.details-toggle { width: 30px; height: 30px; min-height: 30px; flex: 0 0 30px; display: grid; place-items: center; padding: 0; font-size: 18px; line-height: 1; }
+.detail-header { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
 .identity { min-width: 0; flex: 1; }
 .kind { color: #6f9d78; font-size: 11px; }
 .name { color: #5cff7a; font-weight: 700; overflow-wrap: anywhere; }
@@ -150,7 +154,7 @@ export class PlwcChatRenderer {
       { sourceId: raw.id || undefined, sourceKind: "rendered", text, visible: true },
     ]);
     if (call) {
-      this.bindCall(raw, call);
+      this.bindCall(this.findCallContentRoot(raw), call);
       return;
     }
 
@@ -199,6 +203,22 @@ export class PlwcChatRenderer {
     return candidate;
   }
 
+  private findCallContentRoot(raw: HTMLElement): HTMLElement {
+    const rawText = raw.textContent?.trim() ?? "";
+    let candidate = raw;
+    let current = raw.parentElement;
+    for (let depth = 0; current && depth < 4 && !current.hasAttribute("data-message-author-role"); depth += 1) {
+      const text = current.textContent?.trim() ?? "";
+      const remainder = text.replace(rawText, "").replace(/\s+/gu, " ").trim();
+      const wrapsOnlyThisBlock = current.querySelectorAll("pre").length === 1 && text.includes(rawText);
+      if (wrapsOnlyThisBlock && current.querySelector("button") && remainder.length <= 100) {
+        candidate = current;
+      }
+      current = current.parentElement;
+    }
+    return candidate;
+  }
+
   private bindCall(raw: HTMLElement, call: ParsedPlwcToolCall): void {
     const binding = this.createBinding(raw);
     const bindings = this.callBindings.get(call.callKey) ?? new Set<CardBinding>();
@@ -222,6 +242,7 @@ export class PlwcChatRenderer {
     const host = this.documentValue.createElement("div");
     host.dataset.plwcChatCard = "true";
     const binding = {
+      expanded: false,
       host,
       raw,
       rawDisplay: raw.style.getPropertyValue("display"),
@@ -231,6 +252,10 @@ export class PlwcChatRenderer {
     raw.before(host);
     raw.dataset.plwcMasked = "true";
     this.boundRawBlocks.add(raw);
+    for (const child of raw.querySelectorAll<HTMLElement>("pre, code")) {
+      child.dataset.plwcMasked = "true";
+      this.boundRawBlocks.add(child);
+    }
     this.applyBindingVisibility(binding);
     this.applyBindingWidth(binding);
     return binding;
@@ -260,10 +285,20 @@ export class PlwcChatRenderer {
   private renderCallCard(binding: CardBinding, snapshot: ChatToolRunSnapshot): void {
     const shadow = binding.host.shadowRoot ?? binding.host.attachShadow({ mode: "open" });
     const policy = decidePolicy(snapshot.call.name, { ...snapshot.call.arguments });
-    const card = this.element("article", "card");
-    const header = this.buildHeader("PLwC CALL", snapshot.call.name, snapshot.state);
+    const card = this.element("article", `card${binding.expanded ? " expanded" : ""}`);
+    const header = this.buildCompactHeader("PLwC-Gateway-Call", binding, () =>
+      this.renderCallCard(binding, snapshot),
+    );
     const body = this.element("div", "body");
+    const detailHeader = this.element("div", "detail-header");
+    const identity = this.element("div", "identity");
+    identity.append(
+      this.element("div", "kind", "PLwC CALL"),
+      this.element("div", "name", snapshot.call.name),
+    );
+    detailHeader.append(identity, this.element("span", `state ${snapshot.state}`, snapshot.state.toUpperCase()));
     body.append(
+      detailHeader,
       this.element("p", "policy", policy.readOnly ? "READ-ONLY / governed facade" : policy.reason),
       this.element("pre", "", boundedJson(snapshot.call.arguments, 4_000)),
     );
@@ -306,7 +341,8 @@ export class PlwcChatRenderer {
     }
     actions.append(this.rawToggle(binding));
     body.append(actions);
-    card.append(header, body);
+    card.append(header);
+    if (binding.expanded) card.append(body);
 
     const style = this.element("style");
     style.textContent = CARD_THEME;
@@ -316,26 +352,38 @@ export class PlwcChatRenderer {
   private renderResultCard(binding: CardBinding, result: PlwcToolResultEnvelope): void {
     const shadow = binding.host.shadowRoot ?? binding.host.attachShadow({ mode: "open" });
     const state = result.is_error ? "failed" : "succeeded";
-    const card = this.element("article", "card");
+    const card = this.element("article", `card${binding.expanded ? " expanded" : ""}`);
     const body = this.element("div", "body");
+    const detailHeader = this.element("div", "detail-header");
+    const identity = this.element("div", "identity");
+    identity.append(this.element("div", "kind", "PLwC RESULT"), this.element("div", "name", result.name));
+    detailHeader.append(identity, this.element("span", `state ${state}`, state.toUpperCase()));
+    body.append(detailHeader);
     body.append(this.element("pre", "", boundedJson(result.result)));
     const actions = this.element("div", "actions");
     actions.append(this.rawToggle(binding));
     body.append(actions);
-    card.append(this.buildHeader("PLwC RESULT", result.name, state), body);
+    card.append(this.buildCompactHeader("PLwC-Gateway-Result", binding, () =>
+      this.renderResultCard(binding, result),
+    ));
+    if (binding.expanded) card.append(body);
     const style = this.element("style");
     style.textContent = CARD_THEME;
     shadow.replaceChildren(style, card);
   }
 
-  private buildHeader(kind: string, name: string, state: ChatRunState): HTMLElement {
+  private buildCompactHeader(label: string, binding: CardBinding, rerender: () => void): HTMLElement {
     const header = this.element("header", "header");
-    const image = this.element("img") as HTMLImageElement;
-    image.src = chrome.runtime.getURL("icons/plwc-icon-512.png");
-    image.alt = "";
-    const identity = this.element("div", "identity");
-    identity.append(this.element("div", "kind", kind), this.element("div", "name", name));
-    header.append(image, identity, this.element("span", `state ${state}`, state.toUpperCase()));
+    const toggle = this.button(binding.expanded ? "−" : "+", "details-toggle");
+    const action = binding.expanded ? "Hide details" : "Show details";
+    toggle.title = action;
+    toggle.setAttribute("aria-label", action);
+    toggle.setAttribute("aria-expanded", String(binding.expanded));
+    toggle.addEventListener("click", () => {
+      binding.expanded = !binding.expanded;
+      rerender();
+    });
+    header.append(this.element("div", "compact-title", label), toggle);
     return header;
   }
 

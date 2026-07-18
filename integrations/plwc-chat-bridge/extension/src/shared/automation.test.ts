@@ -5,16 +5,20 @@ import { shouldAutoRun, shouldAutoSubmitResult } from "./automation";
 import type { BridgeSettings } from "./messages";
 
 const settings: BridgeSettings = {
+  autoConfirmWrites: false,
   autoSubmitResults: true,
   readOnlyAutoRun: true,
   renderChatCards: true,
 };
 const readOnly = { readOnly: true, requiresConfirmation: false, reason: "read" };
-const mutating = { readOnly: false, requiresConfirmation: true, reason: "write" };
+const mutating = { automaticConfirmationAllowed: true, readOnly: false, requiresConfirmation: true, reason: "write" };
+const sandbox = { readOnly: false, requiresConfirmation: true, reason: "sandbox" };
 
-test("automates only policy-classified read-only execution", () => {
+test("automates read-only calls and recognized writes only after standing confirmation is enabled", () => {
   assert.equal(shouldAutoRun(settings, readOnly), true);
   assert.equal(shouldAutoRun(settings, mutating), false);
+  assert.equal(shouldAutoRun({ ...settings, autoConfirmWrites: true }, mutating), true);
+  assert.equal(shouldAutoRun({ ...settings, autoConfirmWrites: true }, sandbox), false);
   assert.equal(shouldAutoRun({ ...settings, readOnlyAutoRun: false }, readOnly), false);
 });
 
