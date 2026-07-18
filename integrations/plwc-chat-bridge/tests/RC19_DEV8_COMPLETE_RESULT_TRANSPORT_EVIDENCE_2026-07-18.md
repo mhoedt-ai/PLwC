@@ -35,6 +35,9 @@ not receive the complete tool output.
 
 ## Manual Signed-in Acceptance
 
-Pending after loading `0.2.0-rc19.dev8`. Run `plwc_profile` with a full compile
-and verify that the submitted result has no bridge truncation marker and that
-ChatGPT can inspect content beyond the former 4,000-character preview boundary.
+PASS on 2026-07-18. The user confirmed that the full profile compile completed
+successfully through the signed-in ChatGPT bridge. The live conversation
+reported the complete 47,130-character compile and no bridge-generated
+`truncated_by` replacement. This acceptance was observed on the later rc19
+development build that contains the unchanged dev8 complete-result transport
+fix.
