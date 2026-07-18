@@ -41,9 +41,11 @@ Chrome's extension developer mode.
 - Policy-approved read-only results are inserted and submitted automatically
   when the composer contains no user draft.
 - Mutating and unknown operations require explicit confirmation by default.
-  A default-off setting may automate recognized writes with a red mutation
-  warning; sandbox and unknown operations remain manual, and confirmed
-  Governor calls are forwarded with `confirmed=true`.
+  Separate default-off settings may automate recognized writes and sandbox
+  calls, each with a red warning; unknown operations remain manual, and
+  confirmed Governor calls are forwarded with `confirmed=true`.
+- A collapsed call that still needs individual confirmation shows `! CONFIRM`
+  in its compact header.
 
 The source icon is copied unchanged from the repository root during setup and
 referenced for every Chrome manifest icon size.

@@ -27,6 +27,7 @@ test("always confirms Governor apply and treats unknown operations as mutating",
   assert.equal(decidePolicy("plwc_governor", { operation: "apply" }).automaticConfirmationAllowed, true);
   assert.equal(decidePolicy("plwc_governor", { operation: "future_operation" }).automaticConfirmationAllowed, undefined);
   assert.equal(decidePolicy("plwc_sandbox_run", { lang: "python", code: "print(1)" }).automaticConfirmationAllowed, undefined);
+  assert.equal(decidePolicy("plwc_sandbox_run", { lang: "python", code: "print(1)" }).automaticSandboxConfirmationAllowed, true);
 });
 
 test("forwards an accepted Governor confirmation as confirmed=true without mutating the source call", () => {

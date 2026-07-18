@@ -1,4 +1,4 @@
-export const BRIDGE_VERSION = "0.2.0-rc19.dev9";
+export const BRIDGE_VERSION = "0.2.0-rc19.dev10";
 export const BRIDGE_ENDPOINT = "ws://127.0.0.1:3007/message";
 
 export const CANONICAL_TOOL_NAMES = [

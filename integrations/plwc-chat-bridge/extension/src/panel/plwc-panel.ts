@@ -5,7 +5,7 @@ import {
   insertAndSubmitToChatGpt,
   insertIntoChatGptComposer,
 } from "../content/composer";
-import type { ChatRunState, PlwcChatRenderer } from "../content/chat-renderer";
+import { runStateLabel, type ChatRunState, type PlwcChatRenderer } from "../content/chat-renderer";
 import type { ParsedPlwcToolCall } from "../content/tool-call-parser";
 import { formatPlwcToolResultMessage } from "../content/tool-result-message";
 import { buildPrimer, type BridgePrimer } from "../primer/build-primer";
@@ -84,6 +84,7 @@ export class PlwcPanel {
   private primer: BridgePrimer | null = null;
   private statusValue: BridgeStatus | null = null;
   private settings: BridgeSettings = {
+    autoConfirmSandbox: false,
     autoConfirmWrites: false,
     autoExecuteDelay: 2,
     autoInsertDelay: 2,
@@ -134,29 +135,57 @@ export class PlwcPanel {
 
   offerToolCall(call: ParsedPlwcToolCall): void {
     if (this.toolRuns.has(call.callKey)) return;
-    const record: ToolRunRecord = { call, state: "scheduled" };
+    const policy = decidePolicy(call.name, { ...call.arguments });
+    const automatic = shouldAutoRun(this.settings, policy);
+    const record: ToolRunRecord = {
+      call,
+      state: policy.requiresConfirmation && !automatic ? "awaiting_confirmation" : "scheduled",
+    };
     this.toolRuns.set(call.callKey, record);
     this.syncChatCard(record);
     this.renderStatus();
-    const policy = decidePolicy(call.name, { ...call.arguments });
-    if (shouldAutoRun(this.settings, policy)) {
-      const confirmed = policy.requiresConfirmation && this.settings.autoConfirmWrites;
-      const delay = this.settings.autoExecuteDelay;
-      void this.automaticRunQueue.enqueue(
-        call.sourceId,
-        async () => {
-          await waitSeconds(delay);
-          await this.executeToolCall(call.callKey, confirmed);
-          const resultExpectedInChat = shouldAutoSubmitResult(this.settings, policy, confirmed);
-          return record.state === "succeeded" && (!resultExpectedInChat || record.resultSubmitted === true);
-        },
-        () => {
-          record.error = "Automatic execution paused because an earlier call in the same response did not complete successfully.";
+    if (automatic) this.queueAutomaticRun(record, policy);
+  }
+
+  private queueAutomaticRun(
+    record: ToolRunRecord,
+    policy = decidePolicy(record.call.name, { ...record.call.arguments }),
+  ): void {
+    const delay = this.settings.autoExecuteDelay;
+    void this.automaticRunQueue.enqueue(
+      record.call.sourceId,
+      async () => {
+        await waitSeconds(delay);
+        if (!shouldAutoRun(this.settings, policy)) {
+          record.state = policy.requiresConfirmation ? "awaiting_confirmation" : "scheduled";
           this.syncChatCard(record);
           this.renderStatus();
-        },
-      );
+          return false;
+        }
+        const confirmed = policy.requiresConfirmation;
+        await this.executeToolCall(record.call.callKey, confirmed);
+        const resultExpectedInChat = shouldAutoSubmitResult(this.settings, policy, confirmed);
+        return record.state === "succeeded" && (!resultExpectedInChat || record.resultSubmitted === true);
+      },
+      () => {
+        record.error = "Automatic execution paused because an earlier call in the same response did not complete successfully.";
+        this.syncChatCard(record);
+        this.renderStatus();
+      },
+    );
+  }
+
+  private resumeEligibleAutomaticCalls(): void {
+    for (const record of this.toolRuns.values()) {
+      if (record.state !== "awaiting_confirmation") continue;
+      const policy = decidePolicy(record.call.name, { ...record.call.arguments });
+      if (!shouldAutoRun(this.settings, policy)) continue;
+      record.state = "scheduled";
+      record.error = undefined;
+      this.syncChatCard(record);
+      this.queueAutomaticRun(record, policy);
     }
+    this.renderStatus();
   }
 
   private buildLauncher(): void {
@@ -463,7 +492,7 @@ export class PlwcPanel {
       const header = element("div", "run-header");
       header.append(
         element("code", "tool-name", record.call.name),
-        element("span", `run-state ${record.state}`, record.state.toUpperCase()),
+        element("span", `run-state ${record.state}`, runStateLabel(record.state)),
       );
       card.append(header, element("pre", "run-arguments", boundedJson(record.call.arguments, 4_000)));
 
@@ -471,7 +500,7 @@ export class PlwcPanel {
       const run = button(policy.requiresConfirmation ? "Confirm & Run" : "Run", "command-button");
       const terminalState = ["running", "succeeded", "denied", "unknown"].includes(record.state);
       run.disabled = terminalState || policy.requiresConfirmation;
-      if (policy.requiresConfirmation && record.state === "scheduled") {
+      if (policy.requiresConfirmation && ["scheduled", "awaiting_confirmation"].includes(record.state)) {
         const confirmation = element("label", "setting-row run-confirmation");
         const checkbox = element("input") as HTMLInputElement;
         checkbox.type = "checkbox";
@@ -506,7 +535,11 @@ export class PlwcPanel {
 
   private async runToolCallFromChat(call: ParsedPlwcToolCall, confirmed: boolean): Promise<void> {
     if (!this.toolRuns.has(call.callKey)) {
-      const record: ToolRunRecord = { call, state: "scheduled" };
+      const policy = decidePolicy(call.name, { ...call.arguments });
+      const record: ToolRunRecord = {
+        call,
+        state: policy.requiresConfirmation ? "awaiting_confirmation" : "scheduled",
+      };
       this.toolRuns.set(call.callKey, record);
       this.syncChatCard(record);
     }
@@ -515,7 +548,7 @@ export class PlwcPanel {
 
   private async executeToolCall(callKey: string, confirmed: boolean): Promise<void> {
     const record = this.toolRuns.get(callKey);
-    if (!record || record.state !== "scheduled" && record.state !== "failed") return;
+    if (!record || !["scheduled", "awaiting_confirmation", "failed"].includes(record.state)) return;
     const policy = decidePolicy(record.call.name, { ...record.call.arguments });
     if (policy.requiresConfirmation && !confirmed) return;
     record.state = "running";
@@ -741,11 +774,13 @@ export class PlwcPanel {
       | "renderChatCards"
       | "readOnlyAutoRun"
       | "autoConfirmWrites"
+      | "autoConfirmSandbox"
       | "autoSubmitResults";
     const behaviors: Array<[BooleanBridgeSetting, string]> = [
       ["renderChatCards", "Render PLwC calls and results as terminal cards in the chat."],
       ["readOnlyAutoRun", "Automatically execute only operations classified as read-only."],
       ["autoConfirmWrites", "Automatically confirm and execute recognized PLwC write operations."],
+      ["autoConfirmSandbox", "Automatically confirm and execute PLwC sandbox operations."],
       ["autoSubmitResults", "Automatically submit results after read-only or explicitly confirmed calls."],
     ];
     for (const [key, label] of behaviors) {
@@ -758,6 +793,9 @@ export class PlwcPanel {
         try {
           this.settings = await this.client.updateSettings({ [key]: checkbox.checked });
           this.chatRenderer?.setEnabled(this.settings.renderChatCards);
+          if (checkbox.checked && (key === "autoConfirmWrites" || key === "autoConfirmSandbox")) {
+            this.resumeEligibleAutomaticCalls();
+          }
         } catch (error) {
           checkbox.checked = this.settings[key];
           this.showError("Settings", error);
@@ -772,7 +810,16 @@ export class PlwcPanel {
           element(
             "p",
             "danger-text setting-warning",
-            "WARNING: Recognized writes run without an individual click and may change workspace files, documents, profiles, or persistent PLwC data. Sandbox and unknown operations still require confirmation.",
+            "WARNING: Recognized writes run without an individual click and may change workspace files, documents, profiles, or persistent PLwC data. Sandbox operations require their own setting; unknown operations still require confirmation.",
+          ),
+        );
+      }
+      if (key === "autoConfirmSandbox") {
+        block.append(
+          element(
+            "p",
+            "danger-text setting-warning",
+            "WARNING: Sandbox code runs automatically without individual review and can execute programs or change data allowed by the local PLwC sandbox policy. Unknown operations still require confirmation.",
           ),
         );
       }

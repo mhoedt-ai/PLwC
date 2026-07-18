@@ -12,6 +12,7 @@ Recorded execution evidence:
 - [rc19.dev7 automation timing and retry evidence, 2026-07-18](../RC19_DEV7_AUTOMATION_TIMING_AND_RETRY_EVIDENCE_2026-07-18.md)
 - [rc19.dev8 complete result transport evidence, 2026-07-18](../RC19_DEV8_COMPLETE_RESULT_TRANSPORT_EVIDENCE_2026-07-18.md)
 - [rc19.dev9 workspace evidence and sequencing evidence, 2026-07-18](../RC19_DEV9_WORKSPACE_EVIDENCE_AND_SEQUENCING_2026-07-18.md)
+- [rc19.dev10 sandbox automation and confirmation evidence, 2026-07-18](../RC19_DEV10_SANDBOX_AUTOMATION_AND_CONFIRMATION_EVIDENCE_2026-07-18.md)
 
 First rc19 smoke matrix:
 
@@ -25,5 +26,8 @@ First rc19 smoke matrix:
 8. Attempt a protected-path write and verify denial with no file created.
 9. With automatic write confirmation disabled, verify Governor `apply`
    requires explicit confirmation.
-10. Reload the extension and page and verify stale mutating calls do not run.
-11. Verify the left host chat menu remains reachable throughout.
+10. With automatic sandbox confirmation disabled, verify sandbox calls show
+    `! CONFIRM`; enable the separate warned setting and verify one new sandbox
+    call runs automatically.
+11. Reload the extension and page and verify stale mutating calls do not run.
+12. Verify the left host chat menu remains reachable throughout.

@@ -12,6 +12,7 @@ export interface BridgeStatus {
 }
 
 export interface BridgeSettings {
+  autoConfirmSandbox: boolean;
   autoConfirmWrites: boolean;
   autoExecuteDelay: number;
   autoInsertDelay: number;

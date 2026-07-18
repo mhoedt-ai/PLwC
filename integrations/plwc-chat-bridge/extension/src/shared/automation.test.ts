@@ -5,6 +5,7 @@ import { AutomaticRunQueue, shouldAutoRun, shouldAutoSubmitResult } from "./auto
 import type { BridgeSettings } from "./messages";
 
 const settings: BridgeSettings = {
+  autoConfirmSandbox: false,
   autoConfirmWrites: false,
   autoExecuteDelay: 2,
   autoInsertDelay: 2,
@@ -15,13 +16,24 @@ const settings: BridgeSettings = {
 };
 const readOnly = { readOnly: true, requiresConfirmation: false, reason: "read" };
 const mutating = { automaticConfirmationAllowed: true, readOnly: false, requiresConfirmation: true, reason: "write" };
-const sandbox = { readOnly: false, requiresConfirmation: true, reason: "sandbox" };
+const sandbox = {
+  automaticSandboxConfirmationAllowed: true,
+  readOnly: false,
+  requiresConfirmation: true,
+  reason: "sandbox",
+};
+const unknown = { readOnly: false, requiresConfirmation: true, reason: "unknown" };
 
 test("automates read-only calls and recognized writes only after standing confirmation is enabled", () => {
   assert.equal(shouldAutoRun(settings, readOnly), true);
   assert.equal(shouldAutoRun(settings, mutating), false);
   assert.equal(shouldAutoRun({ ...settings, autoConfirmWrites: true }, mutating), true);
   assert.equal(shouldAutoRun({ ...settings, autoConfirmWrites: true }, sandbox), false);
+  assert.equal(shouldAutoRun({ ...settings, autoConfirmSandbox: true }, sandbox), true);
+  assert.equal(
+    shouldAutoRun({ ...settings, autoConfirmSandbox: true, autoConfirmWrites: true }, unknown),
+    false,
+  );
   assert.equal(shouldAutoRun({ ...settings, readOnlyAutoRun: false }, readOnly), false);
 });
 

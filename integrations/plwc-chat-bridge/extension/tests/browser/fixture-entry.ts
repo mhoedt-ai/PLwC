@@ -1,6 +1,7 @@
 import { PlwcPanel } from "../../src/panel/plwc-panel";
 import { BridgeClient } from "../../src/content/bridge-client";
 import { PlwcChatRenderer } from "../../src/content/chat-renderer";
+import { parseVisiblePlwcToolCalls } from "../../src/content/tool-call-parser";
 import { CANONICAL_TOOL_NAMES } from "../../src/shared/contracts";
 import type { BridgeSettings, GatewaySettingsSnapshot, GatewaySettingsUpdate } from "../../src/shared/messages";
 
@@ -44,6 +45,7 @@ const importedGatewaySettings: GatewaySettingsSnapshot = {
 };
 let gatewaySettings: GatewaySettingsSnapshot = { ...importedGatewaySettings };
 let bridgeSettings: BridgeSettings = {
+  autoConfirmSandbox: false,
   autoConfirmWrites: false,
   autoExecuteDelay: 2,
   autoInsertDelay: 2,
@@ -114,5 +116,11 @@ host.id = "plwc-chat-bridge-host";
 const shadowRoot = host.attachShadow({ mode: "open" });
 document.documentElement.append(host);
 const chatRenderer = new PlwcChatRenderer();
-new PlwcPanel(shadowRoot, new BridgeClient(), chatRenderer).mount();
+const panel = new PlwcPanel(shadowRoot, new BridgeClient(), chatRenderer);
+panel.mount();
 chatRenderer.mount();
+const sandboxJsonl = document.querySelector<HTMLElement>("#fixture-sandbox-source")?.textContent ?? "";
+const [sandboxCall] = parseVisiblePlwcToolCalls([
+  { sourceId: "fixture-sandbox-source", sourceKind: "rendered", text: sandboxJsonl, visible: true },
+]);
+if (sandboxCall) panel.offerToolCall(sandboxCall);

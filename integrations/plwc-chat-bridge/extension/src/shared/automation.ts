@@ -31,6 +31,7 @@ export class AutomaticRunQueue {
 
 export function shouldAutoRun(settings: BridgeSettings, policy: PolicyDecision): boolean {
   if (policy.requiresConfirmation) {
+    if (policy.automaticSandboxConfirmationAllowed === true) return settings.autoConfirmSandbox;
     return settings.autoConfirmWrites && policy.automaticConfirmationAllowed === true;
   }
   return settings.readOnlyAutoRun && policy.readOnly;

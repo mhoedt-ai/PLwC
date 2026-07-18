@@ -2,6 +2,7 @@ import type { CanonicalToolName, JsonObject } from "./contracts";
 
 export interface PolicyDecision {
   automaticConfirmationAllowed?: boolean;
+  automaticSandboxConfirmationAllowed?: boolean;
   readOnly: boolean;
   requiresConfirmation: boolean;
   reason: string;
@@ -72,7 +73,12 @@ export function decidePolicy(toolName: CanonicalToolName, argumentsValue: JsonOb
   }
 
   if (toolName === "plwc_sandbox_run") {
-    return { readOnly: false, requiresConfirmation: true, reason: "Sandbox execution requires confirmation." };
+    return {
+      automaticSandboxConfirmationAllowed: true,
+      readOnly: false,
+      requiresConfirmation: true,
+      reason: "Sandbox execution requires confirmation or the enabled standing sandbox setting.",
+    };
   }
 
   if (operationOf(argumentsValue) === "write") {
@@ -85,7 +91,7 @@ export const POLICY_ROWS = [
   ["Status / Describe / Profile", "Read-only; eligible for automatic execution"],
   ["Workspace / Document", "Reads may run; recognized writes require confirmation or the enabled standing write setting"],
   ["Reflection", "Writes require confirmation or the enabled standing write setting"],
-  ["Sandbox", "Always requires individual confirmation"],
+  ["Sandbox", "Requires individual confirmation or the enabled standing sandbox setting"],
   ["Governor plan", "Read-only planning"],
   ["Governor apply", "Requires confirmation; the standing write setting may satisfy it"],
   ["Unknown operation", "Never automatic; require individual confirmation"],

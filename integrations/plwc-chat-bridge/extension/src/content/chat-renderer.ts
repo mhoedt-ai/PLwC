@@ -6,7 +6,18 @@ import {
   type PlwcToolResultEnvelope,
 } from "./tool-result-message";
 
-export type ChatRunState = "scheduled" | "running" | "succeeded" | "denied" | "failed" | "unknown";
+export type ChatRunState =
+  | "scheduled"
+  | "awaiting_confirmation"
+  | "running"
+  | "succeeded"
+  | "denied"
+  | "failed"
+  | "unknown";
+
+export function runStateLabel(state: ChatRunState): string {
+  return state === "awaiting_confirmation" ? "CONFIRM REQUIRED" : state.toUpperCase();
+}
 
 export interface ChatToolRunSnapshot {
   call: ParsedPlwcToolCall;
@@ -43,6 +54,7 @@ button, input { font: inherit; letter-spacing: 0; }
 .header { min-height: 42px; display: flex; align-items: center; gap: 9px; padding: 6px 9px; background: #050806; }
 .card.expanded .header { border-bottom: 1px solid #123d1e; }
 .compact-title { min-width: 0; flex: 1; color: #5cff7a; font-weight: 700; overflow-wrap: anywhere; }
+.compact-alert { flex: 0 0 auto; padding: 2px 5px; color: #ffbf66; border: 1px solid #8a6426; white-space: nowrap; }
 .details-toggle { width: 30px; height: 30px; min-height: 30px; flex: 0 0 30px; display: grid; place-items: center; padding: 0; font-size: 18px; line-height: 1; }
 .detail-header { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
 .identity { min-width: 0; flex: 1; }
@@ -50,6 +62,7 @@ button, input { font: inherit; letter-spacing: 0; }
 .name { color: #5cff7a; font-weight: 700; overflow-wrap: anywhere; }
 .state { flex: 0 0 auto; padding: 2px 5px; color: #8fd99a; border: 1px solid #245d30; }
 .state.succeeded { color: #5cff7a; }
+.state.awaiting_confirmation { color: #ffbf66; border-color: #8a6426; }
 .state.denied, .state.failed, .state.unknown { color: #ff8293; border-color: #71313c; }
 .body { padding: 10px; }
 .policy { margin: 0 0 8px; color: #6f9d78; }
@@ -286,8 +299,11 @@ export class PlwcChatRenderer {
     const shadow = binding.host.shadowRoot ?? binding.host.attachShadow({ mode: "open" });
     const policy = decidePolicy(snapshot.call.name, { ...snapshot.call.arguments });
     const card = this.element("article", `card${binding.expanded ? " expanded" : ""}`);
-    const header = this.buildCompactHeader("PLwC-Gateway-Call", binding, () =>
-      this.renderCallCard(binding, snapshot),
+    const header = this.buildCompactHeader(
+      "PLwC-Gateway-Call",
+      binding,
+      () => this.renderCallCard(binding, snapshot),
+      snapshot.state === "awaiting_confirmation" ? "! CONFIRM" : undefined,
     );
     const body = this.element("div", "body");
     const detailHeader = this.element("div", "detail-header");
@@ -296,7 +312,7 @@ export class PlwcChatRenderer {
       this.element("div", "kind", "PLwC CALL"),
       this.element("div", "name", snapshot.call.name),
     );
-    detailHeader.append(identity, this.element("span", `state ${snapshot.state}`, snapshot.state.toUpperCase()));
+    detailHeader.append(identity, this.element("span", `state ${snapshot.state}`, runStateLabel(snapshot.state)));
     body.append(
       detailHeader,
       this.element("p", "policy", policy.readOnly ? "READ-ONLY / governed facade" : policy.reason),
@@ -309,7 +325,7 @@ export class PlwcChatRenderer {
     if (snapshot.error) body.append(this.element("p", "error", snapshot.error));
 
     const actions = this.element("div", "actions");
-    const canRun = snapshot.state === "scheduled" || snapshot.state === "failed";
+    const canRun = ["scheduled", "awaiting_confirmation", "failed"].includes(snapshot.state);
     if (canRun) {
       let confirmed = !policy.requiresConfirmation;
       const run = this.button(policy.requiresConfirmation ? "Confirm & Run" : "Run", "primary");
@@ -372,7 +388,12 @@ export class PlwcChatRenderer {
     shadow.replaceChildren(style, card);
   }
 
-  private buildCompactHeader(label: string, binding: CardBinding, rerender: () => void): HTMLElement {
+  private buildCompactHeader(
+    label: string,
+    binding: CardBinding,
+    rerender: () => void,
+    alert?: string,
+  ): HTMLElement {
     const header = this.element("header", "header");
     const toggle = this.button(binding.expanded ? "−" : "+", "details-toggle");
     const action = binding.expanded ? "Hide details" : "Show details";
@@ -383,7 +404,14 @@ export class PlwcChatRenderer {
       binding.expanded = !binding.expanded;
       rerender();
     });
-    header.append(this.element("div", "compact-title", label), toggle);
+    header.append(this.element("div", "compact-title", label));
+    if (alert) {
+      const indicator = this.element("span", "compact-alert", alert);
+      indicator.title = "Individual confirmation required before execution";
+      indicator.setAttribute("aria-label", indicator.title);
+      header.append(indicator);
+    }
+    header.append(toggle);
     return header;
   }
 

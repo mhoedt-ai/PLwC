@@ -43,6 +43,12 @@
           <pre><code>{"call_id":"fixture-status-1","is_error":false,"name":"plwc_status","result":{"ok":true,"scope":"runtime"}}</code></pre>
         </div>
       </div>
+      <div class="message" data-message-author-role="assistant">
+        <pre id="fixture-sandbox-source"><code>{"call_id":"fixture-sandbox-1","name":"plwc_sandbox_run","type":"function_call_start"}
+{"call_id":"fixture-sandbox-1","key":"lang","type":"parameter","value":"python"}
+{"call_id":"fixture-sandbox-1","key":"code","type":"parameter","value":"from pathlib import Path\nroot = Path('/work/Wandorra/Spielleiterhandbuch')\nprint('verify a deliberately long sandbox payload without hiding the confirmation state')"}
+{"call_id":"fixture-sandbox-1","type":"function_call_end"}</code></pre>
+      </div>
       <form class="composer">
         <div id="prompt-textarea" contenteditable="true" role="textbox" aria-label="Message composer"></div>
         <button type="submit" class="composer-submit-button-color" aria-label="Nachricht übermitteln">Send</button>

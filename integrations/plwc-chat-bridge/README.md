@@ -1,6 +1,6 @@
 # PLwC Chat Bridge
 
-Status: rc19.dev9 implementation prototype.
+Status: rc19.dev10 implementation prototype.
 
 PLwC Chat Bridge is the proposed PLwC-owned local browser client integration
 for using the signed-in ChatGPT web UI with the local `plwc-gateway` MCP
@@ -21,8 +21,9 @@ shipping the generic upstream extension or proxy package.
 - Gateway: start exactly one `plwc-gateway` stdio child.
 - Tools: advertise only the eight public `plwc-gateway` facade tools.
 - Primer: replace generic prompt injection with a versioned PLwC Bridge Primer.
-- Policy: writes and Governor `apply` require confirmation by default; an
-  explicit, warned standing-confirmation option may automate that bridge step.
+- Policy: writes, Governor `apply` and sandbox execution require confirmation
+  by default; separate warned standing-confirmation options may automate known
+  writes and sandbox calls, while unknown operations stay manual.
 
 ## Directory Layout
 
@@ -68,9 +69,11 @@ integrations/plwc-chat-bridge/
   the file exists; dependent calls from one GPT response execute serially;
 - structured `ok=false` and policy denials render as failed or denied instead
   of being mislabeled as successful merely because the MCP envelope completed;
-- mutating calls require explicit confirmation by default; a default-off
-  automatic confirmation option covers recognized writes and is paired with a
-  red mutation warning, while sandbox and unknown operations stay manual;
+- mutating calls require explicit confirmation by default; separate default-off
+  automatic confirmation options cover recognized writes and sandbox calls,
+  each with a red warning, while unknown operations stay manual;
+- collapsed calls that still require an individual confirmation show a visible
+  `! CONFIRM` state instead of looking stalled behind long JSON details;
 - `scripts/start-windows.ps1` imports the enabled Claude PLwC MCPB settings and
   starts the built bridge with the example config;
 - the live smoke starts the current repository gateway, lists eight tools and
@@ -91,6 +94,7 @@ Recorded test execution:
 - [rc19.dev7 automation timing and retry evidence, 2026-07-18](tests/RC19_DEV7_AUTOMATION_TIMING_AND_RETRY_EVIDENCE_2026-07-18.md)
 - [rc19.dev8 complete result transport evidence, 2026-07-18](tests/RC19_DEV8_COMPLETE_RESULT_TRANSPORT_EVIDENCE_2026-07-18.md)
 - [rc19.dev9 workspace evidence and sequencing evidence, 2026-07-18](tests/RC19_DEV9_WORKSPACE_EVIDENCE_AND_SEQUENCING_2026-07-18.md)
+- [rc19.dev10 sandbox automation and confirmation evidence, 2026-07-18](tests/RC19_DEV10_SANDBOX_AUTOMATION_AND_CONFIRMATION_EVIDENCE_2026-07-18.md)
 
 This is still an rc19 development prototype. It has not yet completed a fresh
 unpacked-extension smoke on the live ChatGPT DOM or a confirmed write/read
@@ -125,4 +129,6 @@ there, especially when the repository is on a mapped network drive.
 5. A denied protected-path write remains denied and creates nothing.
 6. With automatic write confirmation disabled, Governor `apply` cannot run
    without explicit confirmation.
-7. The bridge panel never blocks the host chat menu.
+7. With automatic sandbox confirmation disabled, sandbox calls display
+   `! CONFIRM` and cannot run without explicit confirmation.
+8. The bridge panel never blocks the host chat menu.
