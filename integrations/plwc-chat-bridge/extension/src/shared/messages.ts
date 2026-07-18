@@ -74,6 +74,7 @@ export interface ToolListResponse {
 
 export interface ToolCallResponse {
   result: unknown;
+  isError: boolean;
   policy: PolicyDecision;
 }
 

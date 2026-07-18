@@ -10,6 +10,7 @@ import type {
   ToolListResponse,
 } from "../shared/messages";
 import { decidePolicy, POLICY_ROWS } from "../shared/policy";
+import { presentToolResult } from "../shared/tool-result";
 import {
   calculateComposerLauncherPosition,
   calculatePanelLayout,
@@ -89,6 +90,7 @@ export class PlwcPanel {
 
     window.addEventListener("resize", this.onResize, { passive: true });
     this.hostObserver.observe(document.body ?? document.documentElement, { childList: true, subtree: true });
+    setInterval(() => void this.refreshConnectionStatus(), 15_000);
     this.client.onStatus((status) => {
       this.statusValue = status;
       this.renderStatus();
@@ -210,15 +212,32 @@ export class PlwcPanel {
   }
 
   private async refreshTools(): Promise<void> {
-    await this.client.connect();
+    this.statusValue = await this.client.connect();
     const response = await this.client.listTools();
     this.acceptToolList(response);
   }
 
   private async refreshGatewaySettings(): Promise<void> {
-    await this.client.connect();
+    this.statusValue = await this.client.connect();
     this.gatewaySettings = await this.client.getGatewaySettings();
     this.renderSettings();
+  }
+
+  private async refreshConnectionStatus(): Promise<void> {
+    try {
+      this.statusValue = await this.client.connect();
+      if (!this.statusValue.toolSet?.valid) {
+        this.acceptToolList(await this.client.listTools());
+        this.statusValue = await this.client.status();
+      }
+    } catch {
+      try {
+        this.statusValue = await this.client.status();
+      } catch {
+        return;
+      }
+    }
+    this.renderStatus();
   }
 
   private acceptToolList(response: ToolListResponse): void {
@@ -371,7 +390,8 @@ export class PlwcPanel {
     runtime.addEventListener("click", () =>
       void this.runAction(runtime, async () => {
         const response = await this.client.callTool("plwc_status", { scope: "runtime" });
-        result.textContent = boundedJson(response.result);
+        this.statusValue = await this.client.status();
+        result.textContent = boundedJson(presentToolResult("plwc_status", response.result), 5_000);
       }),
     );
     view.append(grid, runtime, result);
@@ -414,9 +434,10 @@ export class PlwcPanel {
       if (record.state === "succeeded" || record.state === "denied") {
         const insert = button("Insert Result");
         insert.addEventListener("click", () => {
+          const result = presentToolResult(record.call.name, record.result);
           const payload = boundedJson(
-            { call_id: record.call.callId, name: record.call.name, result: record.result },
-            12_000,
+            { call_id: record.call.callId, name: record.call.name, result },
+            6_000,
           );
           if (!insertIntoChatGptComposer(`# PLwC Tool Result\n${payload}\n`)) {
             this.showError("Status", new Error("ChatGPT composer was not found."));
@@ -426,7 +447,11 @@ export class PlwcPanel {
       }
       card.append(actions);
       if (record.error) card.append(element("p", "error-text", record.error));
-      if (record.result !== undefined) card.append(element("pre", "run-result", boundedJson(record.result)));
+      if (record.result !== undefined) {
+        card.append(
+          element("pre", "run-result", boundedJson(presentToolResult(record.call.name, record.result), 5_000)),
+        );
+      }
       section.append(card);
     }
     return section;
@@ -442,11 +467,13 @@ export class PlwcPanel {
       const response = await this.client.callTool(record.call.name, { ...record.call.arguments }, confirmed);
       record.result = response.result;
       const serialized = boundedJson(response.result).toLowerCase();
-      const resultObject =
-        typeof response.result === "object" && response.result !== null
-          ? (response.result as Record<string, unknown>)
-          : null;
-      record.state = resultObject?.isError === true && /denied|policy/.test(serialized) ? "denied" : "succeeded";
+      if (response.isError) {
+        record.state = /denied|policy/.test(serialized) ? "denied" : "failed";
+        if (record.state === "failed") record.error = "PLwC returned an error result.";
+      } else {
+        record.state = "succeeded";
+      }
+      this.statusValue = await this.client.status();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Tool call failed.";
       record.error = message;
@@ -518,7 +545,7 @@ export class PlwcPanel {
       checkbox,
       element("span", "", "Allow automatic execution only for operations classified as read-only."),
     );
-    block.append(row, element("p", "muted", "Endpoint is fixed to IPv4 loopback in rc19.dev2."));
+    block.append(row, element("p", "muted", "Endpoint is fixed to IPv4 loopback in rc19.dev3."));
     view.append(block);
   }
 

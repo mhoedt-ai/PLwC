@@ -42,7 +42,7 @@ const fakeChrome = {
         "bridge.connect": status,
         "bridge.status": status,
         "bridge.tools.list": { tools, validation },
-        "bridge.tools.call": { policy: { readOnly: true }, result: { content: [{ type: "text", text: "ok" }] } },
+        "bridge.tools.call": { isError: false, policy: { readOnly: true }, result: { ok: true } },
         "bridge.gateway.settings.get": {
           source: "Claude PLwC configuration",
           workspacePath: "C:\\Users\\USER\\Claude_Arbeitsumgebung",

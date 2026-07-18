@@ -31,6 +31,12 @@ Chrome's extension developer mode.
 - The generated primer uses the same event-based JSONL protocol enforced by the
   parser.
 - A 20-second loopback ping keeps an active MV3 WebSocket session alive.
+- The content script reconnects every 15 seconds when Chrome has restarted the
+  service worker and reloads the eight-tool contract before execution resumes.
+- A tool request arriving before that refresh reloads and validates the same
+  contract synchronously before it can execute.
+- MCP result envelopes are normalized once; runtime status views and inserted
+  results omit duplicated profile diagnostics and escaped JSON copies.
 - Tool results are inserted into the composer only through an explicit button;
   the extension does not submit the chat message automatically.
 - Mutating and unknown operations require explicit confirmation. Governor

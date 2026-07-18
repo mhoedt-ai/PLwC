@@ -16,6 +16,7 @@ import type {
 } from "../shared/messages";
 import { parseGatewaySettings } from "../shared/messages";
 import { decidePolicy } from "../shared/policy";
+import { normalizeToolResult } from "../shared/tool-result";
 
 const transport = new JsonRpcWebSocketClient(BRIDGE_ENDPOINT);
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -40,6 +41,12 @@ async function getSettings(): Promise<BridgeSettings> {
   return { readOnlyAutoRun: stored.readOnlyAutoRun === true };
 }
 
+async function loadToolSet(): Promise<ToolListResponse> {
+  const payload = await transport.request("tools/list", {});
+  currentToolSet = validateToolSet(payload);
+  return { tools: currentToolSet.tools, validation: currentToolSet };
+}
+
 async function handleRequest(request: BridgeRequest): Promise<unknown> {
   switch (request.type) {
     case "bridge.connect":
@@ -47,12 +54,10 @@ async function handleRequest(request: BridgeRequest): Promise<unknown> {
       return status();
     case "bridge.status":
       return status();
-    case "bridge.tools.list": {
-      const payload = await transport.request("tools/list", {});
-      currentToolSet = validateToolSet(payload);
-      return { tools: currentToolSet.tools, validation: currentToolSet } satisfies ToolListResponse;
-    }
+    case "bridge.tools.list":
+      return loadToolSet();
     case "bridge.tools.call": {
+      if (!currentToolSet?.valid) await loadToolSet();
       if (!currentToolSet?.valid) {
         throw new RpcRequestError("Tool execution is locked until the exact eight-tool contract is loaded.", "contract_locked");
       }
@@ -63,11 +68,12 @@ async function handleRequest(request: BridgeRequest): Promise<unknown> {
       if (policy.requiresConfirmation && !request.confirmed) {
         throw new RpcRequestError(policy.reason, "confirmation_required");
       }
-      const result = await transport.request("tools/call", {
+      const rawResult = await transport.request("tools/call", {
         arguments: request.arguments,
         name: request.name,
       });
-      return { policy, result } satisfies ToolCallResponse;
+      const { isError, result } = normalizeToolResult(rawResult);
+      return { isError, policy, result } satisfies ToolCallResponse;
     }
     case "bridge.gateway.settings.get":
       return parseGatewaySettings(await transport.request("settings/get", {}));
