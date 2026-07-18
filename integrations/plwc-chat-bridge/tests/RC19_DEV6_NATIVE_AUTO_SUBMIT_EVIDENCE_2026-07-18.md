@@ -47,13 +47,14 @@ composer.
 
 ## Manual Signed-in Acceptance
 
-1. Reload the unpacked extension and verify version
-   `0.2.0-rc19.dev6` on `chrome://extensions`.
-2. Reload ChatGPT. Manually send or clear any result that was already pending
-   before the extension reload.
-3. Request a fresh read-only `plwc_status` call.
-4. Verify that the bridge executes the call, inserts the result and submits the
-   composer without another click.
+Result: **PASS**, confirmed by the user in signed-in ChatGPT after loading
+`0.2.0-rc19.dev6`.
 
-The final signed-in submission is intentionally left to the user because it
-posts content into the active ChatGPT conversation.
+- A fresh read-only status request produced a collapsed
+  `PLwC-Gateway-Call` mask.
+- The bridge executed `plwc_status` and submitted its result without a manual
+  click.
+- The submitted user message was replaced by the collapsed
+  `PLwC-Gateway-Result` mask.
+- ChatGPT consumed the result and returned the expected natural-language
+  status summary, including the active `Sororitas` profile and 8 of 8 tools.
