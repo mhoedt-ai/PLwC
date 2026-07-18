@@ -19,7 +19,10 @@ Chrome's extension developer mode.
 - The content script runs only on `chatgpt.com` and `chat.openai.com`.
 - UI styles live in an open Shadow DOM attached to `document.documentElement`.
 - The host page, its body, navigation, and composer styles are never changed.
+- A PLwC icon beside the host composer toggles the panel without occupying the
+  text input; the right-edge launcher remains a fallback.
 - The WebSocket endpoint is fixed to IPv4 loopback.
+- The Settings tab mirrors all nine effective PLwC MCPB values read-only.
 - Tool execution is enabled only after `tools/list` returns the exact canonical
   eight-tool contract.
 - Visible ChatGPT JSONL calls are deduplicated and queued in the `Status` tab.

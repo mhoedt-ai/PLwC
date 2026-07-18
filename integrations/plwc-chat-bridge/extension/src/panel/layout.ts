@@ -14,6 +14,49 @@ export interface PanelLayout {
   width: number;
 }
 
+export interface ComposerLauncherInput {
+  composer: { bottom: number; left: number; right: number; top: number };
+  leftNavigationRight: number;
+  viewportHeight: number;
+  viewportWidth: number;
+}
+
+export interface ComposerLauncherPosition {
+  left: number;
+  top: number;
+  visible: boolean;
+}
+
+const COMPOSER_LAUNCHER_SIZE = 38;
+const COMPOSER_LAUNCHER_GAP = 8;
+
+export function calculateComposerLauncherPosition(input: ComposerLauncherInput): ComposerLauncherPosition {
+  const minimumLeft = Math.max(COMPOSER_LAUNCHER_GAP, input.leftNavigationRight + COMPOSER_LAUNCHER_GAP);
+  const maximumLeft = input.viewportWidth - COMPOSER_LAUNCHER_SIZE - COMPOSER_LAUNCHER_GAP;
+  const alignedTop = Math.max(
+    COMPOSER_LAUNCHER_GAP,
+    Math.min(
+      input.viewportHeight - COMPOSER_LAUNCHER_SIZE - COMPOSER_LAUNCHER_GAP,
+      input.composer.bottom - COMPOSER_LAUNCHER_SIZE - 10,
+    ),
+  );
+  const leftSide = input.composer.left - COMPOSER_LAUNCHER_SIZE - COMPOSER_LAUNCHER_GAP;
+  if (leftSide >= minimumLeft) return { left: leftSide, top: alignedTop, visible: true };
+
+  const rightSide = input.composer.right + COMPOSER_LAUNCHER_GAP;
+  if (rightSide <= maximumLeft) return { left: rightSide, top: alignedTop, visible: true };
+
+  const above = input.composer.top - COMPOSER_LAUNCHER_SIZE - COMPOSER_LAUNCHER_GAP;
+  if (above >= COMPOSER_LAUNCHER_GAP && maximumLeft >= minimumLeft) {
+    return {
+      left: Math.max(minimumLeft, Math.min(maximumLeft, input.composer.left)),
+      top: above,
+      visible: true,
+    };
+  }
+  return { left: COMPOSER_LAUNCHER_GAP, top: COMPOSER_LAUNCHER_GAP, visible: false };
+}
+
 export function calculatePanelLayout(input: PanelLayoutInput): PanelLayout {
   const available = Math.max(0, input.viewportWidth - input.leftNavigationRight - PANEL_GAP * 2);
   const canOpen = available >= MIN_PANEL_WIDTH;

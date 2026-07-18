@@ -65,3 +65,40 @@ also exposed four integration defects:
 
 The write/read, protected-path denial, and Governor confirmation acceptance
 cases remain pending until this manual retest passes.
+
+## Runtime Status Timeout Follow-up
+
+The first rc19.dev1 live retest loaded eight tools and produced the correct
+event JSONL, but `plwc_status(scope="runtime")` timed out. An independent
+WebSocket probe showed that bridge `ping` and `tools/list` still responded in
+single-digit milliseconds while `tools/call` stalled.
+
+A Python stack dump then located the stall in Windows path resolution. The
+launcher had been started with the source repository as an explicit
+`PLWC_WORKSPACE_ROOT`. On this machine that drive maps to a UNC network share,
+and `Path.resolve()` blocked while the gateway validated the override.
+
+The bridge was restarted without `-WorkspaceRoot`, restoring PLwC ownership of
+the effective configuration. The subsequent runtime call completed in 45 ms
+with these effective roots:
+
+- workspace: `%APPDATA%\PLwC\workspace`
+- profiles: `%APPDATA%\PLwC\profiles`
+- policy configuration source: `defaults`
+
+The launcher and documentation now state explicitly when a workspace override
+is active. Normal bridge startup must omit root parameters unless the operator
+deliberately intends to replace PLwC's configured values.
+
+## Configuration Source Correction
+
+The default-root restart above was an intermediate diagnostic step. The user
+then confirmed that the authoritative PLwC workspace is
+`%USERPROFILE%\Claude_Arbeitsumgebung`, and the enabled Claude PLwC MCPB settings
+were located under `%APPDATA%\Claude\Claude Extensions Settings`.
+
+The rc19.dev2 launcher now imports all nine visible PLwC MCPB settings without
+requiring root parameters. Its effective runtime uses the configured workspace,
+the `WasIstDas` active profile, the configured governance thresholds, Qdrant
+flag, and persona-layer flag. Missing profile-root and security-file values
+remain owned by PLwC defaults.

@@ -9,7 +9,46 @@ export interface BridgeSession {
   start(): Promise<void>;
   listTools(): Promise<Tool[]>;
   callTool(name: string, args: Record<string, unknown>): Promise<unknown>;
+  settings(): GatewaySettingsSnapshot;
   close(): Promise<void>;
+}
+
+export interface GatewaySettingsSnapshot {
+  source: string;
+  workspacePath: string | null;
+  profilesPath: string | null;
+  activeProfileName: string | null;
+  securityConfig: string | null;
+  memoryWriteThreshold: string | null;
+  personaWriteThreshold: string | null;
+  temperamentWriteThreshold: string | null;
+  qdrantEnabled: string | null;
+  personaLayerDisabled: string | null;
+}
+
+function setting(
+  environment: Readonly<Record<string, string | undefined>>,
+  name: string,
+): string | null {
+  const value = environment[name]?.trim();
+  return value ? value : null;
+}
+
+export function gatewaySettingsFromEnvironment(
+  environment: Readonly<Record<string, string | undefined>>,
+): GatewaySettingsSnapshot {
+  return {
+    source: setting(environment, "PLWC_CHAT_BRIDGE_SETTINGS_SOURCE") ?? "Bridge process / PLwC defaults",
+    workspacePath: setting(environment, "PLWC_WORKSPACE_ROOT"),
+    profilesPath: setting(environment, "PLWC_PROFILE_ROOT"),
+    activeProfileName: setting(environment, "PLWC_ACTIVE_PROFILE_NAME"),
+    securityConfig: setting(environment, "PLWC_CONFIG_FILE"),
+    memoryWriteThreshold: setting(environment, "PLWC_MEMORY_WRITE_THRESHOLD"),
+    personaWriteThreshold: setting(environment, "PLWC_PERSONA_WRITE_THRESHOLD"),
+    temperamentWriteThreshold: setting(environment, "PLWC_TEMPERAMENT_WRITE_THRESHOLD"),
+    qdrantEnabled: setting(environment, "PLWC_QDRANT_ENABLED"),
+    personaLayerDisabled: setting(environment, "PLWC_PERSONA_LAYER_DISABLED"),
+  };
 }
 
 function childEnvironment(overrides: Readonly<Record<string, string>>): Record<string, string> {
@@ -40,7 +79,7 @@ export class GatewayClientSession implements BridgeSession {
       ...(this.gateway.cwd === undefined ? {} : { cwd: this.gateway.cwd }),
     };
     const transport = new StdioClientTransport(transportOptions);
-    const client = new Client({ name: "plwc-chat-bridge", version: "0.2.0-rc19.dev1" }, { capabilities: {} });
+    const client = new Client({ name: "plwc-chat-bridge", version: "0.2.0-rc19.dev2" }, { capabilities: {} });
     this.transport = transport;
     this.client = client;
 
@@ -73,6 +112,10 @@ export class GatewayClientSession implements BridgeSession {
     // an ambiguous mutating failure is returned and is never retried here.
     await this.fetchCanonicalTools();
     return this.client!.callTool({ name, arguments: args });
+  }
+
+  settings(): GatewaySettingsSnapshot {
+    return gatewaySettingsFromEnvironment({ ...process.env, ...this.gateway.env });
   }
 
   async close(): Promise<void> {

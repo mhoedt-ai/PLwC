@@ -3,6 +3,7 @@
 Recorded live-fix evidence:
 
 - [rc19.dev1 live-fix evidence, 2026-07-18](../RC19_DEV1_LIVE_FIX_EVIDENCE_2026-07-18.md)
+- [rc19.dev2 settings and composer evidence, 2026-07-18](../RC19_DEV2_SETTINGS_AND_COMPOSER_EVIDENCE_2026-07-18.md)
 
 Planned browser coverage:
 

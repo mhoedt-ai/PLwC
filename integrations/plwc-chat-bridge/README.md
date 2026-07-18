@@ -1,6 +1,6 @@
 # PLwC Chat Bridge
 
-Status: rc19.dev1 implementation prototype.
+Status: rc19.dev2 implementation prototype.
 
 PLwC Chat Bridge is the proposed PLwC-owned local browser client integration
 for using the signed-in ChatGPT web UI with the local `plwc-gateway` MCP
@@ -47,7 +47,10 @@ integrations/plwc-chat-bridge/
 
 - `bridge/` contains the pinned Node.js WebSocket-to-MCP stdio bridge.
 - `extension/` contains the PLwC-only Manifest V3 extension and Shadow DOM UI.
-- `scripts/start-windows.ps1` starts the built bridge with the example config.
+- the panel can be toggled from the PLwC icon beside the ChatGPT composer;
+- the Settings tab mirrors all nine PLwC MCPB configuration fields read-only;
+- `scripts/start-windows.ps1` imports the enabled Claude PLwC MCPB settings and
+  starts the built bridge with the example config;
 - the live smoke starts the current repository gateway, lists eight tools and
   calls `plwc_status(scope="runtime")` once;
 - the browser fixture verifies desktop, 768 px and 390 px panel geometry;
@@ -58,6 +61,7 @@ Recorded test execution:
 
 - [rc19.dev0 test evidence, 2026-07-18](tests/RC19_DEV0_TEST_EVIDENCE_2026-07-18.md)
 - [rc19.dev1 live-fix evidence, 2026-07-18](tests/RC19_DEV1_LIVE_FIX_EVIDENCE_2026-07-18.md)
+- [rc19.dev2 settings and composer evidence, 2026-07-18](tests/RC19_DEV2_SETTINGS_AND_COMPOSER_EVIDENCE_2026-07-18.md)
 
 This is still an rc19 development prototype. It has not yet completed a fresh
 unpacked-extension smoke on the live ChatGPT DOM or a confirmed write/read
@@ -74,6 +78,14 @@ npm run check
 ```
 
 Load `extension/dist/` as an unpacked Chrome extension after the build.
+
+On Windows, the launcher automatically reads the enabled PLwC configuration at
+`%APPDATA%\Claude\Claude Extensions Settings\local.mcpb.plwc.plwc-gateway.json`.
+All nine MCPB fields are forwarded to the gateway. Explicit launcher
+parameters take precedence over process environment values, which take
+precedence over MCPB values; omitted values retain PLwC defaults. Do not pass
+the source repository as `-WorkspaceRoot` merely because the bridge code lives
+there, especially when the repository is on a mapped network drive.
 
 ## First rc19 Acceptance Targets
 

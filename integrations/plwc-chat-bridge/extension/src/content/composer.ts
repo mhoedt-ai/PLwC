@@ -6,10 +6,14 @@ const COMPOSER_SELECTORS = [
   "div[contenteditable='true']",
 ];
 
-export function insertIntoChatGptComposer(text: string, documentValue: Document = document): boolean {
-  const composer = COMPOSER_SELECTORS.map((selector) => documentValue.querySelector(selector)).find(
+export function findChatGptComposer(documentValue: Document = document): HTMLElement | null {
+  return COMPOSER_SELECTORS.map((selector) => documentValue.querySelector(selector)).find(
     (candidate): candidate is HTMLElement => candidate instanceof HTMLElement,
-  );
+  ) ?? null;
+}
+
+export function insertIntoChatGptComposer(text: string, documentValue: Document = document): boolean {
+  const composer = findChatGptComposer(documentValue);
   if (!composer) return false;
 
   composer.focus();

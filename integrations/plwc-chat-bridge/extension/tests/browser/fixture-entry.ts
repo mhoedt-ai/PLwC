@@ -43,6 +43,18 @@ const fakeChrome = {
         "bridge.status": status,
         "bridge.tools.list": { tools, validation },
         "bridge.tools.call": { policy: { readOnly: true }, result: { content: [{ type: "text", text: "ok" }] } },
+        "bridge.gateway.settings.get": {
+          source: "Claude PLwC configuration",
+          workspacePath: "C:\\Users\\USER\\Claude_Arbeitsumgebung",
+          profilesPath: null,
+          activeProfileName: "WasIstDas",
+          securityConfig: null,
+          memoryWriteThreshold: "2",
+          personaWriteThreshold: "3",
+          temperamentWriteThreshold: "6",
+          qdrantEnabled: "true",
+          personaLayerDisabled: "true",
+        },
         "bridge.settings.get": { readOnlyAutoRun: false },
         "bridge.settings.update": { readOnlyAutoRun: false },
       };

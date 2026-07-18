@@ -128,6 +128,9 @@ export class LoopbackBridgeServer {
       case "tools/list":
         requireEmptyParams(request);
         return { tools: await this.session.listTools() };
+      case "settings/get":
+        requireEmptyParams(request);
+        return this.session.settings();
       case "tools/call": {
         const { name, args } = toolCallParams(request);
         return this.session.callTool(name, args);

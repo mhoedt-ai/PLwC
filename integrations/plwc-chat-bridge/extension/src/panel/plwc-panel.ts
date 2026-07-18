@@ -1,11 +1,20 @@
 import { BridgeClient } from "../content/bridge-client";
-import { insertIntoChatGptComposer } from "../content/composer";
+import { findChatGptComposer, insertIntoChatGptComposer } from "../content/composer";
 import type { ParsedPlwcToolCall } from "../content/tool-call-parser";
 import { buildPrimer, type BridgePrimer } from "../primer/build-primer";
 import type { McpTool } from "../shared/contracts";
-import type { BridgeSettings, BridgeStatus, ToolListResponse } from "../shared/messages";
+import type {
+  BridgeSettings,
+  BridgeStatus,
+  GatewaySettingsSnapshot,
+  ToolListResponse,
+} from "../shared/messages";
 import { decidePolicy, POLICY_ROWS } from "../shared/policy";
-import { calculatePanelLayout, findLeftNavigationRight } from "./layout";
+import {
+  calculateComposerLauncherPosition,
+  calculatePanelLayout,
+  findLeftNavigationRight,
+} from "./layout";
 import { TERMINAL_THEME } from "./theme";
 
 const TAB_NAMES = ["PLwC Tools", "Primer", "Policy", "Status", "Settings"] as const;
@@ -47,6 +56,7 @@ export class PlwcPanel {
   private readonly root = element("div", "bridge-root");
   private readonly panel = element("section", "bridge-panel");
   private readonly launcher = button("", "bridge-launcher");
+  private readonly composerLauncher = button("", "composer-launcher is-hidden");
   private readonly statusDot = element("span", "status-dot");
   private readonly views = new Map<TabName, HTMLElement>();
   private activeTab: TabName = "PLwC Tools";
@@ -55,11 +65,12 @@ export class PlwcPanel {
   private primer: BridgePrimer | null = null;
   private statusValue: BridgeStatus | null = null;
   private settings: BridgeSettings = { readOnlyAutoRun: false };
+  private gatewaySettings: GatewaySettingsSnapshot | null = null;
   private readonly toolRuns = new Map<string, ToolRunRecord>();
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly hostObserver = new MutationObserver(() => this.scheduleLayout());
   private readonly onResize = () => {
-    if (this.resizeTimer) clearTimeout(this.resizeTimer);
-    this.resizeTimer = setTimeout(() => this.applyLayout(), 80);
+    this.scheduleLayout();
   };
 
   constructor(
@@ -71,11 +82,13 @@ export class PlwcPanel {
     const style = element("style");
     style.textContent = TERMINAL_THEME;
     this.buildLauncher();
+    this.buildComposerLauncher();
     this.buildPanel();
     this.shadowRoot.append(style, this.root);
     this.applyLayout();
 
     window.addEventListener("resize", this.onResize, { passive: true });
+    this.hostObserver.observe(document.body ?? document.documentElement, { childList: true, subtree: true });
     this.client.onStatus((status) => {
       this.statusValue = status;
       this.renderStatus();
@@ -106,6 +119,21 @@ export class PlwcPanel {
       this.applyLayout();
     });
     this.root.append(this.launcher);
+  }
+
+  private buildComposerLauncher(): void {
+    this.composerLauncher.title = "Toggle PLwC Chat Bridge";
+    this.composerLauncher.setAttribute("aria-label", "Toggle PLwC Chat Bridge");
+    this.composerLauncher.setAttribute("aria-pressed", "false");
+    const image = element("img");
+    image.src = chrome.runtime.getURL("icons/plwc-icon-512.png");
+    image.alt = "";
+    this.composerLauncher.append(image);
+    this.composerLauncher.addEventListener("click", () => {
+      this.userCollapsed = !this.root.classList.contains("is-collapsed");
+      this.applyLayout();
+    });
+    this.root.append(this.composerLauncher);
   }
 
   private buildPanel(): void {
@@ -172,6 +200,7 @@ export class PlwcPanel {
     try {
       this.settings = await this.client.getSettings();
       await this.refreshTools();
+      await this.refreshGatewaySettings();
     } catch (error) {
       this.showError("Status", error);
     } finally {
@@ -184,6 +213,12 @@ export class PlwcPanel {
     await this.client.connect();
     const response = await this.client.listTools();
     this.acceptToolList(response);
+  }
+
+  private async refreshGatewaySettings(): Promise<void> {
+    await this.client.connect();
+    this.gatewaySettings = await this.client.getGatewaySettings();
+    this.renderSettings();
   }
 
   private acceptToolList(response: ToolListResponse): void {
@@ -423,7 +458,46 @@ export class PlwcPanel {
   private renderSettings(): void {
     const view = this.views.get("Settings");
     if (!view) return;
-    view.replaceChildren(element("div", "label", "LOCAL SETTINGS"));
+    view.replaceChildren();
+    const toolbar = element("div", "toolbar");
+    toolbar.append(element("span", "label", "PLwC CONFIGURATION"), element("span", "spacer"));
+    const refresh = button("Refresh");
+    refresh.addEventListener("click", () =>
+      void this.runAction(refresh, () => this.refreshGatewaySettings()),
+    );
+    toolbar.append(refresh);
+    view.append(toolbar);
+
+    const configuration = element("div", "settings-block");
+    configuration.append(
+      element(
+        "p",
+        "settings-source",
+        `Source: ${this.gatewaySettings?.source ?? "Connect to load PLwC settings"}`,
+      ),
+    );
+    const values: Array<[string, string | null | undefined]> = [
+      ["Workspace path", this.gatewaySettings?.workspacePath],
+      ["Profiles path", this.gatewaySettings?.profilesPath],
+      ["Active profile", this.gatewaySettings?.activeProfileName],
+      ["Security config", this.gatewaySettings?.securityConfig],
+      ["Memory write threshold", this.gatewaySettings?.memoryWriteThreshold],
+      ["Persona write threshold", this.gatewaySettings?.personaWriteThreshold],
+      ["Temperament threshold", this.gatewaySettings?.temperamentWriteThreshold],
+      ["Qdrant enabled", this.gatewaySettings?.qdrantEnabled],
+      ["Persona layer disabled", this.gatewaySettings?.personaLayerDisabled],
+    ];
+    const grid = element("dl", "configuration-grid");
+    const emptyValue = this.gatewaySettings ? "PLwC default" : "not loaded";
+    for (const [label, value] of values) {
+      grid.append(
+        element("dt", "", label),
+        element("dd", value ? "" : "muted", value ?? emptyValue),
+      );
+    }
+    configuration.append(grid);
+    view.append(configuration, element("div", "label settings-section-label", "BRIDGE BEHAVIOR"));
+
     const block = element("div", "settings-block");
     const row = element("label", "setting-row");
     const checkbox = element("input") as HTMLInputElement;
@@ -444,13 +518,15 @@ export class PlwcPanel {
       checkbox,
       element("span", "", "Allow automatic execution only for operations classified as read-only."),
     );
-    block.append(row, element("p", "muted", "Endpoint is fixed to IPv4 loopback in rc19.dev1."));
+    block.append(row, element("p", "muted", "Endpoint is fixed to IPv4 loopback in rc19.dev2."));
     view.append(block);
   }
 
   private applyLayout(): void {
+    this.resizeTimer = null;
+    const leftNavigationRight = findLeftNavigationRight();
     const layout = calculatePanelLayout({
-      leftNavigationRight: findLeftNavigationRight(),
+      leftNavigationRight,
       userCollapsed: this.userCollapsed,
       viewportWidth: window.innerWidth,
     });
@@ -460,6 +536,33 @@ export class PlwcPanel {
     this.launcher.title = layout.canOpen
       ? "Open PLwC Chat Bridge"
       : "PLwC Chat Bridge is collapsed to keep the chat navigation reachable";
+    this.positionComposerLauncher(leftNavigationRight, layout.canOpen, layout.collapsed);
+  }
+
+  private scheduleLayout(): void {
+    if (this.resizeTimer) clearTimeout(this.resizeTimer);
+    this.resizeTimer = setTimeout(() => this.applyLayout(), 120);
+  }
+
+  private positionComposerLauncher(leftNavigationRight: number, canOpen: boolean, collapsed: boolean): void {
+    const composer = findChatGptComposer();
+    if (!composer) {
+      this.composerLauncher.classList.add("is-hidden");
+      this.root.classList.remove("has-composer-launcher");
+      return;
+    }
+    const position = calculateComposerLauncherPosition({
+      composer: composer.getBoundingClientRect(),
+      leftNavigationRight,
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth,
+    });
+    this.composerLauncher.style.left = `${position.left}px`;
+    this.composerLauncher.style.top = `${position.top}px`;
+    this.composerLauncher.disabled = !canOpen;
+    this.composerLauncher.setAttribute("aria-pressed", String(!collapsed));
+    this.composerLauncher.classList.toggle("is-hidden", !position.visible);
+    this.root.classList.toggle("has-composer-launcher", position.visible);
   }
 
   private async runAction(control: HTMLButtonElement, action: () => Promise<void>): Promise<void> {

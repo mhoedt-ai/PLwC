@@ -14,6 +14,7 @@ import type {
   ToolCallResponse,
   ToolListResponse,
 } from "../shared/messages";
+import { parseGatewaySettings } from "../shared/messages";
 import { decidePolicy } from "../shared/policy";
 
 const transport = new JsonRpcWebSocketClient(BRIDGE_ENDPOINT);
@@ -68,6 +69,8 @@ async function handleRequest(request: BridgeRequest): Promise<unknown> {
       });
       return { policy, result } satisfies ToolCallResponse;
     }
+    case "bridge.gateway.settings.get":
+      return parseGatewaySettings(await transport.request("settings/get", {}));
     case "bridge.settings.get":
       return getSettings();
     case "bridge.settings.update": {

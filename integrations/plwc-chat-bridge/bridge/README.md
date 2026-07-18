@@ -14,7 +14,10 @@ tool call automatically.
 - The tool contract is checked at startup and again before every tool call.
 - Unknown, missing or duplicate tools fail closed.
 - WebSocket requests require JSON-RPC 2.0 and non-negative numeric IDs.
-- Only `ping`, `tools/list` and `tools/call` are exposed.
+- Only `ping`, `tools/list`, `tools/call` and read-only `settings/get` are
+  exposed.
+- `settings/get` returns only the nine PLwC MCPB configuration values; it never
+  serializes the complete bridge environment.
 - Gateway and configuration errors returned to clients are bounded and never
   contain command lines, environment values or local paths.
 

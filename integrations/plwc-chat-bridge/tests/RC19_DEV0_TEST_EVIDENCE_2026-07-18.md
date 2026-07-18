@@ -21,9 +21,14 @@ Run from `integrations/plwc-chat-bridge` on the commit above:
 npm run install:packages
 npm run check
 npm --prefix bridge run smoke
-.\scripts\start-windows.ps1 -DryRun -WorkspaceRoot <repository-root>
-.\scripts\start-windows.ps1 -WorkspaceRoot <repository-root>
+.\scripts\start-windows.ps1 -DryRun
+.\scripts\start-windows.ps1
 ```
+
+Follow-up: the original interactive launch supplied the source repository as a
+workspace override. That was later shown to be unsuitable on this machine
+because the repository drive maps to a UNC network path. The safe reproduction
+above intentionally lets PLwC load its own configured/default roots.
 
 ## Recorded Results
 
