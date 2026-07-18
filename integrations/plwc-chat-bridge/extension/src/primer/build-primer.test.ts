@@ -24,6 +24,11 @@ test("builds the same primer and schema hash for equivalent tool sets", async ()
   assert.match(first.text, /standing write confirmation/);
   assert.match(first.text, /Sandbox execution and unknown operations always require individual confirmation/);
   assert.match(first.text, /fenced jsonl code block/);
+  assert.match(first.text, /Emit at most one tool call at a time/);
+  assert.match(first.text, /search scans text contents/);
+  assert.match(first.text, /verify the selected path with operation=file_info/);
+  assert.match(first.text, /Never report them as found/);
+  assert.match(first.text, /mutation succeeded only when its marked result contains ok=true/);
   assert.match(first.text, /summarize it naturally/);
   assert.match(first.text, /"type":"function_call_start"/);
   assert.match(first.text, /"key":"scope","type":"parameter","value":"runtime"/);

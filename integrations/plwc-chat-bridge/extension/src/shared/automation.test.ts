@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { shouldAutoRun, shouldAutoSubmitResult } from "./automation";
+import { AutomaticRunQueue, shouldAutoRun, shouldAutoSubmitResult } from "./automation";
 import type { BridgeSettings } from "./messages";
 
 const settings: BridgeSettings = {
@@ -30,4 +30,47 @@ test("submits read-only and explicitly confirmed results without bypassing confi
   assert.equal(shouldAutoSubmitResult(settings, mutating, false), false);
   assert.equal(shouldAutoSubmitResult(settings, mutating, true), true);
   assert.equal(shouldAutoSubmitResult({ ...settings, autoSubmitResults: false }, readOnly, false), false);
+});
+
+test("serializes calls and pauses a dependent call after an incomplete result", async () => {
+  const queue = new AutomaticRunQueue();
+  const events: string[] = [];
+  const first = queue.enqueue(
+    "assistant-response-1",
+    async () => {
+      events.push("first:start");
+      await Promise.resolve();
+      events.push("first:end");
+      return false;
+    },
+    () => events.push("first:paused"),
+  );
+  const second = queue.enqueue(
+    "assistant-response-1",
+    async () => {
+      events.push("second:run");
+      return true;
+    },
+    () => events.push("second:paused"),
+  );
+
+  assert.deepEqual(await first, { completed: false, sourceId: "assistant-response-1" });
+  assert.deepEqual(await second, { completed: false, sourceId: "assistant-response-1" });
+  assert.deepEqual(events, ["first:start", "first:end", "second:paused"]);
+});
+
+test("allows the next call after a completed result or from a new response", async () => {
+  const queue = new AutomaticRunQueue();
+  const events: string[] = [];
+  await queue.enqueue("assistant-response-1", async () => true, () => events.push("paused"));
+  await queue.enqueue("assistant-response-1", async () => {
+    events.push("same-source");
+    return false;
+  }, () => events.push("paused"));
+  await queue.enqueue("assistant-response-2", async () => {
+    events.push("new-source");
+    return true;
+  }, () => events.push("paused"));
+
+  assert.deepEqual(events, ["same-source", "new-source"]);
 });

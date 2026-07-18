@@ -2531,7 +2531,7 @@ def build_mcp_server() -> Any:
         max_bytes: int | None = None,
         require_content_hash: str = "",
     ) -> dict[str, Any]:
-        """Run governed workspace list, search, read, write, copy, move, rename, replace, and binary operations inside allowed roots."""
+        """Run governed workspace operations inside allowed roots. Use list with depth to discover filenames; search scans text contents only. Verify candidate paths with file_info before mutation."""
         # Forward by keyword to prevent positional drift if the public
         # function's signature is reordered (see RC2-BUG-W01 / C01).
         return await anyio.to_thread.run_sync(lambda: globals()["plwc_workspace_operation"](
@@ -6981,6 +6981,10 @@ def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, 
             },
             "search_scope_guards": {
                 "note": (
+                    "Search scans text contents, not filenames. Inventory and index matches "
+                    "are candidate references, not proof that the named file exists at that "
+                    "location. Use list with sufficient depth for filename discovery and "
+                    "file_info to verify an exact path before mutation. "
                     "RC12-FS-003 — text search bounds its walk so a large binary or "
                     "huge tree cannot stall it. Guards only reduce scope; results carry "
                     "search_stats so skipped files are never silent."

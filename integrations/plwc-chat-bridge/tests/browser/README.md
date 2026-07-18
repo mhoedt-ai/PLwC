@@ -10,6 +10,7 @@ Recorded live-fix evidence:
 - [rc19.dev6 native auto-submit evidence, 2026-07-18](../RC19_DEV6_NATIVE_AUTO_SUBMIT_EVIDENCE_2026-07-18.md)
 - [rc19.dev7 automation timing and retry evidence, 2026-07-18](../RC19_DEV7_AUTOMATION_TIMING_AND_RETRY_EVIDENCE_2026-07-18.md)
 - [rc19.dev8 complete result transport evidence, 2026-07-18](../RC19_DEV8_COMPLETE_RESULT_TRANSPORT_EVIDENCE_2026-07-18.md)
+- [rc19.dev9 workspace evidence and sequencing evidence, 2026-07-18](../RC19_DEV9_WORKSPACE_EVIDENCE_AND_SEQUENCING_2026-07-18.md)
 
 Planned browser coverage:
 

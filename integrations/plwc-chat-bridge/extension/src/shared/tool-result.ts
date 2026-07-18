@@ -5,6 +5,8 @@ export interface NormalizedToolResult {
   result: unknown;
 }
 
+export type ToolResultState = "denied" | "failed" | "succeeded";
+
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -32,6 +34,16 @@ export function normalizeToolResult(value: unknown): NormalizedToolResult {
   }
 
   return { isError, result: value };
+}
+
+export function classifyToolResult(isError: boolean, result: unknown): ToolResultState {
+  const resultRecord = record(result);
+  const denied =
+    String(resultRecord?.policy_decision ?? "").toUpperCase() === "DENY" ||
+    String(resultRecord?.decision ?? "").toLowerCase() === "denied";
+  if (denied) return "denied";
+  if (isError || resultRecord?.ok === false) return "failed";
+  return "succeeded";
 }
 
 function presentRuntimeStatus(result: Record<string, unknown>): Record<string, unknown> {

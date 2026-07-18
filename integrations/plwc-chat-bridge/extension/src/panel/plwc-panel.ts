@@ -9,7 +9,7 @@ import type { ChatRunState, PlwcChatRenderer } from "../content/chat-renderer";
 import type { ParsedPlwcToolCall } from "../content/tool-call-parser";
 import { formatPlwcToolResultMessage } from "../content/tool-result-message";
 import { buildPrimer, type BridgePrimer } from "../primer/build-primer";
-import { shouldAutoRun, shouldAutoSubmitResult } from "../shared/automation";
+import { AutomaticRunQueue, shouldAutoRun, shouldAutoSubmitResult } from "../shared/automation";
 import type { McpTool } from "../shared/contracts";
 import type {
   BridgeSettings,
@@ -19,7 +19,7 @@ import type {
   ToolListResponse,
 } from "../shared/messages";
 import { decidePolicy, POLICY_ROWS } from "../shared/policy";
-import { presentToolResult } from "../shared/tool-result";
+import { classifyToolResult, presentToolResult } from "../shared/tool-result";
 import {
   calculateComposerLauncherPosition,
   calculatePanelLayout,
@@ -94,6 +94,7 @@ export class PlwcPanel {
   };
   private gatewaySettings: GatewaySettingsSnapshot | null = null;
   private readonly toolRuns = new Map<string, ToolRunRecord>();
+  private readonly automaticRunQueue = new AutomaticRunQueue();
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly hostObserver = new MutationObserver(() => this.scheduleLayout());
   private readonly onResize = () => {
@@ -141,10 +142,20 @@ export class PlwcPanel {
     if (shouldAutoRun(this.settings, policy)) {
       const confirmed = policy.requiresConfirmation && this.settings.autoConfirmWrites;
       const delay = this.settings.autoExecuteDelay;
-      void (async () => {
-        await waitSeconds(delay);
-        await this.executeToolCall(call.callKey, confirmed);
-      })();
+      void this.automaticRunQueue.enqueue(
+        call.sourceId,
+        async () => {
+          await waitSeconds(delay);
+          await this.executeToolCall(call.callKey, confirmed);
+          const resultExpectedInChat = shouldAutoSubmitResult(this.settings, policy, confirmed);
+          return record.state === "succeeded" && (!resultExpectedInChat || record.resultSubmitted === true);
+        },
+        () => {
+          record.error = "Automatic execution paused because an earlier call in the same response did not complete successfully.";
+          this.syncChatCard(record);
+          this.renderStatus();
+        },
+      );
     }
   }
 
@@ -517,14 +528,9 @@ export class PlwcPanel {
     try {
       const response = await this.client.callTool(record.call.name, { ...record.call.arguments }, confirmed);
       record.result = response.result;
-      record.isError = response.isError;
-      const serialized = boundedJson(response.result).toLowerCase();
-      if (response.isError) {
-        record.state = /denied|policy/.test(serialized) ? "denied" : "failed";
-        if (record.state === "failed") record.error = "PLwC returned an error result.";
-      } else {
-        record.state = "succeeded";
-      }
+      record.state = classifyToolResult(response.isError, response.result);
+      record.isError = record.state !== "succeeded";
+      if (record.state === "failed") record.error = "PLwC returned an unsuccessful result.";
       this.statusValue = await this.client.status();
       if (shouldAutoSubmitResult(this.settings, policy, confirmed)) {
         await this.submitToolResult(record);

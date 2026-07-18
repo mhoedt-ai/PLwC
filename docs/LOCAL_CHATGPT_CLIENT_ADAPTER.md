@@ -194,7 +194,7 @@ The proof of concept was built from:
 | PLwC process | Existing `server.py` started as an MCP stdio child |
 | Prototype PLwC package | Installed `0.2.0-rc9` package |
 | Current repository release | `0.2.0-rc18.dev9` |
-| Proposed PLwC development track | `0.2.0-rc19.dev8` |
+| Proposed PLwC development track | `0.2.0-rc19.dev9` |
 
 The PLwC version mismatch is intentional evidence recording, not an accepted
 target state. Product work must replace the stale installed rc9 path with the

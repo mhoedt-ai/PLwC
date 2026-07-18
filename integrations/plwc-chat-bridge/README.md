@@ -1,6 +1,6 @@
 # PLwC Chat Bridge
 
-Status: rc19.dev8 implementation prototype.
+Status: rc19.dev9 implementation prototype.
 
 PLwC Chat Bridge is the proposed PLwC-owned local browser client integration
 for using the signed-in ChatGPT web UI with the local `plwc-gateway` MCP
@@ -63,6 +63,11 @@ integrations/plwc-chat-bridge/
   collapsed terminal rows; details and `Show JSON` are available on demand;
 - policy-approved read-only calls run automatically by default and their
   results are inserted and submitted through the ChatGPT composer;
+- workspace inventory and content-search hits are treated as unverified path
+  candidates until a real directory listing and exact `file_info` result prove
+  the file exists; dependent calls from one GPT response execute serially;
+- structured `ok=false` and policy denials render as failed or denied instead
+  of being mislabeled as successful merely because the MCP envelope completed;
 - mutating calls require explicit confirmation by default; a default-off
   automatic confirmation option covers recognized writes and is paired with a
   red mutation warning, while sandbox and unknown operations stay manual;
@@ -85,6 +90,7 @@ Recorded test execution:
 - [rc19.dev6 native auto-submit evidence, 2026-07-18](tests/RC19_DEV6_NATIVE_AUTO_SUBMIT_EVIDENCE_2026-07-18.md)
 - [rc19.dev7 automation timing and retry evidence, 2026-07-18](tests/RC19_DEV7_AUTOMATION_TIMING_AND_RETRY_EVIDENCE_2026-07-18.md)
 - [rc19.dev8 complete result transport evidence, 2026-07-18](tests/RC19_DEV8_COMPLETE_RESULT_TRANSPORT_EVIDENCE_2026-07-18.md)
+- [rc19.dev9 workspace evidence and sequencing evidence, 2026-07-18](tests/RC19_DEV9_WORKSPACE_EVIDENCE_AND_SEQUENCING_2026-07-18.md)
 
 This is still an rc19 development prototype. It has not yet completed a fresh
 unpacked-extension smoke on the live ChatGPT DOM or a confirmed write/read

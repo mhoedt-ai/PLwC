@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeToolResult, presentToolResult } from "./tool-result";
+import { classifyToolResult, normalizeToolResult, presentToolResult } from "./tool-result";
 
 test("prefers structured MCP content and keeps the error flag", () => {
   assert.deepEqual(
@@ -19,6 +19,23 @@ test("parses a single JSON text result when structured content is unavailable", 
     normalizeToolResult({ content: [{ type: "text", text: "{\"ok\":true}" }], isError: false }),
     { isError: false, result: { ok: true } },
   );
+});
+
+test("classifies structured domain failures instead of trusting only the MCP error flag", () => {
+  assert.equal(classifyToolResult(false, { ok: true, policy_decision: "ALLOW" }), "succeeded");
+  assert.equal(
+    classifyToolResult(false, {
+      error: "Path is outside the allowed roots.",
+      ok: false,
+      policy_decision: "DENY",
+    }),
+    "denied",
+  );
+  assert.equal(
+    classifyToolResult(false, { error: "Source file does not exist.", ok: false, policy_decision: "ALLOW" }),
+    "failed",
+  );
+  assert.equal(classifyToolResult(true, { error: "Transport failed." }), "failed");
 });
 
 test("presents runtime status without repeated profile diagnostics", () => {
