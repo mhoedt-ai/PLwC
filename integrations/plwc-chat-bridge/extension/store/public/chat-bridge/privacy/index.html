@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PLwC Chat Bridge Privacy Policy</title>
+  <meta name="description" content="Privacy policy for the PLwC Chat Bridge extension for Microsoft Edge and Google Chrome.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://plwc.de/chat-bridge/privacy/">
+  <link rel="icon" href="/assets/icons/favicon.ico" sizes="any">
+  <link rel="stylesheet" href="../store-pages.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="https://plwc.de/" aria-label="PLwC home">
+        <img src="/assets/icons/plwc-icon-64.png" width="36" height="36" alt="">
+        <span>PLwC Chat Bridge</span>
+      </a>
+      <nav class="nav" aria-label="Store support navigation">
+        <a href="https://plwc.de/">PLwC website</a>
+        <a href="https://www.plwc.de/index.html#security">Security</a>
+        <a href="../support/">Support</a>
+        <a href="./" aria-current="page">Privacy</a>
+        <a href="https://github.com/mhoedt-ai/PLwC">Source code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page" id="main">
+    <article class="content">
+      <p class="eyebrow">Microsoft Edge and Google Chrome extension</p>
+      <h1>Privacy policy</h1>
+      <p class="lead">PLwC Chat Bridge connects the ChatGPT web interface to a separately installed PLwC runtime on the same Windows device. The publisher does not operate an extension analytics, advertising, telemetry, or cloud backend.</p>
+      <p class="meta">Effective and last updated: 9 August 2026</p>
+
+      <div class="notice">
+        <strong>Short version:</strong> the extension runs only on supported ChatGPT pages, reads the visible content needed for its explicit PLwC workflow, stores limited settings and duplicate-prevention data in browser-local storage, and sends approved tool calls only to the PLwC Bridge at <code>127.0.0.1</code>. Text inserted or submitted into ChatGPT is processed by OpenAI under your ChatGPT account and settings.
+      </div>
+
+      <h2 id="scope">1. Scope and roles</h2>
+      <p>This policy applies to the PLwC Chat Bridge extension distributed through Microsoft Edge Add-ons and the Chrome Web Store. The browser Store installs only the extension. The PLwC Gateway, loopback Bridge, and Native Launcher are separate local companion software installed through PLwC Windows Setup.</p>
+      <p>PLwC Chat Bridge does not provide a ChatGPT account or an AI model. OpenAI independently processes content in ChatGPT under the terms and privacy controls that apply to your ChatGPT account. Browser vendors independently process Store, installation, update, and browser diagnostic information under their own policies.</p>
+
+      <h2 id="data">2. Data the extension handles</h2>
+      <h3>Visible ChatGPT content and personal communications</h3>
+      <p>On <code>chatgpt.com</code> and the retained official compatibility host <code>chat.openai.com</code>, the extension inspects visible message elements for explicit PLwC tool-call and result markers and narrowly defined recovery conditions. Relevant protocol content can include tool names, arguments, results, errors, confirmation state, user-generated content, and personal communications. The extension does not access ChatGPT authentication cookies or passwords and does not scan other websites.</p>
+
+      <h3>Conversation and call identity</h3>
+      <p>The extension uses the current ChatGPT conversation path, a PLwC call identifier, a timestamp, and a deterministic signature of the tool name and arguments to prevent duplicate execution or conflicting reuse of a call ID. This is a narrow form of website/browsing-activity data limited to supported ChatGPT conversations.</p>
+
+      <h3>Local settings</h3>
+      <p>The extension stores bridge behavior preferences and optional local PLwC configuration overrides. Overrides may include local workspace and profile paths, a profile fallback name, governance thresholds, and Boolean feature choices. These values are sent only to the PLwC Bridge on the same device.</p>
+
+      <h3>Local runtime data</h3>
+      <p>The extension exchanges build identity, connection state, tool schemas, launcher status, approved tool arguments, and tool results with the local PLwC runtime. PLwC may create or retain user-requested files, profiles, audit records, and other local data according to PLwC's separate governance and workspace rules.</p>
+
+      <h2 id="use">3. How data is used</h2>
+      <p>Data is used only to provide the visible Chat Bridge purpose: validate the local PLwC tool boundary, show calls and results, apply user-selected safety and automation settings, prevent duplicate tool execution, send approved calls to the local runtime, and insert or submit the resulting text into ChatGPT.</p>
+      <p>The extension does not use runtime data for advertising, analytics, creditworthiness, lending, unrelated profiling, or model training by the PLwC publisher. It does not sell runtime data.</p>
+
+      <h2 id="transfers">4. Connections and disclosures</h2>
+      <ul>
+        <li><strong>Local PLwC Bridge:</strong> the extension's only extension-origin network connection is the fixed IPv4 loopback WebSocket at <code>ws://127.0.0.1:3007/message</code>. It is not a LAN or Internet endpoint.</li>
+        <li><strong>Local Native Launcher:</strong> when requested, the extension contacts only the native messaging host <code>plwc.chat_bridge.launcher</code> installed by PLwC Setup to start and verify the local Bridge.</li>
+        <li><strong>ChatGPT/OpenAI:</strong> when a primer or result is inserted and submitted through the existing ChatGPT page, that content is sent to and processed by OpenAI as part of your ChatGPT conversation. Automatic result submission is a visible setting and can be disabled.</li>
+        <li><strong>Publisher:</strong> no runtime data is automatically transmitted to PLwC or a publisher-operated service.</li>
+      </ul>
+
+      <h2 id="storage">5. Storage and retention</h2>
+      <p>Bridge preferences and configuration overrides remain in <code>chrome.storage.local</code> until changed, reset, cleared with browser extension-data controls, or the extension is removed. The exactly-once registry is bounded to 5,000 claimed tool-call entries and remains in the same browser-local storage so browser and service-worker restarts cannot repeat accepted work. The extension does not store a separate full chat transcript.</p>
+      <p>Result cards and current connection/tool state are normally held in page or service-worker memory. Clipboard data is written only when you choose Copy Complete Result; the extension does not read your clipboard. Removing the extension does not delete separately installed PLwC workspace, profile, audit, or native-application data.</p>
+
+      <h2 id="controls">6. Your controls</h2>
+      <ul>
+        <li>You can disable automatic read-only execution and automatic result submission.</li>
+        <li>Recognized-write and sandbox automation are separate and off by default. Unknown operations always require confirmation.</li>
+        <li>You can reset local PLwC configuration overrides from the extension panel.</li>
+        <li>You can disable or remove the extension through Microsoft Edge or Google Chrome.</li>
+        <li>You can manage separately installed PLwC data through PLwC and Windows Setup.</li>
+      </ul>
+
+      <h2 id="limited-use">7. Limited Use commitment</h2>
+      <p>The use of information received from browser extension APIs and supported website access is limited to providing and improving the extension's single user-facing purpose. The publisher does not transfer that information except as necessary to provide the feature, comply with applicable law, address security or abuse, or complete a merger, acquisition, or sale of assets with the required protections and consent. It is not transferred for personalized advertising.</p>
+      <p>Humans do not read extension runtime data because the publisher does not receive it. A person may review only the specific diagnostic material you intentionally provide for support, information required to address security or abuse, information required by law, or properly aggregated and anonymized information. Remove private content, credentials, account identifiers, and local paths before sending a support report.</p>
+
+      <h2 id="security">8. Security and data minimization</h2>
+      <p>The extension uses Manifest V3 and packages all executable extension code. It does not download or execute remote JavaScript or WebAssembly. Host access is limited to two ChatGPT hosts and a fixed loopback endpoint. Tool execution remains disabled until the local build identity and exact eight-tool contract are validated.</p>
+      <p>For the broader local Gateway and workspace security model, see the <a href="https://www.plwc.de/index.html#security">PLwC security overview</a>. That project overview supplements, but does not replace, this extension-specific privacy policy.</p>
+      <p>No software can eliminate every risk. Keep PLwC and your browser updated, review confirmation prompts, use synthetic data for testing, and do not put passwords, API keys, payment data, or other secrets into PLwC tool calls or support reports.</p>
+
+      <h2 id="changes">9. Changes to this policy</h2>
+      <p>This page will be updated before a new extension behavior materially changes the data handled, its purpose, recipients, or user controls. The effective date above identifies the current version.</p>
+
+      <h2 id="contact">10. Contact</h2>
+      <p>Privacy and support questions can be sent to <a href="mailto:info@plwc.de">info@plwc.de</a>. For reproducible non-sensitive defects, use <a href="https://github.com/mhoedt-ai/PLwC/issues">GitHub Issues</a>. Do not include credentials, private ChatGPT content, publisher-account data, or confidential workspace files.</p>
+    </article>
+
+    <aside class="summary-card" aria-label="Privacy summary">
+      <h2>At a glance</h2>
+      <ul>
+        <li>No publisher telemetry or advertising</li>
+        <li>Two matched ChatGPT hosts only</li>
+        <li>Fixed IPv4 loopback Bridge only</li>
+        <li>Local browser storage</li>
+        <li>Separate Windows companion required</li>
+        <li>Write automation off by default</li>
+      </ul>
+    </aside>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p>PLwC Chat Bridge · Open Beta · Local companion extension</p>
+      <p><a href="../support/">Support</a> · <a href="https://www.plwc.de/index.html#security">Security</a> · <a href="https://plwc.de/impressum.html">Legal notice</a></p>
+    </div>
+  </footer>
+</body>
+</html>

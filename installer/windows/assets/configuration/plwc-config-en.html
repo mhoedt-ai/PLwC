@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PLwC Configuration</title>
+  <link rel="stylesheet" href="/plwc-config.css">
+  <script src="/plwc-config.js" defer></script>
+</head>
+<body data-language="en">
+  <header class="app-header">
+    <div class="header-inner">
+      <div>
+        <p class="product-label">PLwC FOR WINDOWS</p>
+        <h1>PLwC Configuration</h1>
+        <p class="header-summary">Shared settings for every installed PLwC client.</p>
+      </div>
+      <div class="header-tools">
+        <a class="header-link" href="/getting-started">Getting Started</a>
+        <div class="local-status" aria-label="Connection type">
+          <span class="status-dot" aria-hidden="true"></span>
+          Local session
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+    <section class="overview" aria-labelledby="overview-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Runtime</p>
+          <h2 id="overview-title">Current PLwC state</h2>
+        </div>
+        <button id="refresh-button" class="button secondary" type="button">Refresh</button>
+      </div>
+      <dl class="status-grid">
+        <div><dt>Active profile</dt><dd id="active-profile">Loading...</dd></div>
+        <div><dt>Profile state</dt><dd id="profile-state">Loading...</dd></div>
+        <div><dt>Configuration source</dt><dd id="profile-source">Loading...</dd></div>
+        <div><dt>Gateway</dt><dd id="gateway-version">Loading...</dd></div>
+      </dl>
+    </section>
+
+    <section aria-labelledby="profile-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Profile</p>
+          <h2 id="profile-title">Choose the active profile</h2>
+          <p>Select which profile PLwC loads for future calls. The change is reviewed and applied through the Governor.</p>
+        </div>
+      </div>
+      <div class="profile-controls">
+        <label class="field wide" for="profile-select">
+          <span>Available profiles</span>
+          <select id="profile-select"></select>
+        </label>
+        <div class="profile-actions">
+          <button id="review-profile-button" class="button secondary" type="button">Review activation</button>
+          <button id="new-profile-button" class="button primary" type="button">New profile</button>
+        </div>
+      </div>
+      <p class="path-line"><strong>Profiles folder:</strong> <span id="profiles-path"></span></p>
+    </section>
+
+    <section aria-labelledby="threshold-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Governance</p>
+          <h2 id="threshold-title">Promotion thresholds</h2>
+          <p>Thresholds define how much independent evidence PLwC requires before a confirmed reflection may become durable profile knowledge.</p>
+        </div>
+      </div>
+      <div class="field-grid">
+        <label class="field" for="memory-threshold">
+          <span>Memory threshold</span>
+          <input id="memory-threshold" type="number" min="1" max="1000000" step="1" inputmode="numeric">
+          <small>Evidence needed before a reflection candidate may be promoted to <code>memory.md</code>.</small>
+          <span id="memory-source" class="source-label"></span>
+        </label>
+        <label class="field" for="persona-threshold">
+          <span>Persona threshold</span>
+          <input id="persona-threshold" type="number" min="1" max="1000000" step="1" inputmode="numeric">
+          <small>Evidence needed before a stable personal trait may be proposed for <code>PERSONA.md</code>.</small>
+          <span id="persona-source" class="source-label"></span>
+        </label>
+        <label class="field" for="temperament-threshold">
+          <span>Temperament threshold</span>
+          <input id="temperament-threshold" type="number" min="1" max="1000000" step="1" inputmode="numeric">
+          <small>Evidence needed before a recurring reaction pattern may be proposed for <code>TEMPERAMENT.md</code>.</small>
+          <span id="temperament-source" class="source-label"></span>
+        </label>
+      </div>
+    </section>
+
+    <section aria-labelledby="features-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Features</p>
+          <h2 id="features-title">Runtime features</h2>
+          <p>These switches are shared by Chat Bridge, Claude Desktop, Codex, Odysseus and Gateway-only installations.</p>
+        </div>
+      </div>
+      <div class="switch-list">
+        <label class="switch-row" for="persona-toggle">
+          <span>
+            <strong>Persona Layer</strong>
+            <small>Include the compiled Persona Layer in future PLwC context. This does not delete or rewrite <code>PERSONA.md</code>.</small>
+            <span id="persona-toggle-source" class="source-label"></span>
+          </span>
+          <span class="switch-control">
+            <input id="persona-toggle" type="checkbox">
+            <span class="switch-track" aria-hidden="true"></span>
+          </span>
+        </label>
+        <label class="switch-row" for="qdrant-toggle">
+          <span>
+            <strong>Qdrant vector search</strong>
+            <small>Allow PLwC to use the configured Qdrant index. Enabling this does not create or rebuild an index.</small>
+            <span id="qdrant-toggle-source" class="source-label"></span>
+          </span>
+          <span class="switch-control">
+            <input id="qdrant-toggle" type="checkbox">
+            <span class="switch-track" aria-hidden="true"></span>
+          </span>
+        </label>
+      </div>
+      <div class="save-row">
+        <p>Saved settings take effect on the next PLwC call. Restart a client only if it still shows cached values.</p>
+        <button id="save-button" class="button primary" type="button">Save settings</button>
+      </div>
+    </section>
+
+    <section class="technical" aria-labelledby="technical-title">
+      <details>
+        <summary id="technical-title">Configuration files and diagnostics</summary>
+        <dl class="detail-list">
+          <div><dt>Shared settings</dt><dd id="settings-file"></dd></div>
+          <div><dt>Profile state</dt><dd id="profile-state-file"></dd></div>
+          <div><dt>Workspace</dt><dd id="workspace-path"></dd></div>
+        </dl>
+        <div id="setup-warnings" class="warnings" hidden></div>
+      </details>
+    </section>
+  </main>
+
+  <dialog id="profile-dialog" aria-labelledby="profile-dialog-title">
+    <form method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Governor plan</p>
+          <h2 id="profile-dialog-title">Review profile activation</h2>
+        </div>
+        <button class="close-button" value="cancel" aria-label="Close" title="Close" type="submit" formnovalidate>×</button>
+      </div>
+      <div class="plan-flow" aria-label="Profile change">
+        <div><span>Current</span><strong id="plan-current"></strong></div>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <div><span>Requested</span><strong id="plan-requested"></strong></div>
+      </div>
+      <dl class="plan-details">
+        <div><dt>Validation</dt><dd id="plan-validation"></dd></div>
+        <div><dt>Profile folder</dt><dd id="plan-directory"></dd></div>
+        <div><dt>Planned writes</dt><dd id="plan-writes"></dd></div>
+        <div id="plan-missing-row" hidden><dt>Missing files</dt><dd id="plan-missing"></dd></div>
+      </dl>
+      <label class="confirmation" for="profile-confirmation">
+        <input id="profile-confirmation" type="checkbox">
+        <span>I reviewed this plan and want PLwC to activate the requested profile.</span>
+      </label>
+      <div class="dialog-actions">
+        <button class="button secondary" value="cancel" type="submit" formnovalidate>Cancel</button>
+        <button id="activate-profile-button" class="button primary" type="button" disabled>Activate profile</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="create-profile-dialog" class="onboarding-dialog" aria-labelledby="create-profile-dialog-title">
+    <form id="create-profile-form" method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Guided onboarding</p>
+          <h2 id="create-profile-dialog-title">Create a new profile</h2>
+        </div>
+        <button class="close-button" value="cancel" aria-label="Close" title="Close" type="submit" formnovalidate>×</button>
+      </div>
+
+      <div id="create-profile-entry">
+        <p class="dialog-intro">These answers create the initial protected profile files. PLwC shows a Governor plan before writing anything.</p>
+        <div id="persona-onboarding-note" class="inline-note" hidden>The Persona Layer is disabled. Persona-specific fields are not required and will not be included in this profile.</div>
+
+        <div class="onboarding-group">
+          <h3>Identity and purpose</h3>
+          <div class="onboarding-grid">
+            <label class="field" for="new-profile-name">
+              <span>Profile name</span>
+              <input id="new-profile-name" name="profile_name" type="text" maxlength="120" required autocomplete="off" placeholder="Example: Researcher">
+              <small>Directory-safe name used to select this profile.</small>
+            </label>
+            <label class="field persona-onboarding-field" for="new-role-use-case">
+              <span>Role and use case</span>
+              <input id="new-role-use-case" name="role_use_case" type="text" maxlength="2000" required placeholder="Research and technical writing assistant">
+              <small>What this profile should help with.</small>
+            </label>
+            <label class="field persona-onboarding-field" for="new-preferred-name">
+              <span>Preferred name</span>
+              <input id="new-preferred-name" name="preferred_name" type="text" maxlength="2000" required placeholder="Your name or stable display name">
+            </label>
+            <label class="field persona-onboarding-field" for="new-form-of-address">
+              <span>Form of address</span>
+              <input id="new-form-of-address" name="form_of_address" type="text" maxlength="2000" required placeholder="How the assistant should address you">
+            </label>
+          </div>
+        </div>
+
+        <div class="onboarding-group">
+          <h3>Collaboration style</h3>
+          <div class="onboarding-grid">
+            <label class="field" for="new-tone">
+              <span>Tone</span>
+              <input id="new-tone" name="tone" type="text" maxlength="2000" required placeholder="Clear, calm and direct">
+            </label>
+            <label class="field" for="new-working-style">
+              <span>Working style</span>
+              <input id="new-working-style" name="working_style" type="text" maxlength="2000" required placeholder="Structured, critical and evidence-oriented">
+            </label>
+            <label class="field" for="new-strictness">
+              <span>Strictness</span>
+              <textarea id="new-strictness" name="strictness" maxlength="2000" required rows="3" placeholder="How strictly should uncertainty, safety and evidence be handled?"></textarea>
+            </label>
+            <label class="field" for="new-language-preference">
+              <span>Language preference</span>
+              <textarea id="new-language-preference" name="language_preference" maxlength="2000" required rows="3" placeholder="Languages for conversation, code and public documents"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="onboarding-group">
+          <h3>Memory and confirmation boundaries</h3>
+          <div class="onboarding-grid">
+            <label class="field" for="new-memory-scope">
+              <span>Memory scope</span>
+              <textarea id="new-memory-scope" name="memory_scope" maxlength="2000" required rows="4" placeholder="What may PLwC retain through governed memory workflows?"></textarea>
+            </label>
+            <label class="field" for="new-confirmation-boundaries">
+              <span>Confirmation boundaries</span>
+              <textarea id="new-confirmation-boundaries" name="confirmation_boundaries" maxlength="2000" required rows="4" placeholder="What must never be changed without explicit confirmation?"></textarea>
+            </label>
+            <label class="field persona-onboarding-field" for="new-project-context">
+              <span>Project context</span>
+              <textarea id="new-project-context" name="project_context" maxlength="2000" required rows="4" placeholder="Main project or work context"></textarea>
+            </label>
+            <label class="field" for="new-special-instructions">
+              <span>Special instructions <span class="optional-label">optional</span></span>
+              <textarea id="new-special-instructions" name="special_instructions" maxlength="2000" rows="4" placeholder="Additional explicit instructions for this profile"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="button secondary" value="cancel" type="submit" formnovalidate>Cancel</button>
+          <button id="review-create-profile-button" class="button primary" type="button">Review creation plan</button>
+        </div>
+      </div>
+
+      <div id="create-profile-plan" hidden>
+        <div class="plan-flow single-target">
+          <div><span>New profile</span><strong id="creation-plan-profile"></strong></div>
+          <div><span>Activation</span><strong id="creation-plan-activation"></strong></div>
+        </div>
+        <dl class="plan-details">
+          <div><dt>Validation</dt><dd id="creation-plan-validation"></dd></div>
+          <div><dt>Profile folder</dt><dd id="creation-plan-directory"></dd></div>
+          <div><dt>Files to create</dt><dd id="creation-plan-files"></dd></div>
+          <div id="creation-plan-missing-row" hidden><dt>Missing answers</dt><dd id="creation-plan-missing"></dd></div>
+        </dl>
+        <label class="confirmation" for="create-profile-confirmation">
+          <input id="create-profile-confirmation" type="checkbox">
+          <span>I reviewed the answers and Governor plan. Create these protected files and activate the new profile.</span>
+        </label>
+        <div class="dialog-actions split-actions">
+          <button id="back-to-profile-form-button" class="button secondary" type="button">Back</button>
+          <span class="action-spacer"></span>
+          <button class="button secondary" value="cancel" type="submit" formnovalidate>Cancel</button>
+          <button id="create-profile-button" class="button primary" type="button" disabled>Create and activate</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <footer>
+    <p>This page is served only on <code>127.0.0.1</code> and closes automatically after inactivity.</p>
+  </footer>
+</body>
+</html>

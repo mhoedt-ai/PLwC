@@ -1,13 +1,14 @@
 # PLwC Chat Bridge
 
-Status: rc19.dev10 implementation prototype.
+Status: 1.0.0 implementation candidate. Distribution remains on hold until the
+signed Windows artifact and the external Store-identity acceptance gates pass.
 
 PLwC Chat Bridge is the proposed PLwC-owned local browser client integration
 for using the signed-in ChatGPT web UI with the local `plwc-gateway` MCP
 server. It is a client-side bridge in front of the governed PLwC gateway, not a
 new backend adapter and not an OpenAI API replacement.
 
-This directory is the rc19 integration boundary. It contains a reduced,
+This directory is the 1.0 integration boundary. It contains a reduced,
 PLwC-owned implementation informed by the upstream MIT prototype without
 shipping the generic upstream extension or proxy package.
 
@@ -50,18 +51,37 @@ integrations/plwc-chat-bridge/
 - `bridge/` contains the pinned Node.js WebSocket-to-MCP stdio bridge.
 - `extension/` contains the PLwC-only Manifest V3 extension and Shadow DOM UI.
 - the panel can be toggled from the PLwC icon beside the ChatGPT composer;
-- the Settings tab edits and validates all nine PLwC MCPB configuration fields,
-  persists overrides, restarts only the managed gateway child and can restore
-  imported Claude/launcher values;
+- the Settings tab edits and validates the shared PLwC bootstrap fields,
+  persists one shared configuration and the Claude MCPB mirror, verifies the
+  restarted managed gateway child, and can restore imported Claude/launcher
+  values without overwriting governed active-profile state;
 - the content script restores the loopback connection and eight-tool contract
   after a Chrome service-worker restart;
-- MCP envelopes are normalized once and runtime status is presented as a
-  compact result instead of duplicated escaped JSON;
+- MCP envelopes are normalized once without dropping runtime-status or sandbox
+  fields;
 - complete tool results, including full compiled profile layers, are returned
-  to ChatGPT without bridge-side truncation; only expanded visual details are
-  display-bounded;
-- visible PLwC JSONL calls and marked JSON results are replaced by compact,
+  to ChatGPT without bridge-side truncation; oversized general results use the
+  lossless `plwc_result_chunks.v1` protocol with ordered chunks and SHA-256
+  completeness metadata, while only expanded visual details are display-bounded;
+  chunked envelopes use compact JSON without removing semantic content;
+- an approved `profile_creation` Governor plan adds a validated
+  `plwc_onboarding_continuation.v1` block to its correlated result. The block
+  preserves the complete reviewed onboarding arguments and supplies exactly
+  one `plwc_governor` apply call for use after explicit confirmation; a
+  successful apply supplies exactly one read-only runtime-status verification
+  call;
+- chain recovery recognizes both missing-result claims and ChatGPT execution
+  refusals. When a verified onboarding continuation exists, recovery repeats
+  its exact wrapper and forbids substituting `plwc_describe`; it never executes
+  the mutating continuation or bypasses the existing confirmation gate;
+- visible PLwC wrapper calls and marked JSON results are replaced by compact,
   collapsed terminal rows; details and `Show JSON` are available on demand;
+- startup and ChatGPT conversation changes establish a quiet hydration
+  baseline, so historical call JSON and stale chain-recovery text in old chats
+  are not treated as new automatic work;
+- collapsed reasoning disclosures in the newest assistant turn are revealed
+  once and both call observation and recovery have periodic reconciliation,
+  so a deferred PLwC wrapper no longer depends on manual expansion;
 - policy-approved read-only calls run automatically by default and their
   results are inserted and submitted through the ChatGPT composer;
 - workspace inventory and content-search hits are treated as unverified path
@@ -76,6 +96,17 @@ integrations/plwc-chat-bridge/
   `! CONFIRM` state instead of looking stalled behind long JSON details;
 - `scripts/start-windows.ps1` imports the enabled Claude PLwC MCPB settings and
   starts the built bridge with the example config;
+- `native/bin/plwc-chat-bridge-launcher.exe` registers or repairs the Chrome,
+  Edge and Brave native launcher so the panel can start and verify the local
+  WebSocket bridge after a PC reboot; the Status tab `Reconnect` button remains
+  the manual retry;
+- `build-identity.json` defines one installer-addressable build ID for the Node
+  Bridge, browser extension and native launcher. The common build and all three
+  component versions advance together; all three runtimes report the same
+  identity and reject a mismatched peer before tool execution;
+- PLwC Setup creates a limited per-user scheduled task that starts the Bridge
+  after every Windows sign-in, verifies the configured loopback endpoint and
+  rolls back the prior task/settings if repair or upgrade fails;
 - the live smoke starts the current repository gateway, lists eight tools and
   calls `plwc_status(scope="runtime")` once;
 - the browser fixture verifies desktop, 768 px and 390 px panel geometry;
@@ -110,17 +141,34 @@ npm run check
 .\scripts\start-windows.ps1
 ```
 
-Load `extension/dist/` as an unpacked Chrome extension after the build.
+Load `extension/dist/` as an unpacked Chrome, Edge or Brave extension after the
+build. Its manifest key fixes the unpacked beta ID to
+`nlogfcafjdfdoknpkbehjgihpafpipdb`. PLwC Setup registers the native host
+and Windows autostart automatically. For a developer repair build, invoke the
+compiled helper directly:
 
-On Windows, the launcher automatically reads the enabled PLwC configuration at
+```text
+native\bin\plwc-chat-bridge-launcher.exe --register --browser all --lang de
+```
+
+Use `--browser chrome`, `edge`, `brave`, `both` or `all`. The canonical identity
+contract already includes the retained development ID and the assigned Chrome
+and Edge Store IDs. A repeated `--extension-id` argument may add an explicitly
+approved identity without removing the canonical origins.
+
+On Windows, the launcher initially imports the enabled PLwC configuration at
 `%APPDATA%\Claude\Claude Extensions Settings\local.mcpb.plwc.plwc-gateway.json`.
-All nine MCPB fields are forwarded to the gateway. Explicit launcher
-parameters take precedence over process environment values, which take
-precedence over MCPB values; omitted values retain PLwC defaults. Do not pass
-the source repository as `-WorkspaceRoot` merely because the bridge code lives
-there, especially when the repository is on a mapped network drive.
+After the first `Save & Restart`, all nine shared bootstrap values are held in
+`%APPDATA%\PLwC\config\gateway-settings.json`. The profile field is only a
+fallback when no governed state exists. Gateway calls resolve governed
+`active_profile.json` state first, then shared settings, then host/extension
+configuration and finally PLwC defaults. Only confirmed Governor profile
+creation or activation flows may change the governed state; Settings save,
+rollback and reset preserve it. Do not pass the source repository as
+`-WorkspaceRoot` merely because the bridge code lives there, especially when
+the repository is on a mapped network drive.
 
-## First rc19 Acceptance Targets
+## Version 1.0 Acceptance Targets
 
 1. ChatGPT lists exactly eight PLwC tools.
 2. `plwc_status(scope="runtime")` returns one visible result.

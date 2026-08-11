@@ -4,6 +4,9 @@ import { PlwcChatRenderer } from "../../src/content/chat-renderer";
 import { parseVisiblePlwcToolCalls } from "../../src/content/tool-call-parser";
 import { CANONICAL_TOOL_NAMES } from "../../src/shared/contracts";
 import type { BridgeSettings, GatewaySettingsSnapshot, GatewaySettingsUpdate } from "../../src/shared/messages";
+import { runP001BrowserAcceptance } from "./p0-01-browser-acceptance";
+import { runP002Fix01BrowserAcceptance } from "./p0-02-fix-01-browser-acceptance";
+import { runP002Fix02BrowserAcceptance } from "./p0-02-fix-02-browser-acceptance";
 
 const tools = CANONICAL_TOOL_NAMES.map((name) => ({
   name,
@@ -51,6 +54,7 @@ let bridgeSettings: BridgeSettings = {
   autoInsertDelay: 2,
   autoSubmitDelay: 2,
   autoSubmitResults: true,
+  composerBusyTimeout: 60,
   readOnlyAutoRun: true,
   renderChatCards: true,
 };
@@ -88,6 +92,10 @@ const fakeChrome = {
         "bridge.settings.get": bridgeSettings,
         "bridge.settings.update": bridgeSettings,
       };
+      if (request.type === "bridge.tools.call") {
+        setTimeout(() => callback?.({ ok: true, value: values[request.type] }), 2_000);
+        return Promise.resolve();
+      }
       callback?.({ ok: true, value: values[request.type] });
       return Promise.resolve();
     },
@@ -95,6 +103,38 @@ const fakeChrome = {
 };
 
 Object.assign(globalThis.chrome, fakeChrome);
+
+try {
+  runP001BrowserAcceptance();
+  document.documentElement.setAttribute("data-plwc-p0-01-acceptance", "pass");
+} catch (error) {
+  document.documentElement.setAttribute("data-plwc-p0-01-acceptance", "fail");
+  document.documentElement.setAttribute(
+    "data-plwc-p0-01-acceptance-error",
+    error instanceof Error ? error.message : "Unknown P0-01 browser fixture failure.",
+  );
+}
+
+try {
+  runP002Fix01BrowserAcceptance();
+  document.documentElement.setAttribute("data-plwc-p0-02-fix-01-acceptance", "pass");
+} catch (error) {
+  document.documentElement.setAttribute("data-plwc-p0-02-fix-01-acceptance", "fail");
+  document.documentElement.setAttribute(
+    "data-plwc-p0-02-fix-01-acceptance-error",
+    error instanceof Error ? error.message : "Unknown P0-02 Fix 01 browser fixture failure.",
+  );
+}
+
+void runP002Fix02BrowserAcceptance(document).then(() => {
+  document.documentElement.setAttribute("data-plwc-p0-02-fix-02-acceptance", "pass");
+}).catch((error) => {
+  document.documentElement.setAttribute("data-plwc-p0-02-fix-02-acceptance", "fail");
+  document.documentElement.setAttribute(
+    "data-plwc-p0-02-fix-02-acceptance-error",
+    error instanceof Error ? error.message : "Unknown P0-02 Fix 02 browser fixture failure.",
+  );
+});
 
 document.querySelector<HTMLFormElement>("form.composer")?.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -119,8 +159,14 @@ const chatRenderer = new PlwcChatRenderer();
 const panel = new PlwcPanel(shadowRoot, new BridgeClient(), chatRenderer);
 panel.mount();
 chatRenderer.mount();
-const sandboxJsonl = document.querySelector<HTMLElement>("#fixture-sandbox-source")?.textContent ?? "";
+const sandboxEnvelope = document.querySelector<HTMLElement>("#fixture-sandbox-source")?.textContent ?? "";
 const [sandboxCall] = parseVisiblePlwcToolCalls([
-  { sourceId: "fixture-sandbox-source", sourceKind: "rendered", text: sandboxJsonl, visible: true },
+  {
+    conversationId: "c/fixture",
+    sourceId: "fixture-sandbox-source",
+    sourceKind: "rendered",
+    text: sandboxEnvelope,
+    visible: true,
+  },
 ]);
 if (sandboxCall) panel.offerToolCall(sandboxCall);

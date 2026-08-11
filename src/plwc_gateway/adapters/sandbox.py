@@ -6,7 +6,6 @@ import subprocess
 import fnmatch
 import os
 import re
-import shutil
 import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -16,6 +15,8 @@ from typing import Any
 from plwc_gateway.config import DockerConfig
 from plwc_gateway.policy import IntentAction, PolicyDecision, PolicyIntent, execute_with_policy
 from plwc_gateway.policy.paths import PROTECTED_GOVERNANCE_FILENAMES
+
+from .docker_cli import resolve_docker_executable
 
 SAFE_MODE_MESSAGE = (
     "Docker was not found or is not usable. PLwC is running in Safe Mode. "
@@ -87,7 +88,8 @@ class DockerSandboxAdapter:
         python_available = bool(sys.executable)
         python_executable = sys.executable or None
         python_version = ".".join(str(part) for part in sys.version_info[:3])
-        docker_executable = shutil.which("docker")
+        docker_executable = resolve_docker_executable()
+        docker_command = docker_executable or "docker"
         mount_root = self._workspace_mount_root()
         mount_allowed = not isinstance(mount_root, SandboxResult)
         mount_reason = "Workspace mount is allowed." if mount_allowed else mount_root.error
@@ -127,7 +129,7 @@ class DockerSandboxAdapter:
                 next_action="Fix the local PLwC Docker policy configuration.",
             )
         try:
-            version = self.runner(["docker", "--version"], capture_output=True, text=True, timeout=5)
+            version = self.runner([docker_command, "--version"], capture_output=True, text=True, timeout=5)
         except (OSError, subprocess.SubprocessError) as exc:
             return self._safe_mode(
                 str(exc),
@@ -135,14 +137,14 @@ class DockerSandboxAdapter:
                 python_executable=python_executable,
                 python_version=python_version,
                 docker_cli_available=False,
-                docker_daemon_available=False,
+                docker_daemon_available=None,
                 docker_executable=docker_executable,
                 sandbox_image_available=None,
                 workspace_mount_allowed=mount_allowed,
                 workspace_mount_reason=mount_reason,
                 audit_log_writable=audit_ok,
                 audit_log_reason=audit_reason,
-                next_action="Install Docker Desktop, start Docker, and restart PLwC. PLwC will not install Docker automatically.",
+                next_action="Install or start Docker Desktop, then rerun PLwC status.",
             )
         if version.returncode != 0:
             return self._safe_mode(
@@ -151,7 +153,7 @@ class DockerSandboxAdapter:
                 python_executable=python_executable,
                 python_version=python_version,
                 docker_cli_available=False,
-                docker_daemon_available=False,
+                docker_daemon_available=None,
                 docker_executable=docker_executable,
                 docker_version=version.stdout.strip() or None,
                 sandbox_image_available=None,
@@ -159,9 +161,29 @@ class DockerSandboxAdapter:
                 workspace_mount_reason=mount_reason,
                 audit_log_writable=audit_ok,
                 audit_log_reason=audit_reason,
-                next_action="Install Docker Desktop, start Docker, and restart PLwC. PLwC will not install Docker automatically.",
+                next_action="Install or start Docker Desktop, then rerun PLwC status.",
             )
-        info = self.runner(["docker", "info"], capture_output=True, text=True, timeout=5)
+        try:
+            info = self.runner([docker_command, "info"], capture_output=True, text=True, timeout=5)
+        except (OSError, subprocess.SubprocessError) as exc:
+            detail = f"Docker daemon probe failed: {exc}"
+            return self._safe_mode(
+                detail,
+                python_available=python_available,
+                python_executable=python_executable,
+                python_version=python_version,
+                docker_cli_available=True,
+                docker_daemon_available=False,
+                docker_executable=docker_executable or "docker",
+                docker_version=version.stdout.strip() or None,
+                docker_daemon_error=detail,
+                sandbox_image_available=None,
+                workspace_mount_allowed=mount_allowed,
+                workspace_mount_reason=mount_reason,
+                audit_log_writable=audit_ok,
+                audit_log_reason=audit_reason,
+                next_action="Start Docker Desktop and verify that the Docker daemon is reachable.",
+            )
         if info.returncode != 0:
             return self._safe_mode(
                 info.stderr or info.stdout,
@@ -180,7 +202,30 @@ class DockerSandboxAdapter:
                 audit_log_reason=audit_reason,
                 next_action="Start Docker Desktop and verify that the Docker daemon is reachable.",
             )
-        image = self.runner(["docker", "image", "inspect", self.docker.image], capture_output=True, text=True, timeout=5)
+        try:
+            image = self.runner(
+                [docker_command, "image", "inspect", self.docker.image],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            return self._safe_mode(
+                f"Docker sandbox image probe failed: {exc}",
+                python_available=python_available,
+                python_executable=python_executable,
+                python_version=python_version,
+                docker_cli_available=True,
+                docker_daemon_available=True,
+                docker_executable=docker_executable or "docker",
+                docker_version=version.stdout.strip() or None,
+                sandbox_image_available=None,
+                workspace_mount_allowed=mount_allowed,
+                workspace_mount_reason=mount_reason,
+                audit_log_writable=audit_ok,
+                audit_log_reason=audit_reason,
+                next_action="Verify Docker Desktop and the configured sandbox image, then rerun PLwC status.",
+            )
         if image.returncode != 0:
             return self._policy_error(
                 _missing_local_image_error(image.stderr or image.stdout)
@@ -203,11 +248,14 @@ class DockerSandboxAdapter:
                     "PLwC will not pull images automatically because runtime pulls are disabled."
                 ),
             )
-        node_inspect = self.runner(
-            ["docker", "image", "inspect", self.docker.node_image],
-            capture_output=True, text=True, timeout=5,
-        )
-        node_image_ok = node_inspect.returncode == 0
+        try:
+            node_inspect = self.runner(
+                [docker_command, "image", "inspect", self.docker.node_image],
+                capture_output=True, text=True, timeout=5,
+            )
+            node_image_ok = node_inspect.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            node_image_ok = False
         if not mount_allowed and isinstance(mount_root, SandboxResult):
             return self._policy_error(
                 mount_root.error or "Sandbox workspace mount is not allowed.",
@@ -464,7 +512,7 @@ class DockerSandboxAdapter:
                     requirement_ids=("SR-002", "FR-007"),
                 )
             node_inspect = self.runner(
-                ["docker", "image", "inspect", self.docker.node_image],
+                [self._docker_command(), "image", "inspect", self.docker.node_image],
                 capture_output=True, text=True, timeout=5,
             )
             if node_inspect.returncode != 0:
@@ -563,7 +611,7 @@ class DockerSandboxAdapter:
 
     def _docker_base_args(self, workspace_root: Path) -> tuple[str, ...]:
         return (
-            "docker",
+            self._docker_command(),
             "run",
             "--rm",
             "--pull",
@@ -590,6 +638,9 @@ class DockerSandboxAdapter:
             "--mount",
             f"type=bind,source={workspace_root},target={CONTAINER_WORKDIR},readonly=false",
         )
+
+    def _docker_command(self) -> str:
+        return resolve_docker_executable() or "docker"
 
     def _docker_policy_error(self) -> str | None:
         if self.docker.network != "none":

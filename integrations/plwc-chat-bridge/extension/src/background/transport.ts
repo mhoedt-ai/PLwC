@@ -7,6 +7,14 @@ interface JsonRpcResponse {
   error?: { code?: number; message?: string; data?: unknown };
 }
 
+interface JsonRpcNotification {
+  jsonrpc: "2.0";
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+const TOOL_CALL_HEARTBEAT_METHOD = "bridge/heartbeat";
+
 export interface WebSocketLike {
   readyState: number;
   onclose: ((event: CloseEvent) => void) | null;
@@ -22,7 +30,7 @@ export type WebSocketFactory = (endpoint: string) => WebSocketLike;
 interface PendingRequest {
   reject: (error: Error) => void;
   resolve: (value: unknown) => void;
-  timeout: ReturnType<typeof setTimeout>;
+  timeout: ReturnType<typeof setTimeout> | null;
 }
 
 export class RpcRequestError extends Error {
@@ -108,11 +116,13 @@ export class JsonRpcWebSocketClient {
 
     const id = this.nextRequestId++;
     return new Promise<unknown>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new RpcRequestError(`JSON-RPC request timed out after ${this.requestTimeoutMs} ms.`, "timeout"));
-      }, this.requestTimeoutMs);
-      this.pending.set(id, { reject, resolve, timeout });
+      const request: PendingRequest = {
+        reject,
+        resolve,
+        timeout: null,
+      };
+      this.armRequestTimeout(id, request);
+      this.pending.set(id, request);
       socket.send(JSON.stringify({ id, jsonrpc: "2.0", method, params }));
     });
   }
@@ -125,19 +135,28 @@ export class JsonRpcWebSocketClient {
 
   private handleMessage(raw: unknown): void {
     if (typeof raw !== "string") return;
-    let response: JsonRpcResponse;
+    let message: JsonRpcResponse | JsonRpcNotification;
     try {
-      response = JSON.parse(raw) as JsonRpcResponse;
+      message = JSON.parse(raw) as JsonRpcResponse | JsonRpcNotification;
     } catch {
       this.setState("error", "Bridge returned invalid JSON.");
       return;
     }
+    if ("method" in message) {
+      if (message.method !== TOOL_CALL_HEARTBEAT_METHOD) return;
+      const requestId = message.params?.request_id;
+      if (typeof requestId !== "number") return;
+      const request = this.pending.get(requestId);
+      if (request) this.armRequestTimeout(requestId, request);
+      return;
+    }
+    const response = message;
     if (typeof response.id !== "number") return;
 
     const request = this.pending.get(response.id);
     if (!request) return;
     this.pending.delete(response.id);
-    clearTimeout(request.timeout);
+    if (request.timeout !== null) clearTimeout(request.timeout);
 
     if (response.error) {
       request.reject(
@@ -148,9 +167,17 @@ export class JsonRpcWebSocketClient {
     request.resolve(response.result);
   }
 
+  private armRequestTimeout(id: number, request: PendingRequest): void {
+    if (request.timeout !== null) clearTimeout(request.timeout);
+    request.timeout = setTimeout(() => {
+      this.pending.delete(id);
+      request.reject(new RpcRequestError(`JSON-RPC request timed out after ${this.requestTimeoutMs} ms.`, "timeout"));
+    }, this.requestTimeoutMs);
+  }
+
   private rejectAll(error: Error): void {
     for (const request of this.pending.values()) {
-      clearTimeout(request.timeout);
+      if (request.timeout !== null) clearTimeout(request.timeout);
       request.reject(error);
     }
     this.pending.clear();

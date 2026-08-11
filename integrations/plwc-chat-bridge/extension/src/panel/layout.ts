@@ -27,8 +27,39 @@ export interface ComposerLauncherPosition {
   visible: boolean;
 }
 
+export interface ComposerBusyOverlayInput {
+  bottom: number;
+  height: number;
+  left: number;
+  width: number;
+}
+
+export interface ComposerBusyOverlayPosition {
+  height: number;
+  left: number;
+  top: number;
+  width: number;
+}
+
 const COMPOSER_LAUNCHER_SIZE = 40;
 const COMPOSER_LAUNCHER_GAP = 8;
+const COMPOSER_BUSY_OVERLAY_MIN_HEIGHT = 44;
+const COMPOSER_BUSY_OVERLAY_MAX_HEIGHT = 64;
+
+export function calculateComposerBusyOverlayPosition(
+  input: ComposerBusyOverlayInput,
+): ComposerBusyOverlayPosition {
+  const height = Math.max(
+    COMPOSER_BUSY_OVERLAY_MIN_HEIGHT,
+    Math.min(COMPOSER_BUSY_OVERLAY_MAX_HEIGHT, input.height),
+  );
+  return {
+    height,
+    left: input.left,
+    top: input.bottom - height,
+    width: input.width,
+  };
+}
 
 export function calculateComposerLauncherPosition(input: ComposerLauncherInput): ComposerLauncherPosition {
   const minimumLeft = Math.max(COMPOSER_LAUNCHER_GAP, input.leftNavigationRight + COMPOSER_LAUNCHER_GAP);

@@ -6,6 +6,8 @@ param(
     [string] $ActiveProfileName,
     [string] $SecurityConfig,
     [string] $McpbSettingsPath,
+    [string] $NodePath,
+    [switch] $Detached,
     [switch] $DryRun
 )
 
@@ -28,12 +30,31 @@ if ($config.tools.publicFacadeOnly -ne $true -or $config.tools.expectedPublicToo
 
 Write-Host "PLwC Chat Bridge launcher"
 Write-Host "Config: $resolvedConfig"
-Write-Host "Loopback endpoint: ws://$($config.bridge.host):$($config.bridge.port)$($config.bridge.path)"
+$healthEndpoint = "ws://$($config.bridge.host):$($config.bridge.port)$($config.bridge.path)"
+Write-Host "Loopback endpoint: $healthEndpoint"
 Write-Host "Gateway command: $($config.gateway.command) $($config.gateway.args -join ' ')"
 
 $bridgeRoot = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\bridge")
 $bridgeEntry = Join-Path $bridgeRoot "dist\src\index.js"
+$buildIdentityPath = Join-Path $PSScriptRoot "..\build-identity.json"
+$extensionIdentityPath = Join-Path $PSScriptRoot "..\native\extension-identity.json"
+if (-not (Test-Path -LiteralPath $buildIdentityPath -PathType Leaf)) {
+    throw "PLwC Chat Bridge build identity was not found: $buildIdentityPath"
+}
+$expectedBuildId = [string] (
+    Get-Content -LiteralPath $buildIdentityPath -Raw | ConvertFrom-Json
+).buildId
+$extensionIdentity = Get-Content -LiteralPath $extensionIdentityPath -Raw | ConvertFrom-Json
+$healthOrigin = [string] $extensionIdentity.identities.development.webSocketOrigin
+if ($extensionIdentity.schemaVersion -ne 2 -or
+    $healthOrigin -notmatch '^chrome-extension://[a-p]{32}$') {
+    throw "PLwC Chat Bridge extension identity contract is invalid: $extensionIdentityPath"
+}
+if ([string]::IsNullOrWhiteSpace($expectedBuildId)) {
+    throw "PLwC Chat Bridge build identity does not contain a buildId: $buildIdentityPath"
+}
 Write-Host "Bridge entry: $bridgeEntry"
+Write-Host "Expected bridge build: $expectedBuildId"
 
 $mcpbUserConfig = $null
 if ([string]::IsNullOrWhiteSpace($McpbSettingsPath) -and -not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
@@ -192,18 +213,207 @@ foreach ($mapping in $scalarMcpbMappings) {
     Write-Host "$($mapping.Label): PLwC configured/default value"
 }
 
+function Resolve-PLwCDockerExecutable {
+    $candidates = @(
+        $env:PLWC_DOCKER_EXE,
+        $(if ($env:ProgramFiles) {
+            Join-Path $env:ProgramFiles "Docker\Docker\resources\bin\docker.exe"
+        }),
+        $(if (${env:ProgramW6432}) {
+            Join-Path ${env:ProgramW6432} "Docker\Docker\resources\bin\docker.exe"
+        }),
+        $(if ($env:LOCALAPPDATA) {
+            Join-Path $env:LOCALAPPDATA "Programs\DockerDesktop\resources\bin\docker.exe"
+        }),
+        $(if ($env:LOCALAPPDATA) {
+            Join-Path $env:LOCALAPPDATA "Programs\Docker\Docker\resources\bin\docker.exe"
+        }),
+        $(Get-Command docker.exe -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty Source)
+    )
+    foreach ($candidate in $candidates) {
+        if (
+            -not [string]::IsNullOrWhiteSpace($candidate) -and
+            [System.IO.Path]::IsPathRooted($candidate) -and
+            (Test-Path -LiteralPath $candidate -PathType Leaf)
+        ) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+    return $null
+}
+
+$resolvedDocker = Resolve-PLwCDockerExecutable
+if (-not [string]::IsNullOrWhiteSpace($resolvedDocker)) {
+    $env:PLWC_DOCKER_EXE = $resolvedDocker
+    $dockerBin = Split-Path -Parent $resolvedDocker
+    $pathParts = @($env:PATH -split ";" | Where-Object {
+        -not [string]::IsNullOrWhiteSpace($_)
+    })
+    if ($dockerBin -notin $pathParts) {
+        $env:PATH = "$dockerBin;$env:PATH"
+    }
+    Write-Host "Docker executable: $env:PLWC_DOCKER_EXE"
+}
+else {
+    Remove-Item Env:PLWC_DOCKER_EXE -ErrorAction SilentlyContinue
+    Write-Host "Docker executable: not detected; PLwC starts in Safe Mode"
+}
+
 if ($DryRun) {
     Write-Host "Bridge built: $(Test-Path -LiteralPath $bridgeEntry)"
     Write-Host "Dry run complete. No bridge or gateway process started."
-    exit 0
+    return
 }
 
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+function Resolve-PLwCNodeExecutable {
+    param([string] $ExplicitPath)
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    foreach ($candidate in @(
+        $ExplicitPath,
+        $env:PLWC_NODE_EXE,
+        (Join-Path $env:ProgramFiles "nodejs\node.exe"),
+        $(if (${env:ProgramFiles(x86)}) { Join-Path ${env:ProgramFiles(x86)} "nodejs\node.exe" }),
+        $(if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA "Programs\nodejs\node.exe" }),
+        $(Get-Command node.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)
+    )) {
+        if (
+            -not [string]::IsNullOrWhiteSpace($candidate) -and
+            [System.IO.Path]::IsPathRooted($candidate) -and
+            (Test-Path -LiteralPath $candidate) -and
+            -not $candidates.Contains($candidate)
+        ) {
+            $candidates.Add((Resolve-Path -LiteralPath $candidate).Path)
+        }
+    }
+
+    $launcherSettingsPath = Join-Path $env:APPDATA "PLwC\config\chat-bridge-launcher.json"
+    if (Test-Path -LiteralPath $launcherSettingsPath) {
+        try {
+            $configuredNode = (Get-Content -LiteralPath $launcherSettingsPath -Raw | ConvertFrom-Json).nodePath
+            if (
+                -not [string]::IsNullOrWhiteSpace($configuredNode) -and
+                [System.IO.Path]::IsPathRooted($configuredNode) -and
+                (Test-Path -LiteralPath $configuredNode)
+            ) {
+                $candidates.Insert(0, (Resolve-Path -LiteralPath $configuredNode).Path)
+            }
+        }
+        catch {
+            Write-Warning "PLwC Chat Bridge launcher settings could not be read: $launcherSettingsPath"
+        }
+    }
+
+    foreach ($candidate in $candidates) {
+        $versionText = (& $candidate --version 2>$null)
+        if ($LASTEXITCODE -eq 0 -and $versionText -match "^v(?<major>\d+)\.(?<minor>\d+)") {
+            $major = [int] $Matches.major
+            $minor = [int] $Matches.minor
+            if ($major -gt 22 -or ($major -eq 22 -and $minor -ge 12)) {
+                return $candidate
+            }
+        }
+    }
+    return $null
+}
+
+$resolvedNode = Resolve-PLwCNodeExecutable -ExplicitPath $NodePath
+if ([string]::IsNullOrWhiteSpace($resolvedNode)) {
     throw "Node.js 22.12 or newer is required to run PLwC Chat Bridge."
 }
 if (-not (Test-Path -LiteralPath $bridgeEntry)) {
     throw "Bridge build not found. Run npm install and npm run build in integrations/plwc-chat-bridge first."
 }
 
-& node $bridgeEntry --config $resolvedConfig
-exit $LASTEXITCODE
+Write-Host "Node executable: $resolvedNode"
+
+if ($Detached) {
+    $launchScript = Join-Path $bridgeRoot "scripts\launch-bridge.mjs"
+    $healthScript = Join-Path $bridgeRoot "scripts\healthcheck.mjs"
+    if (-not (Test-Path -LiteralPath $launchScript -PathType Leaf)) {
+        throw "Bridge launch script not found: $launchScript"
+    }
+    if (-not (Test-Path -LiteralPath $healthScript -PathType Leaf)) {
+        throw "Bridge health-check script not found: $healthScript"
+    }
+
+    $plwcRoot = Join-Path $env:APPDATA "PLwC"
+    $logRoot = Join-Path $plwcRoot "logs\chat-bridge"
+    $stateRoot = Join-Path $plwcRoot "state\chat-bridge"
+    $stdoutPath = Join-Path $logRoot "bridge.out.log"
+    $stderrPath = Join-Path $logRoot "bridge.err.log"
+    $pidPath = Join-Path $stateRoot "bridge.pid"
+    New-Item -ItemType Directory -Force -Path $logRoot, $stateRoot | Out-Null
+
+    function Test-PLwCBridgeHealth {
+        & $resolvedNode `
+            $healthScript `
+            --endpoint $healthEndpoint `
+            --origin $healthOrigin `
+            --expected-build-id $expectedBuildId `
+            --timeout-ms 3000
+        return ($LASTEXITCODE -eq 0)
+    }
+
+    function Stop-PLwCOwnedBridgeProcess {
+        if (-not (Test-Path -LiteralPath $pidPath -PathType Leaf)) {
+            return
+        }
+        $ownedPid = 0
+        if ([int]::TryParse((Get-Content -LiteralPath $pidPath -Raw).Trim(), [ref] $ownedPid)) {
+            $ownedProcess = Get-CimInstance `
+                Win32_Process `
+                -Filter "ProcessId = $ownedPid" `
+                -ErrorAction SilentlyContinue
+            if (
+                $null -ne $ownedProcess -and
+                -not [string]::IsNullOrWhiteSpace([string] $ownedProcess.CommandLine) -and
+                $ownedProcess.CommandLine.IndexOf(
+                    $bridgeEntry,
+                    [StringComparison]::OrdinalIgnoreCase
+                ) -ge 0
+            ) {
+                Stop-Process -Id $ownedPid -Force -ErrorAction Stop
+            }
+        }
+        Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
+    }
+
+    if (Test-PLwCBridgeHealth) {
+        Write-Host "PLwC Chat Bridge is already ready with 8 of 8 tools."
+        return
+    }
+
+    if (Test-Path -LiteralPath $pidPath -PathType Leaf) {
+        Stop-PLwCOwnedBridgeProcess
+    }
+
+    & $resolvedNode `
+        $launchScript `
+        --entry $bridgeEntry `
+        --config $resolvedConfig.Path `
+        --stdout $stdoutPath `
+        --stderr $stderrPath `
+        --pid $pidPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "PLwC Chat Bridge detached start failed with exit code $LASTEXITCODE."
+    }
+
+    $deadline = [DateTime]::UtcNow.AddSeconds(30)
+    do {
+        Start-Sleep -Milliseconds 500
+        if (Test-PLwCBridgeHealth) {
+            Write-Host "PLwC Chat Bridge is ready with 8 of 8 tools."
+            return
+        }
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    Stop-PLwCOwnedBridgeProcess
+    throw "PLwC Chat Bridge started but did not reach the 8 of 8 ready state. Check $stderrPath"
+}
+
+& $resolvedNode $bridgeEntry --config $resolvedConfig
+if ($LASTEXITCODE -ne 0) {
+    throw "PLwC Chat Bridge exited with code $LASTEXITCODE."
+}

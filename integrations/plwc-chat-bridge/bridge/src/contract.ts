@@ -29,6 +29,17 @@ export function assertCanonicalTools(tools: readonly Tool[]): void {
   if (new Set(names).size !== names.length || names.some((name) => !canonicalNameSet.has(name))) {
     throw new ToolContractError();
   }
+
+  const statusTool = tools.find((tool) => tool.name === "plwc_status");
+  const statusProperties =
+    typeof statusTool?.inputSchema.properties === "object" &&
+    statusTool.inputSchema.properties !== null &&
+    !Array.isArray(statusTool.inputSchema.properties)
+      ? statusTool.inputSchema.properties as Record<string, unknown>
+      : null;
+  if (statusProperties === null || !Object.hasOwn(statusProperties, "profile_name")) {
+    throw new ToolContractError();
+  }
 }
 
 export function isCanonicalToolName(name: string): name is (typeof CANONICAL_TOOL_NAMES)[number] {

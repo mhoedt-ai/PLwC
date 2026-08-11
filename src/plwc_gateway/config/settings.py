@@ -20,6 +20,7 @@ WORKSPACE_ENV_VAR = "PLWC_WORKSPACE_ROOT"
 PROFILE_ENV_VAR = "PLWC_PROFILE_ROOT"
 ACTIVE_PROFILE_ENV_VAR = "PLWC_ACTIVE_PROFILE_NAME"
 ACTIVE_PROFILE_STATE_FILE_NAME = "active_profile.json"
+SHARED_SETTINGS_FILE_NAME = "gateway-settings.json"
 MEMORY_THRESHOLD_ENV_VAR = "PLWC_MEMORY_WRITE_THRESHOLD"
 PERSONA_THRESHOLD_ENV_VAR = "PLWC_PERSONA_WRITE_THRESHOLD"
 TEMPERAMENT_THRESHOLD_ENV_VAR = "PLWC_TEMPERAMENT_WRITE_THRESHOLD"
@@ -34,6 +35,7 @@ DEFAULT_TEMPERAMENT_WRITE_THRESHOLD = 2
 DEFAULT_PERSONA_LAYER_ENABLED = True
 WORKSPACE_BINARY_MAX_BYTES_ENV_VAR = "PLWC_WORKSPACE_BINARY_MAX_BYTES"
 DEFAULT_WORKSPACE_BINARY_MAX_BYTES = 100 * 1024 * 1024  # 100 MiB
+WORKSPACE_STANDARD_DIRECTORIES = ("Tagebuch", "Temp", "Trashcan")
 
 # RC12-FS-003 — search scope guards (override via extension config / env).
 WORKSPACE_SEARCH_MAX_FILE_BYTES_ENV_VAR = "PLWC_WORKSPACE_SEARCH_MAX_FILE_BYTES"
@@ -128,6 +130,9 @@ class GatewayConfig:
     workspace_search_max_files_scanned_source: str = "default"
     persona_layer_enabled: bool = DEFAULT_PERSONA_LAYER_ENABLED
     persona_layer_enabled_source: str = "default"
+    qdrant_enabled: bool | None = None
+    qdrant_enabled_source: str = "default"
+    workspace_standard_directories: tuple[str, ...] = WORKSPACE_STANDARD_DIRECTORIES
     setup_warnings: tuple[str, ...] = field(default_factory=tuple)
 
     @property
@@ -158,7 +163,15 @@ def load_gateway_config(
     project_root: str | os.PathLike[str] | None = None,
 ) -> GatewayConfig:
     root = Path(project_root).resolve(strict=False) if project_root else default_app_root()
-    selected_config = _find_config_path(config_path, root)
+    setup_warnings: list[str] = []
+    shared_settings_file = (root / "config" / SHARED_SETTINGS_FILE_NAME).resolve(strict=False)
+    shared_settings = _load_shared_settings(shared_settings_file, setup_warnings)
+    shared_security_config = _shared_setting(shared_settings, "security_config")
+    selected_config = _find_config_path(
+        config_path if _clean_config_value(config_path) else shared_security_config,
+        root,
+        ignore_environment="security_config" in shared_settings,
+    )
     parsed = _parse_simple_yaml(selected_config.read_text(encoding="utf-8")) if selected_config else {}
     base_dir = selected_config.parent if selected_config else root
 
@@ -177,14 +190,28 @@ def load_gateway_config(
         )
     )
     allow_project_root = _bool_value(paths.get("allow_project_root"), False)
-    workspace_override = _configured_env_value(WORKSPACE_ENV_VAR)
-    profile_override = _configured_env_value(PROFILE_ENV_VAR)
-    active_profile_override = _configured_env_value(ACTIVE_PROFILE_ENV_VAR)
-    setup_warnings: list[str] = []
+    workspace_override = _shared_or_environment_setting(
+        shared_settings,
+        "workspace_path",
+        WORKSPACE_ENV_VAR,
+    )
+    profile_override = _shared_or_environment_setting(
+        shared_settings,
+        "profiles_path",
+        PROFILE_ENV_VAR,
+    )
+    active_profile_override = _shared_or_environment_setting(
+        shared_settings,
+        "active_profile_name",
+        ACTIVE_PROFILE_ENV_VAR,
+    )
 
     if workspace_override:
         allowed_root_values = [workspace_override]
-        workspace_source = "extension_config"
+        workspace_source = (
+            "shared_config" if _shared_setting(shared_settings, "workspace_path") is not None
+            else "extension_config"
+        )
         allowed_root_base = root
         require_workspace_inside_project = False
     else:
@@ -199,7 +226,10 @@ def load_gateway_config(
 
     if profile_override:
         profile_root_value = profile_override
-        profile_source = "extension_config"
+        profile_source = (
+            "shared_config" if _shared_setting(shared_settings, "profiles_path") is not None
+            else "extension_config"
+        )
         profile_base = root
         require_profile_inside_project = False
     else:
@@ -210,7 +240,10 @@ def load_gateway_config(
 
     if active_profile_override:
         active_profile_name = _validate_profile_name(active_profile_override)
-        active_profile_source = "extension_config"
+        active_profile_source = (
+            "shared_config" if _shared_setting(shared_settings, "active_profile_name") is not None
+            else "extension_config"
+        )
         configured_active_profile_name: str | None = active_profile_name
     else:
         configured_active_profile_name = None
@@ -245,14 +278,16 @@ def load_gateway_config(
     audit_log_file = _resolve_path(_string_value(audit.get("log_file"), str(root / "logs" / "audit.jsonl")), base_dir)
     active_profile_state_file = (root / "config" / ACTIVE_PROFILE_STATE_FILE_NAME).resolve(strict=False)
     state_profile = _active_profile_from_state(active_profile_state_file, setup_warnings)
-    if state_profile and configured_active_profile_name is None:
+    if state_profile:
         active_profile_name = state_profile
         active_profile_source = "plwc_state"
-    elif state_profile and not _same_profile_name(state_profile, configured_active_profile_name):
-        setup_warnings.append(
-            "Active profile state was ignored because configured active_profile_name takes precedence."
-        )
-    governance = _load_governance_config(governance_values, memory_governance_values, setup_warnings)
+        configured_active_profile_name = state_profile
+    governance = _load_governance_config(
+        governance_values,
+        memory_governance_values,
+        setup_warnings,
+        shared_settings=shared_settings,
+    )
 
     docker = _validate_docker_config(
         DockerConfig(
@@ -287,6 +322,7 @@ def load_gateway_config(
         state_root,
         pending_plan_root,
     )
+    _ensure_workspace_standard_directories(*allowed_roots)
 
     binary_max_bytes, binary_max_bytes_source = _workspace_binary_max_bytes(setup_warnings)
     search_max_file_bytes, search_max_file_bytes_source = _positive_int_setting(
@@ -299,7 +335,14 @@ def load_gateway_config(
         DEFAULT_WORKSPACE_SEARCH_MAX_FILES_SCANNED,
         setup_warnings,
     )
-    persona_layer_enabled, persona_layer_enabled_source = _persona_layer_enabled_setting(setup_warnings)
+    persona_layer_enabled, persona_layer_enabled_source = _persona_layer_enabled_setting(
+        setup_warnings,
+        shared_settings=shared_settings,
+    )
+    qdrant_enabled, qdrant_enabled_source = _qdrant_enabled_setting(
+        setup_warnings,
+        shared_settings=shared_settings,
+    )
 
     return GatewayConfig(
         project_root=root,
@@ -314,7 +357,11 @@ def load_gateway_config(
         config_file=selected_config,
         active_profile_state_file=active_profile_state_file,
         state_root=state_root,
-        config_source=_config_source(selected_config, config_path),
+        config_source=_config_source(
+            selected_config,
+            config_path,
+            shared_config=shared_security_config is not None,
+        ),
         workspace_source=workspace_source,
         profile_source=profile_source,
         active_profile_source=active_profile_source,
@@ -326,6 +373,8 @@ def load_gateway_config(
         workspace_search_max_files_scanned_source=search_max_files_scanned_source,
         persona_layer_enabled=persona_layer_enabled,
         persona_layer_enabled_source=persona_layer_enabled_source,
+        qdrant_enabled=qdrant_enabled,
+        qdrant_enabled_source=qdrant_enabled_source,
         setup_warnings=tuple(setup_warnings),
     )
 
@@ -376,7 +425,24 @@ def _bool_env_setting(env_var: str, default: bool, setup_warnings: list[str]) ->
     return default, "default"
 
 
-def _persona_layer_enabled_setting(setup_warnings: list[str]) -> tuple[bool, str]:
+def _persona_layer_enabled_setting(
+    setup_warnings: list[str],
+    *,
+    shared_settings: dict[str, Any] | None = None,
+) -> tuple[bool, str]:
+    shared = shared_settings or {}
+    if "persona_layer_disabled" in shared:
+        raw = shared.get("persona_layer_disabled")
+        if raw is None:
+            return DEFAULT_PERSONA_LAYER_ENABLED, "default"
+        disabled = raw if isinstance(raw, bool) else _parse_bool_text(str(raw))
+        if disabled is not None:
+            return not disabled, "shared_config"
+        setup_warnings.append(
+            "Shared persona_layer_disabled must be a boolean; using the PLwC default."
+        )
+        return DEFAULT_PERSONA_LAYER_ENABLED, "default"
+
     disabled_raw = _configured_env_value(PERSONA_LAYER_DISABLED_ENV_VAR)
     enabled_raw = _configured_env_value(PERSONA_LAYER_ENABLED_ENV_VAR)
 
@@ -400,6 +466,36 @@ def _persona_layer_enabled_setting(setup_warnings: list[str]) -> tuple[bool, str
     return DEFAULT_PERSONA_LAYER_ENABLED, "default"
 
 
+def _qdrant_enabled_setting(
+    setup_warnings: list[str],
+    *,
+    shared_settings: dict[str, Any] | None = None,
+) -> tuple[bool | None, str]:
+    shared = shared_settings or {}
+    if "qdrant_enabled" in shared:
+        raw = shared.get("qdrant_enabled")
+        if raw is None:
+            return None, "default"
+        enabled = raw if isinstance(raw, bool) else _parse_bool_text(str(raw))
+        if enabled is not None:
+            return enabled, "shared_config"
+        setup_warnings.append(
+            "Shared qdrant_enabled must be a boolean; using profile governance."
+        )
+        return None, "default"
+
+    raw = _configured_env_value("PLWC_QDRANT_ENABLED")
+    if raw is None:
+        return None, "default"
+    enabled = _parse_bool_text(raw)
+    if enabled is not None:
+        return enabled, "extension_config"
+    setup_warnings.append(
+        "PLWC_QDRANT_ENABLED must be a boolean; using profile governance."
+    )
+    return None, "default"
+
+
 def _parse_bool_text(value: str) -> bool | None:
     normalized = value.strip().casefold()
     if normalized in {"1", "true", "yes", "on", "enabled", "enable"}:
@@ -409,15 +505,78 @@ def _parse_bool_text(value: str) -> bool | None:
     return None
 
 
-def _find_config_path(config_path: str | os.PathLike[str] | None, project_root: Path) -> Path | None:
+def _load_shared_settings(
+    settings_file: Path,
+    setup_warnings: list[str],
+) -> dict[str, Any]:
+    if not settings_file.exists():
+        return {}
+    try:
+        payload = json.loads(settings_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        setup_warnings.append(
+            f"Shared PLwC settings could not be read; using host configuration. Reason: {exc}"
+        )
+        return {}
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        setup_warnings.append(
+            "Shared PLwC settings use an unsupported schema; using host configuration."
+        )
+        return {}
+    settings = payload.get("settings")
+    if not isinstance(settings, dict):
+        setup_warnings.append(
+            "Shared PLwC settings have no settings object; using host configuration."
+        )
+        return {}
+    allowed = {
+        "workspace_path",
+        "profiles_path",
+        "active_profile_name",
+        "security_config",
+        "memory_write_threshold",
+        "persona_write_threshold",
+        "temperament_write_threshold",
+        "qdrant_enabled",
+        "persona_layer_disabled",
+    }
+    return {key: value for key, value in settings.items() if key in allowed}
+
+
+def _shared_setting(shared_settings: dict[str, Any], key: str) -> str | None:
+    value = shared_settings.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return str(value).lower()
+    return _clean_config_value(value)
+
+
+def _shared_or_environment_setting(
+    shared_settings: dict[str, Any],
+    key: str,
+    environment_name: str,
+) -> str | None:
+    if key in shared_settings:
+        return _shared_setting(shared_settings, key)
+    return _configured_env_value(environment_name)
+
+
+def _find_config_path(
+    config_path: str | os.PathLike[str] | None,
+    project_root: Path,
+    *,
+    ignore_environment: bool = False,
+) -> Path | None:
     candidates = []
     explicit_config = _clean_config_value(config_path)
     if explicit_config:
         candidates.append(Path(explicit_config))
-    for env_name in (CONFIG_ENV_VAR, LEGACY_CONFIG_ENV_VAR):
-        env_path = _configured_env_value(env_name)
-        if env_path:
-            candidates.append(Path(env_path))
+    if not ignore_environment:
+        for env_name in (CONFIG_ENV_VAR, LEGACY_CONFIG_ENV_VAR):
+            env_path = _configured_env_value(env_name)
+            if env_path:
+                candidates.append(Path(env_path))
     candidates.extend([project_root / "security.yaml", project_root / "config" / "security.yaml"])
 
     for candidate in candidates:
@@ -563,28 +722,52 @@ def _load_governance_config(
     governance_values: dict[str, Any],
     memory_governance_values: dict[str, Any],
     setup_warnings: list[str],
+    *,
+    shared_settings: dict[str, Any] | None = None,
 ) -> GovernanceConfig:
-    memory_raw, memory_source = _first_configured_value(
-        (
+    shared = shared_settings or {}
+    if "memory_write_threshold" in shared:
+        memory_extension_values: tuple[tuple[Any, str], ...] = (
+            (shared.get("memory_write_threshold"), "shared_config"),
+        )
+    else:
+        memory_extension_values = (
             (_configured_env_value(MEMORY_THRESHOLD_ENV_VAR), "extension_config"),
             (_configured_env_value(PBA_MEMORY_THRESHOLD_ENV_VAR), "extension_config"),
+        )
+    memory_raw, memory_source = _first_configured_value(
+        memory_extension_values + (
             (governance_values.get("memory_write_threshold"), "governed_config"),
             (governance_values.get("memory_write_modifier"), "governed_config"),
             (memory_governance_values.get("write_threshold"), "governed_config"),
         )
     )
-    persona_raw, persona_source = _first_configured_value(
-        (
+    if "persona_write_threshold" in shared:
+        persona_extension_values: tuple[tuple[Any, str], ...] = (
+            (shared.get("persona_write_threshold"), "shared_config"),
+        )
+    else:
+        persona_extension_values = (
             (_configured_env_value(PERSONA_THRESHOLD_ENV_VAR), "extension_config"),
             (_configured_env_value(PBA_PERSONA_THRESHOLD_ENV_VAR), "extension_config"),
+        )
+    persona_raw, persona_source = _first_configured_value(
+        persona_extension_values + (
             (governance_values.get("persona_write_threshold"), "governed_config"),
             (governance_values.get("persona_write_modifier"), "governed_config"),
         )
     )
-    temperament_raw, temperament_source = _first_configured_value(
-        (
+    if "temperament_write_threshold" in shared:
+        temperament_extension_values: tuple[tuple[Any, str], ...] = (
+            (shared.get("temperament_write_threshold"), "shared_config"),
+        )
+    else:
+        temperament_extension_values = (
             (_configured_env_value(TEMPERAMENT_THRESHOLD_ENV_VAR), "extension_config"),
             (_configured_env_value(PBA_TEMPERAMENT_THRESHOLD_ENV_VAR), "extension_config"),
+        )
+    temperament_raw, temperament_source = _first_configured_value(
+        temperament_extension_values + (
             (governance_values.get("temperament_write_threshold"), "governed_config"),
             (governance_values.get("temperament_write_modifier"), "governed_config"),
         )
@@ -665,6 +848,22 @@ def _ensure_runtime_directories(*paths: Path) -> None:
             raise ConfigValidationError(f"Unable to create required PLwC directory {path}: {exc}") from exc
 
 
+def _ensure_workspace_standard_directories(*workspace_roots: Path) -> None:
+    for root in workspace_roots:
+        for directory_name in WORKSPACE_STANDARD_DIRECTORIES:
+            directory = root / directory_name
+            if directory.exists() and not directory.is_dir():
+                raise ConfigValidationError(
+                    f"Required PLwC workspace directory {directory} exists but is not a directory."
+                )
+            try:
+                directory.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                raise ConfigValidationError(
+                    f"Unable to create required PLwC workspace directory {directory}: {exc}"
+                ) from exc
+
+
 def _configured_env_value(env_name: str) -> str | None:
     return _clean_config_value(os.environ.get(env_name))
 
@@ -678,11 +877,18 @@ def _clean_config_value(value: Any) -> str | None:
     return text
 
 
-def _config_source(selected_config: Path | None, explicit_config: str | os.PathLike[str] | None) -> str:
+def _config_source(
+    selected_config: Path | None,
+    explicit_config: str | os.PathLike[str] | None,
+    *,
+    shared_config: bool = False,
+) -> str:
     if selected_config is None:
         return "defaults"
     if _clean_config_value(explicit_config):
         return "explicit_argument"
+    if shared_config:
+        return "shared_config"
     if _configured_env_value(CONFIG_ENV_VAR) or _configured_env_value(LEGACY_CONFIG_ENV_VAR):
         return "extension_config"
     return "default_security_config"

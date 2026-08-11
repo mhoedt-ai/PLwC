@@ -32,22 +32,30 @@
     </nav>
     <main>
       <div class="message">Local layout fixture for PLwC Chat Bridge.</div>
+      <section data-turn="assistant" data-turn-id="fixture-assistant-status" data-testid="conversation-turn-1">
+        <div class="message" data-message-author-role="assistant"></div>
+        <div class="message markdown">
+          <pre>JSON<code>{"plwc_tool_call":{"arguments":{"scope":"runtime"},"call_id":"fixture-status-1","name":"plwc_status"}}</code></pre>
+          <div class="cm-editor" style="display:none"><pre><code>{"plwc_tool_call":{"arguments":{"scope":"runtime"},"call_id":"fixture-status-1","name":"plwc_status"}}</code></pre></div>
+        </div>
+      </section>
+      <section data-turn="user" data-turn-id="fixture-user-status" data-testid="conversation-turn-2">
+        <div class="message" data-message-author-role="user">
+          <h3>PLwC Tool Result</h3>
+          <pre>json <code>{"call_id":"fixture-status-1","is_error":false,"name":"plwc_status","result":{"ok":true,"scope":"runtime"}}</code></pre>
+        </div>
+      </section>
       <div class="message" data-message-author-role="assistant">
-        <pre><code>{"call_id":"fixture-status-1","name":"plwc_status","type":"function_call_start"}
-{"call_id":"fixture-status-1","key":"scope","type":"parameter","value":"runtime"}
-{"call_id":"fixture-status-1","type":"function_call_end"}</code></pre>
+        <pre><code>{"plwc_tool_call":{"arguments":{"content_base64":"JVBERi0xLjQ=","operation":"write_binary","path":"Temp/browser-smoke/unvalidated.pdf"},"call_id":"fixture-unvalidated-1","name":"plwc_workspace_operation"}}</code></pre>
       </div>
       <div class="message" data-message-author-role="user">
         <div class="markdown">
           <h3>PLwC Tool Result</h3>
-          <pre><code>{"call_id":"fixture-status-1","is_error":false,"name":"plwc_status","result":{"ok":true,"scope":"runtime"}}</code></pre>
+          <pre><code>{"call_id":"fixture-unvalidated-1","is_error":false,"name":"plwc_workspace_operation","result":{"artifact_origin":"workspace_binary_write","ok":true,"operation":"write_binary","path":"Temp/browser-smoke/unvalidated.pdf","validation_status":"unvalidated"}}</code></pre>
         </div>
       </div>
       <div class="message" data-message-author-role="assistant">
-        <pre id="fixture-sandbox-source"><code>{"call_id":"fixture-sandbox-1","name":"plwc_sandbox_run","type":"function_call_start"}
-{"call_id":"fixture-sandbox-1","key":"lang","type":"parameter","value":"python"}
-{"call_id":"fixture-sandbox-1","key":"code","type":"parameter","value":"from pathlib import Path\nroot = Path('/work/Wandorra/Spielleiterhandbuch')\nprint('verify a deliberately long sandbox payload without hiding the confirmation state')"}
-{"call_id":"fixture-sandbox-1","type":"function_call_end"}</code></pre>
+        <pre id="fixture-sandbox-source"><code>{"plwc_tool_call":{"arguments":{"code":"from pathlib import Path\nroot = Path('/work/Wandorra/Spielleiterhandbuch')\nprint('verify a deliberately long sandbox payload without hiding the confirmation state')","lang":"python"},"call_id":"fixture-sandbox-1","name":"plwc_sandbox_run"}}</code></pre>
       </div>
       <form class="composer">
         <div id="prompt-textarea" contenteditable="true" role="textbox" aria-label="Message composer"></div>

@@ -30,6 +30,23 @@ test("always confirms Governor apply and treats unknown operations as mutating",
   assert.equal(decidePolicy("plwc_sandbox_run", { lang: "python", code: "print(1)" }).automaticSandboxConfirmationAllowed, true);
 });
 
+test("never marks unknown public operations as automatically executable", () => {
+  for (const [toolName, argumentsValue] of [
+    ["plwc_profile", { operation: "future_operation" }],
+    ["plwc_reflection", { operation: "future_operation" }],
+    ["plwc_governor", { operation: "future_operation" }],
+    ["plwc_workspace_operation", { operation: "future_operation" }],
+    ["plwc_document_operation", { operation: "future_operation" }],
+  ] as const) {
+    const decision = decidePolicy(toolName, argumentsValue);
+    assert.equal(decision.readOnly, false, toolName);
+    assert.equal(decision.requiresConfirmation, true, toolName);
+    assert.equal(decision.automaticConfirmationAllowed, undefined, toolName);
+    assert.equal(decision.automaticSandboxConfirmationAllowed, undefined, toolName);
+  }
+  assert.equal(decidePolicy("plwc_profile", { operation: "compile" }).readOnly, true);
+});
+
 test("forwards an accepted Governor confirmation as confirmed=true without mutating the source call", () => {
   const source = { operation: "apply", confirmed: false };
   assert.deepEqual(withConfirmedToolArguments("plwc_governor", source, true), {

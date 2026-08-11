@@ -42,7 +42,7 @@ confirmation boundary looked like a stalled automation.
 | Mobile browser fixture | PASS | At 390 x 844, the warning badge remained visible with no horizontal or card-text overflow; the panel collapsed without blocking chat. |
 | Sandbox resume flow | PASS | Enabling the sandbox option resumed the waiting fixture call and the marked `plwc_sandbox_run` result was automatically submitted to the fixture composer. |
 | Live loopback contract | PASS | The restarted dev10 bridge returned all eight canonical tools and `plwc_status(scope="runtime")` returned `ok=true`. |
-| Live workspace root | PASS | Runtime status remained `C:\Users\USER\Claude_Arbeitsumgebung`. |
+| Live workspace root | PASS | Runtime status remained `C:\Users\<USER>\Claude_Arbeitsumgebung`. |
 
 ## Remaining Live Acceptance
 

@@ -1,11 +1,27 @@
 import { JsonRpcWebSocketClient, RpcRequestError } from "./transport";
 import {
+  INITIAL_LAUNCHER_STATUS,
+  NATIVE_LAUNCHER_HOST,
+  NATIVE_LAUNCHER_PORT,
+  NativeLauncherError,
+  connectAfterNativeStart,
+  isRecoverableConnectionError,
+  parseNativeLauncherResponse,
+} from "./native-launcher";
+import {
   BRIDGE_ENDPOINT,
   CANONICAL_TOOL_NAMES,
   type CanonicalToolName,
   type JsonObject,
   validateToolSet,
 } from "../shared/contracts";
+import {
+  EXTENSION_BUILD_IDENTITY,
+  parseBuildIdentity,
+  validateBuildIdentity,
+  type BuildIdentity,
+  type BuildIdentityValidation,
+} from "../shared/build-identity";
 import type {
   BridgeRequest,
   BridgeResponse,
@@ -13,9 +29,15 @@ import type {
   BridgeStatus,
   GatewaySettingsSnapshot,
   GatewaySettingsUpdate,
+  LauncherStatus,
   ToolCallResponse,
   ToolListResponse,
 } from "../shared/messages";
+import {
+  localizeLauncherStatus,
+  resolveUiLanguage,
+  type UiLanguage,
+} from "../shared/i18n";
 import {
   normalizeAutomationDelay,
   parseGatewaySettings,
@@ -23,18 +45,43 @@ import {
 } from "../shared/messages";
 import { decidePolicy, withConfirmedToolArguments } from "../shared/policy";
 import { normalizeToolResult } from "../shared/tool-result";
+import {
+  claimToolCallExecution,
+  parseProcessedToolCallRegistry,
+  PROCESSED_TOOL_CALLS_STORAGE_KEY,
+  type ToolCallClaimOutcome,
+} from "../shared/tool-call-execution-registry";
+import { createToolCallIdentity, type ToolCallIdentity } from "../shared/tool-call-identity";
 
 const transport = new JsonRpcWebSocketClient(BRIDGE_ENDPOINT);
 const HEARTBEAT_INTERVAL_MS = 20_000;
-const SETTINGS_REVISION = 5;
+const SETTINGS_REVISION = 6;
 const GATEWAY_SETTINGS_STORAGE_KEY = "gatewaySettingsOverrides";
+let currentBuildIdentity: BuildIdentity | null = null;
+let currentBuildIdentityValidation: BuildIdentityValidation | null = null;
 let currentToolSet: ReturnType<typeof validateToolSet> | null = null;
+let launcherStatus = INITIAL_LAUNCHER_STATUS;
+let toolCallClaimLock: Promise<void> = Promise.resolve();
+
+function uiLanguage(): UiLanguage {
+  return resolveUiLanguage(chrome.i18n?.getUILanguage?.());
+}
+
+function localizedLauncherStatus(value: LauncherStatus): LauncherStatus {
+  return {
+    ...value,
+    message: localizeLauncherStatus(value, uiLanguage()),
+  };
+}
 
 function status(): BridgeStatus {
   return {
+    buildIdentity: currentBuildIdentity,
+    buildIdentityValidation: currentBuildIdentityValidation,
     connection: transport.state,
     endpoint: BRIDGE_ENDPOINT,
     lastError: transport.lastError,
+    launcher: launcherStatus,
     pendingRequests: transport.pendingCount,
     toolSet: currentToolSet,
   };
@@ -42,6 +89,66 @@ function status(): BridgeStatus {
 
 function isCanonicalToolName(name: string): name is CanonicalToolName {
   return (CANONICAL_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+async function withToolCallClaimLock<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = toolCallClaimLock;
+  let release: () => void = () => undefined;
+  toolCallClaimLock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+  }
+}
+
+async function claimPersistedToolCall(identity: ToolCallIdentity): Promise<ToolCallClaimOutcome> {
+  return withToolCallClaimLock(async () => {
+    const stored = await chrome.storage.local.get(PROCESSED_TOOL_CALLS_STORAGE_KEY);
+    const registry = parseProcessedToolCallRegistry(stored[PROCESSED_TOOL_CALLS_STORAGE_KEY]);
+    const outcome = claimToolCallExecution(registry, identity);
+    if (outcome.kind === "claimed") {
+      await chrome.storage.local.set({
+        [PROCESSED_TOOL_CALLS_STORAGE_KEY]: outcome.registry,
+      });
+    }
+    return outcome;
+  });
+}
+
+function requestToolCallIdentity(
+  request: Extract<BridgeRequest, { type: "bridge.tools.call" }>,
+): ToolCallIdentity | null {
+  const hasCallId = request.callId !== undefined;
+  const hasConversationId = request.conversationId !== undefined;
+  if (!hasCallId && !hasConversationId) return null;
+  if (
+    !hasCallId ||
+    !hasConversationId ||
+    typeof request.callId !== "string" ||
+    typeof request.conversationId !== "string"
+  ) {
+    throw new RpcRequestError(
+      "Chat tool calls require both conversation_id and call_id.",
+      "invalid_tool_call_identity",
+    );
+  }
+  try {
+    return createToolCallIdentity(
+      request.conversationId,
+      request.callId,
+      request.name,
+      request.arguments,
+    );
+  } catch (error) {
+    throw new RpcRequestError(
+      error instanceof Error ? error.message : "Invalid PLwC tool call identity.",
+      "invalid_tool_call_identity",
+    );
+  }
 }
 
 async function getSettings(): Promise<BridgeSettings> {
@@ -53,6 +160,7 @@ async function getSettings(): Promise<BridgeSettings> {
     "autoSubmitDelay",
     "autoSubmitResults",
     "bridgeSettingsRevision",
+    "composerBusyTimeout",
     "readOnlyAutoRun",
     "renderChatCards",
   ]);
@@ -64,6 +172,7 @@ async function getSettings(): Promise<BridgeSettings> {
     autoInsertDelay: normalizeAutomationDelay(stored.autoInsertDelay),
     autoSubmitDelay: normalizeAutomationDelay(stored.autoSubmitDelay),
     autoSubmitResults: stored.autoSubmitResults !== false,
+    composerBusyTimeout: normalizeAutomationDelay(stored.composerBusyTimeout, 60),
     readOnlyAutoRun: stored.readOnlyAutoRun !== false,
     renderChatCards: stored.renderChatCards !== false,
   };
@@ -74,10 +183,39 @@ async function getSettings(): Promise<BridgeSettings> {
 }
 
 async function loadToolSet(): Promise<ToolListResponse> {
+  await verifyConnectedBuildIdentity();
   await applySavedGatewaySettings();
   const payload = await transport.request("tools/list", {});
   currentToolSet = validateToolSet(payload);
   return { tools: currentToolSet.tools, validation: currentToolSet };
+}
+
+async function verifyConnectedBuildIdentity(): Promise<BuildIdentity> {
+  if (currentBuildIdentity !== null && currentBuildIdentityValidation?.valid === true) {
+    return currentBuildIdentity;
+  }
+  let buildIdentity: BuildIdentity;
+  try {
+    buildIdentity = parseBuildIdentity(await transport.request("build/identity", {}));
+  } catch (error) {
+    currentBuildIdentity = null;
+    currentBuildIdentityValidation = null;
+    throw new RpcRequestError(
+      error instanceof Error ? error.message : "Bridge returned an invalid build identity.",
+      "build_identity_invalid",
+    );
+  }
+  const validation = validateBuildIdentity(buildIdentity);
+  currentBuildIdentity = buildIdentity;
+  currentBuildIdentityValidation = validation;
+  if (!validation.valid) {
+    transport.disconnect();
+    throw new RpcRequestError(
+      `Bridge build identity mismatch: expected ${validation.expectedBuildId}, received ${validation.actualBuildId}.`,
+      "build_identity_mismatch",
+    );
+  }
+  return buildIdentity;
 }
 
 async function savedGatewaySettings(): Promise<GatewaySettingsUpdate | null> {
@@ -98,10 +236,100 @@ async function applySavedGatewaySettings(): Promise<GatewaySettingsSnapshot | nu
   return parseGatewaySettings(await transport.request("settings/update", { settings }));
 }
 
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function requestNativeBridgeStart(): Promise<LauncherStatus> {
+  if (typeof chrome.runtime.sendNativeMessage !== "function") {
+    launcherStatus = localizedLauncherStatus({
+      code: "native_launcher_unavailable",
+      message: "",
+      state: "unavailable",
+    });
+    return Promise.reject(new RpcRequestError(launcherStatus.message, "native_launcher_unavailable"));
+  }
+
+  launcherStatus = localizedLauncherStatus({
+    code: "starting",
+    message: "",
+    state: "starting",
+  });
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendNativeMessage(
+      NATIVE_LAUNCHER_HOST,
+      {
+        buildId: EXTENSION_BUILD_IDENTITY.buildId,
+        command: "start",
+        endpoint: BRIDGE_ENDPOINT,
+        extensionVersion: EXTENSION_BUILD_IDENTITY.components.browserExtension,
+        language: uiLanguage(),
+        port: NATIVE_LAUNCHER_PORT,
+      },
+      (response: unknown) => {
+        const runtimeError = chrome.runtime.lastError;
+        if (runtimeError) {
+          launcherStatus = localizedLauncherStatus({
+            code: "native_host_missing",
+            message: "",
+            state: "unavailable",
+          });
+          reject(new RpcRequestError(launcherStatus.message, "native_launcher_unavailable"));
+          return;
+        }
+        try {
+          launcherStatus = localizedLauncherStatus(parseNativeLauncherResponse(response));
+          resolve(launcherStatus);
+        } catch (error) {
+          launcherStatus = localizedLauncherStatus(error instanceof NativeLauncherError ? error.status : {
+            code: "native_launcher_failed",
+            message: error instanceof Error ? error.message : "",
+            state: "failed",
+          });
+          reject(error);
+        }
+      },
+    );
+  });
+}
+
+async function connectBridge(autoStart: boolean): Promise<void> {
+  try {
+    await transport.connect();
+    await verifyConnectedBuildIdentity();
+    return;
+  } catch (error) {
+    if (!autoStart || !isRecoverableConnectionError(error)) {
+      throw error;
+    }
+  }
+
+  try {
+    launcherStatus = await connectAfterNativeStart(
+      async () => {
+        await transport.connect();
+        await verifyConnectedBuildIdentity();
+      },
+      requestNativeBridgeStart,
+      wait,
+    );
+  } catch (error) {
+    if (error instanceof RpcRequestError) {
+      launcherStatus = localizedLauncherStatus({
+        ...launcherStatus,
+        code: error.code,
+        message: "",
+        state: error.code === "native_launcher_unavailable" ? "unavailable" : "failed",
+      });
+    }
+    throw error;
+  }
+}
+
 async function handleRequest(request: BridgeRequest): Promise<unknown> {
   switch (request.type) {
     case "bridge.connect":
-      await transport.connect();
+      await connectBridge(request.autoStart === true);
       return status();
     case "bridge.status":
       return status();
@@ -120,6 +348,28 @@ async function handleRequest(request: BridgeRequest): Promise<unknown> {
         throw new RpcRequestError(policy.reason, "confirmation_required");
       }
       const forwardedArguments = withConfirmedToolArguments(request.name, request.arguments, request.confirmed);
+      const identity = requestToolCallIdentity(request);
+      if (identity) {
+        const claim = await claimPersistedToolCall(identity);
+        if (claim.kind === "duplicate") {
+          throw new RpcRequestError(
+            `PLwC tool call ${JSON.stringify(identity.callId)} was already processed for this conversation.`,
+            "duplicate_tool_call",
+          );
+        }
+        if (claim.kind === "conflict") {
+          throw new RpcRequestError(
+            `PLwC tool call ${JSON.stringify(identity.callId)} conflicts with the payload already claimed for this conversation.`,
+            "tool_call_conflict",
+          );
+        }
+        if (claim.kind === "capacity") {
+          throw new RpcRequestError(
+            "The persistent PLwC tool call registry is full; execution is locked to preserve exactly-once behavior.",
+            "tool_call_registry_full",
+          );
+        }
+      }
       const rawResult = await transport.request("tools/call", {
         arguments: forwardedArguments,
         name: request.name,
@@ -164,6 +414,10 @@ async function handleRequest(request: BridgeRequest): Promise<unknown> {
           typeof request.settings.autoSubmitResults === "boolean"
             ? request.settings.autoSubmitResults
             : settings.autoSubmitResults,
+        composerBusyTimeout: normalizeAutomationDelay(
+          request.settings.composerBusyTimeout,
+          settings.composerBusyTimeout,
+        ),
         readOnlyAutoRun:
           typeof request.settings.readOnlyAutoRun === "boolean"
             ? request.settings.readOnlyAutoRun
@@ -198,6 +452,10 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
 });
 
 transport.onStateChange(() => {
+  if (transport.state !== "connected") {
+    currentBuildIdentity = null;
+    currentToolSet = null;
+  }
   void chrome.runtime.sendMessage({ type: "bridge.status.changed", value: status() }).catch(() => undefined);
 });
 

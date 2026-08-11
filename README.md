@@ -22,24 +22,21 @@ tools, files, profiles, memory and sandbox
 PLwC exposes **one visible MCP server**, routes all capabilities through policy
 and governance checks, and provides workspace, document, sandbox, profile,
 reflection and audit-oriented controls. The gateway is designed for MCP-capable
-hosts in general. Claude Desktop is the current primary packaged and
-smoke-tested Open Beta route, but the boundary remains useful when a host, such
+hosts in general. Claude Desktop is a packaged and smoke-tested route, but the
+boundary remains useful when a host, such
 as ChatGPT Work, Claude or another MCP client, also offers its own file access
 or agent features.
 
 ## Status
 
-- Current status: **Open Beta**, based on `v0.2.0-rc18.dev9`.
-- This repository is the privacy-filtered public Open Beta snapshot. Private
+- Current release: **PLwC 1.0.0**.
+- This repository retains a privacy-filtered public release boundary. Private
   development history, local evidence, real profiles and workspace data are
   intentionally not included.
-- `v0.2.0-rc18.dev9` combines `PR-005` privacy-filtered packaging with
-  `RC18-ALIAS-001`: reflection marker/trust inputs are English-first while
-  preserving PBA2 canonical storage.
-- Readiness audit result: **RC_READY_WITH_NOTES**.
-- This is **not** a final public release.
-- The latest package-, Desktop- and Odysseus-smoked open beta package is
-  `v0.2.0-rc18.dev9` with verdict `PASS`.
+- Version `1.0.0` contains the complete eight-tool governed Gateway and the
+  PLwC Chat Bridge 1.0 integration for Chrome, Brave and Edge.
+- Internal source, Bridge, extension and installer contract gates pass; Store
+  publication and exact external live-browser acceptance remain separate gates.
 - The packaged MCPB is **not signed**.
 
 PLwC is not production-certified. It is local infrastructure under
@@ -90,7 +87,7 @@ PLwC is not:
 
 ## Public tools
 
-PLwC v0.2 exposes exactly these eight public facade tools:
+PLwC 1.0 exposes exactly these eight public facade tools:
 
 | Tool | What it does |
 |---|---|
@@ -106,7 +103,7 @@ PLwC v0.2 exposes exactly these eight public facade tools:
 The 19 individual public tool names from earlier scaffolds
 (`plwc_compile_profile`, `plwc_write_workspace_file`,
 `plwc_governor_plan`, `plwc_write_reflection`, ...) are **no longer
-public** in v0.2. Their behavior is reachable through the eight facade
+public** in v1.0. Their behavior is reachable through the eight facade
 tools above via `operation` / `scope` / `lang` dispatch parameters.
 
 ## Document capabilities
@@ -142,7 +139,7 @@ tools above via `operation` / `scope` / `lang` dispatch parameters.
 
 ## Known limitations
 
-The following are intentionally **not implemented** in v0.2:
+The following are intentionally **not implemented** in v1.0:
 
 - No OCR.
 - No PDF redaction.
@@ -154,7 +151,6 @@ The following are intentionally **not implemented** in v0.2:
 - No external URL fetching, no network access at runtime.
 - No JavaScript in PDFs.
 - No HTML/CSS rendering pipeline.
-- No final-release claim yet.
 
 ## Installation
 
@@ -165,12 +161,24 @@ For full installation context, prerequisites and configuration
 options, including local GPT and Odysseus stdio setup plus hosted ChatGPT
 web/custom-app status, see [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
 
+The selectable Windows EXE installer is being developed in this same
+repository under [`installer/windows`](installer/windows/README.md). It can
+package the Gateway, Claude MCPB, Codex and Odysseus STDIO preparation, and the
+local PLwC Chat Bridge. Its gated build and validation status is documented in
+[`installer/windows/V_MODEL.md`](installer/windows/V_MODEL.md); a development
+EXE is not yet a final-release claim.
+
+The bilingual end-user flow, including language selection, administrator
+approval, download/storage estimates and Chrome/Edge Bridge setup, is described
+in [`docs/WINDOWS_INSTALLER_GUIDE.md`](docs/WINDOWS_INSTALLER_GUIDE.md).
+
 ## Documentation
 
-- English program and software description (Dev 9 Open Beta, GitHub edition):
+- Historical Open Beta program and software description:
   [`docs/PROGRAM_AND_SOFTWARE_DESCRIPTION_OPEN_BETA.md`](docs/PROGRAM_AND_SOFTWARE_DESCRIPTION_OPEN_BETA.md)
 - Install / quickstart: [`docs/INSTALLATION.md`](docs/INSTALLATION.md),
-  [`docs/QUICKSTART_CLAUDE_DESKTOP.md`](docs/QUICKSTART_CLAUDE_DESKTOP.md)
+  [`docs/QUICKSTART_CLAUDE_DESKTOP.md`](docs/QUICKSTART_CLAUDE_DESKTOP.md),
+  [`docs/WINDOWS_INSTALLER_GUIDE.md`](docs/WINDOWS_INSTALLER_GUIDE.md)
 - Tool reference: [`docs/TOOLS.md`](docs/TOOLS.md)
 - Project scope: [`docs/PROJECT_SCOPE.md`](docs/PROJECT_SCOPE.md)
 - Security model and protected boundary:

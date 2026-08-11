@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 2,
+  "product": "PLwC Chat Bridge",
+  "releaseVersion": "1.0.0",
+  "identityContract": "../../native/extension-identity.json",
+  "developmentIdentity": {
+    "extensionId": "nlogfcafjdfdoknpkbehjgihpafpipdb",
+    "nativeMessagingOrigin": "chrome-extension://nlogfcafjdfdoknpkbehjgihpafpipdb/",
+    "webSocketOrigin": "chrome-extension://nlogfcafjdfdoknpkbehjgihpafpipdb",
+    "classification": "development_sideload_only",
+    "source": "src/manifest.json key"
+  },
+  "publicPages": {
+    "privacy": {
+      "url": "https://plwc.de/chat-bridge/privacy/",
+      "status": "verified"
+    },
+    "support": {
+      "url": "https://plwc.de/chat-bridge/support/",
+      "status": "verified"
+    }
+  },
+  "stores": {
+    "chrome": {
+      "extensionId": "feceodobnhefdbfgmbinkndhogpfkicb",
+      "nativeMessagingOrigin": "chrome-extension://feceodobnhefdbfgmbinkndhogpfkicb/",
+      "webSocketOrigin": "chrome-extension://feceodobnhefdbfgmbinkndhogpfkicb",
+      "packageTarget": "chrome-brave",
+      "listingUrl": "https://chromewebstore.google.com/detail/plwc-chat-bridge/feceodobnhefdbfgmbinkndhogpfkicb"
+    },
+    "edge": {
+      "extensionId": "nncomjknhhlgcmkmlaljhkiojcnpmflb",
+      "nativeMessagingOrigin": "chrome-extension://nncomjknhhlgcmkmlaljhkiojcnpmflb/",
+      "webSocketOrigin": "chrome-extension://nncomjknhhlgcmkmlaljhkiojcnpmflb",
+      "packageTarget": "edge",
+      "listingUrl": "https://microsoftedge.microsoft.com/addons/detail/nncomjknhhlgcmkmlaljhkiojcnpmflb"
+    }
+  },
+  "nativeMessaging": {
+    "allowedOrigins": [
+      "chrome-extension://nlogfcafjdfdoknpkbehjgihpafpipdb/",
+      "chrome-extension://feceodobnhefdbfgmbinkndhogpfkicb/",
+      "chrome-extension://nncomjknhhlgcmkmlaljhkiojcnpmflb/"
+    ],
+    "wildcardsAllowed": false
+  },
+  "setupDownload": {
+    "releasesUrl": "https://github.com/mhoedt-ai/PLwC/releases",
+    "reviewerArtifactUrl": null,
+    "status": "pending_versioned_setup_publication"
+  }
+}

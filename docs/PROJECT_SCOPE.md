@@ -26,10 +26,9 @@ It may not silently change the rules that keep it safe.
 ## Tracked Client Integrations
 
 - `V1-LOCAL-CHATGPT-ADAPTER-001`: **PLwC Chat Bridge**, a PLwC-specific local
-  ChatGPT browser client adapter based on an MCP SuperAssistant proof of
-  concept. Status: design and local prototype; proposed for the v0.2.0-rc19
-  development track and not part of the current Open Beta support matrix. See
-  [`LOCAL_CHATGPT_CLIENT_ADAPTER.md`](LOCAL_CHATGPT_CLIENT_ADAPTER.md).
+  ChatGPT browser client adapter. Status: implemented as PLwC Chat Bridge 1.0
+  for Chrome, Brave and Edge with loopback-only transport, Native Messaging,
+  governed confirmation boundaries and fixed Store identities.
 - `V1-REMOTE-MCP-FACADE-001`: future authenticated remote MCP facade for hosted
   ChatGPT custom apps. This is a separate deployment class from the local
   browser adapter.

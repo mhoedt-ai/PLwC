@@ -4,7 +4,9 @@ import test from "node:test";
 import { WebSocket } from "ws";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 
+import { BUILD_IDENTITY } from "../src/build-identity.js";
 import { CANONICAL_TOOL_NAMES } from "../src/contract.js";
+import { EXTENSION_IDENTITY_CONTRACT } from "../src/extension-identity.js";
 import {
   gatewaySettingsFromEnvironment,
   parseGatewaySettingsUpdate,
@@ -12,7 +14,10 @@ import {
   type GatewaySettingsSnapshot,
   type GatewaySettingsUpdate,
 } from "../src/gateway-session.js";
-import { LoopbackBridgeServer } from "../src/server.js";
+import {
+  LoopbackBridgeServer,
+  TOOL_CALL_HEARTBEAT_METHOD,
+} from "../src/server.js";
 
 const tools: Tool[] = CANONICAL_TOOL_NAMES.map((name) => ({ name, inputSchema: { type: "object" } }));
 
@@ -55,6 +60,22 @@ class FakeSession implements BridgeSession {
   async close(): Promise<void> {}
 }
 
+class DelayedSession extends FakeSession {
+  private finishCall: (() => void) | undefined;
+
+  releaseCall(): void {
+    this.finishCall?.();
+  }
+
+  override async callTool(): Promise<CallToolResult> {
+    this.calls += 1;
+    await new Promise<void>((resolve) => {
+      this.finishCall = resolve;
+    });
+    return { content: [{ type: "text", text: "finished" }] };
+  }
+}
+
 function importedSettings(): GatewaySettingsSnapshot {
   return gatewaySettingsFromEnvironment({
     PLWC_ACTIVE_PROFILE_NAME: "WasIstDas",
@@ -90,7 +111,7 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-const EXTENSION_ORIGIN = `chrome-extension://${"a".repeat(32)}`;
+const EXTENSION_ORIGIN = EXTENSION_IDENTITY_CONTRACT.identities.development.webSocketOrigin;
 
 async function connect(url: string): Promise<WebSocket> {
   const socket = new WebSocket(url, { origin: EXTENSION_ORIGIN });
@@ -120,10 +141,13 @@ test("serves, updates, and resets allowlisted settings before forwarding a call 
     const pong = await request(socket, { jsonrpc: "2.0", id: 1, method: "ping" });
     assert.deepEqual(pong, { jsonrpc: "2.0", id: 1, result: { ok: true } });
 
-    const settings = await request(socket, { jsonrpc: "2.0", id: 2, method: "settings/get" });
+    const buildIdentity = await request(socket, { jsonrpc: "2.0", id: 2, method: "build/identity" });
+    assert.deepEqual(buildIdentity, { jsonrpc: "2.0", id: 2, result: BUILD_IDENTITY });
+
+    const settings = await request(socket, { jsonrpc: "2.0", id: 3, method: "settings/get" });
     assert.deepEqual(settings, {
       jsonrpc: "2.0",
-      id: 2,
+      id: 3,
       result: {
         activeProfileName: "WasIstDas",
         memoryWriteThreshold: "2",
@@ -140,26 +164,26 @@ test("serves, updates, and resets allowlisted settings before forwarding a call 
 
     const updated = await request(socket, {
       jsonrpc: "2.0",
-      id: 3,
+      id: 4,
       method: "settings/update",
       params: { settings: editableSettings },
     });
     assert.deepEqual(updated, {
       jsonrpc: "2.0",
-      id: 3,
+      id: 4,
       result: { source: "PLwC Chat Bridge saved settings", ...editableSettings },
     });
 
     const reset = await request(socket, {
       jsonrpc: "2.0",
-      id: 4,
+      id: 5,
       method: "settings/reset",
     });
     assert.equal((reset.result as GatewaySettingsSnapshot).source, "Claude PLwC configuration");
 
     const result = await request(socket, {
       jsonrpc: "2.0",
-      id: 5,
+      id: 6,
       method: "tools/call",
       params: { name: "plwc_governor", arguments: { operation: "apply" } },
     });
@@ -168,6 +192,59 @@ test("serves, updates, and resets allowlisted settings before forwarding a call 
     assert.equal(session.calls, 1);
     assert.equal(session.updates, 1);
     assert.equal(session.resets, 1);
+  } finally {
+    socket.close();
+    await bridge.stop();
+  }
+});
+
+test("sends request-scoped heartbeats while a tool call is still running", async () => {
+  const port = await freePort();
+  const session = new DelayedSession();
+  const bridge = new LoopbackBridgeServer(
+    { host: "127.0.0.1", port, path: "/message" },
+    session,
+    10,
+  );
+  await bridge.start();
+  const socket = await connect(`ws://127.0.0.1:${port}/message`);
+
+  try {
+    const heartbeat = new Promise<Record<string, unknown>>((resolve) => {
+      const onMessage = (data: WebSocket.RawData): void => {
+        const message = JSON.parse(data.toString("utf8")) as Record<string, unknown>;
+        if (message.method !== TOOL_CALL_HEARTBEAT_METHOD) return;
+        socket.off("message", onMessage);
+        resolve(message);
+      };
+      socket.on("message", onMessage);
+    });
+    const completed = new Promise<Record<string, unknown>>((resolve) => {
+      const onMessage = (data: WebSocket.RawData): void => {
+        const message = JSON.parse(data.toString("utf8")) as Record<string, unknown>;
+        if (message.id !== 17) return;
+        socket.off("message", onMessage);
+        resolve(message);
+      };
+      socket.on("message", onMessage);
+    });
+    socket.send(JSON.stringify({
+      jsonrpc: "2.0",
+      id: 17,
+      method: "tools/call",
+      params: { name: "plwc_sandbox_run", arguments: { lang: "python", code: "slow()" } },
+    }));
+
+    const notification = await heartbeat;
+    const params = notification.params as Record<string, unknown>;
+    assert.equal(notification.jsonrpc, "2.0");
+    assert.equal(params.request_id, 17);
+    assert.ok(typeof params.elapsed_ms === "number" && params.elapsed_ms >= 0);
+
+    session.releaseCall();
+    const result = await completed;
+    assert.equal((result.result as CallToolResult).content[0]?.type, "text");
+    assert.equal(session.calls, 1);
   } finally {
     socket.close();
     await bridge.stop();
@@ -208,20 +285,45 @@ test("settings snapshot contains only the nine supported PLwC values", () => {
   assert.equal(JSON.stringify(settings).includes("must-not-leak"), false);
 });
 
-test("rejects ordinary web-page origins", async () => {
+test("rejects web pages and foreign extension origins", async () => {
   const port = await freePort();
   const session = new FakeSession();
   const bridge = new LoopbackBridgeServer({ host: "127.0.0.1", port, path: "/message" }, session);
   await bridge.start();
 
   try {
-    await assert.rejects(
-      new Promise<void>((resolve, reject) => {
-        const socket = new WebSocket(`ws://127.0.0.1:${port}/message`, { origin: "https://chatgpt.com" });
+    for (const origin of [
+      "https://chatgpt.com",
+      `chrome-extension://${"a".repeat(32)}`,
+    ]) {
+      await assert.rejects(
+        new Promise<void>((resolve, reject) => {
+          const socket = new WebSocket(`ws://127.0.0.1:${port}/message`, { origin });
+          socket.once("open", resolve);
+          socket.once("error", reject);
+        }),
+      );
+    }
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test("accepts every approved development and Store extension origin", async () => {
+  const port = await freePort();
+  const session = new FakeSession();
+  const bridge = new LoopbackBridgeServer({ host: "127.0.0.1", port, path: "/message" }, session);
+  await bridge.start();
+
+  try {
+    for (const origin of EXTENSION_IDENTITY_CONTRACT.webSocketOrigins) {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/message`, { origin });
+      await new Promise<void>((resolve, reject) => {
         socket.once("open", resolve);
         socket.once("error", reject);
-      }),
-    );
+      });
+      socket.close();
+    }
   } finally {
     await bridge.stop();
   }

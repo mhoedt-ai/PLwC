@@ -1,10 +1,28 @@
 import { decidePolicy } from "../shared/policy";
-import { parseVisiblePlwcToolCalls, type ParsedPlwcToolCall } from "./tool-call-parser";
+import type { CanonicalToolName } from "../shared/contracts";
 import {
+  classifyToolResult,
+  describeToolResultPresentation,
+  toolResultMetadataRows,
+} from "../shared/tool-result";
+import {
+  parseVisiblePlwcToolCalls,
+  resolveConversationId,
+  type ParsedPlwcToolCall,
+} from "./tool-call-parser";
+import {
+  findPlwcToolResultForCall,
   PLWC_TOOL_RESULT_MARKER,
+  parsePlwcToolResultFromText,
   parsePlwcToolResultMessage,
   type PlwcToolResultEnvelope,
 } from "./tool-result-message";
+import {
+  closestChatTurnContainer,
+  collectChatTurnContainers,
+  isChatTurnBoundary,
+  resolveChatTurnRole,
+} from "./chat-turn";
 
 export type ChatRunState =
   | "scheduled"
@@ -13,10 +31,31 @@ export type ChatRunState =
   | "succeeded"
   | "denied"
   | "failed"
+  | "conflict"
   | "unknown";
 
 export function runStateLabel(state: ChatRunState): string {
   return state === "awaiting_confirmation" ? "CONFIRM REQUIRED" : state.toUpperCase();
+}
+
+export function resultAwareRunStateLabel(
+  state: ChatRunState,
+  name?: CanonicalToolName,
+  result?: unknown,
+): string {
+  if (state === "unknown") return "Transport failed";
+  if (state === "conflict") return runStateLabel(state);
+  if (name !== undefined && result !== undefined) {
+    const presentation = describeToolResultPresentation(
+      name,
+      state !== "succeeded",
+      result,
+    );
+    if (presentation.failureLabel !== null) return presentation.failureLabel;
+    if (presentation.artifactTrust === "unvalidated") return "Unvalidated artifact";
+  }
+  if (state === "failed") return "Gateway failed";
+  return runStateLabel(state);
 }
 
 export interface ChatToolRunSnapshot {
@@ -41,6 +80,12 @@ interface ChatRendererHandlers {
   onRun?: (call: ParsedPlwcToolCall, confirmed: boolean) => void | Promise<void>;
 }
 
+interface CompactBadge {
+  className: string;
+  text: string;
+  title?: string;
+}
+
 const CARD_THEME = `
 :host { all: initial; display: block; margin: 12px 0; color-scheme: dark; }
 *, *::before, *::after { box-sizing: border-box; }
@@ -51,23 +96,35 @@ button, input { font: inherit; letter-spacing: 0; }
   font-family: Consolas, "Lucida Console", "Courier New", monospace;
   font-size: 13px; line-height: 1.45; letter-spacing: 0;
 }
-.header { min-height: 42px; display: flex; align-items: center; gap: 9px; padding: 6px 9px; background: #050806; }
+.header {
+  min-height: 42px; display: flex; flex-wrap: wrap; align-items: center;
+  gap: 7px 9px; padding: 6px 9px; background: #050806;
+}
 .card.expanded .header { border-bottom: 1px solid #123d1e; }
-.compact-title { min-width: 0; flex: 1; color: #5cff7a; font-weight: 700; overflow-wrap: anywhere; }
+.compact-title { min-width: 120px; flex: 1 1 160px; color: #5cff7a; font-weight: 700; overflow-wrap: anywhere; }
 .compact-alert { flex: 0 0 auto; padding: 2px 5px; color: #ffbf66; border: 1px solid #8a6426; white-space: nowrap; }
 .details-toggle { width: 30px; height: 30px; min-height: 30px; flex: 0 0 30px; display: grid; place-items: center; padding: 0; font-size: 18px; line-height: 1; }
 .detail-header { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
 .identity { min-width: 0; flex: 1; }
 .kind { color: #6f9d78; font-size: 11px; }
 .name { color: #5cff7a; font-weight: 700; overflow-wrap: anywhere; }
-.state { flex: 0 0 auto; padding: 2px 5px; color: #8fd99a; border: 1px solid #245d30; }
+.state { flex: 0 0 auto; padding: 2px 5px; color: #8fd99a; border: 1px solid #245d30; white-space: nowrap; }
 .state.succeeded { color: #5cff7a; }
 .state.awaiting_confirmation { color: #ffbf66; border-color: #8a6426; }
-.state.denied, .state.failed, .state.unknown { color: #ff8293; border-color: #71313c; }
+.state.warning { color: #ffbf66; border-color: #8a6426; }
+.state.denied, .state.failed, .state.conflict, .state.unknown { color: #ff8293; border-color: #71313c; }
 .body { padding: 10px; }
 .policy { margin: 0 0 8px; color: #6f9d78; }
 pre { max-height: 190px; margin: 0; overflow: auto; color: #8fd99a; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
 .result { margin-top: 9px; padding-top: 9px; border-top: 1px solid #123d1e; }
+.result-metadata {
+  display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 9px;
+  margin: 9px 0 0; padding-top: 9px; border-top: 1px solid #123d1e;
+}
+.result-metadata dt { color: #6f9d78; }
+.result-metadata dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.result-metadata .warning { color: #ffbf66; font-weight: 700; }
+.result-metadata .validated { color: #5cff7a; }
 .error { margin: 8px 0 0; color: #ff8293; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 button { min-height: 32px; padding: 5px 9px; cursor: pointer; color: #8fd99a; background: #050806; border: 1px solid #245d30; border-radius: 2px; }
@@ -85,6 +142,46 @@ function boundedJson(value: unknown, maxCharacters = 5_000): string {
   return serialized.length <= maxCharacters
     ? serialized
     : `${serialized.slice(0, maxCharacters)}\n[display truncated by PLwC Chat Bridge]`;
+}
+
+function compactCallBadges(snapshot: ChatToolRunSnapshot): CompactBadge[] {
+  const statusLabel = snapshot.state === "awaiting_confirmation"
+    ? "! CONFIRM"
+    : resultAwareRunStateLabel(snapshot.state, snapshot.call.name, snapshot.result);
+  const badges: CompactBadge[] = [{
+    className:
+      snapshot.state === "awaiting_confirmation" || statusLabel === "Unvalidated artifact"
+        ? "compact-alert"
+        : `state ${snapshot.state}`,
+    text: statusLabel,
+    title: snapshot.state === "awaiting_confirmation"
+      ? "Individual confirmation required before execution"
+      : undefined,
+  }];
+  const trustBadge = artifactTrustBadge(
+    snapshot.call.name,
+    snapshot.state !== "succeeded",
+    snapshot.result,
+  );
+  if (trustBadge && statusLabel !== "Unvalidated artifact") badges.push(trustBadge);
+  if (snapshot.resultSubmitted) {
+    badges.push({ className: "state succeeded", text: "RESULT SENT" });
+  }
+  return badges;
+}
+
+export function selectCallMaskTarget(raw: HTMLElement): HTMLElement {
+  return raw;
+}
+
+export function isRenderableChatBlock(
+  element: HTMLElement,
+  documentValue: Document = document,
+): boolean {
+  const rect = element.getBoundingClientRect();
+  const style = documentValue.defaultView?.getComputedStyle(element);
+  return rect.width > 0 && rect.height > 0 && style?.display !== "none" &&
+    style?.visibility !== "hidden" && Number(style?.opacity ?? 1) > 0;
 }
 
 export class PlwcChatRenderer {
@@ -160,14 +257,21 @@ export class PlwcChatRenderer {
 
   private inspectRawBlock(raw: HTMLElement): void {
     if (this.boundRawBlocks.has(raw) || raw.closest("[data-plwc-chat-card]")) return;
+    if (!isRenderableChatBlock(raw, this.documentValue)) return;
     const text = raw.textContent?.trim() ?? "";
     if (!text) return;
 
     const [call] = parseVisiblePlwcToolCalls([
-      { sourceId: raw.id || undefined, sourceKind: "rendered", text, visible: true },
+      {
+        conversationId: resolveConversationId(this.documentValue),
+        sourceId: raw.id || undefined,
+        sourceKind: "rendered",
+        text,
+        visible: true,
+      },
     ]);
     if (call) {
-      this.bindCall(this.findCallContentRoot(raw), call);
+      this.bindCall(selectCallMaskTarget(raw), call);
       return;
     }
 
@@ -179,12 +283,10 @@ export class PlwcChatRenderer {
   }
 
   private inspectUnfencedResultMessages(): void {
-    const containers = [
-      ...this.documentValue.querySelectorAll<HTMLElement>("[data-message-author-role='user']"),
-    ].slice(-MAX_RESULT_MESSAGES);
+    const containers = collectChatTurnContainers(this.documentValue, "user").slice(-MAX_RESULT_MESSAGES);
     for (const container of containers) {
       if (this.maskedResultContainers.has(container)) continue;
-      const result = parseResultFromContainerText(container.textContent ?? "");
+      const result = parsePlwcToolResultFromText(container.textContent ?? "");
       if (!result) continue;
       const target = findSmallestResultContainer(container, result) ?? container;
       if (this.boundRawBlocks.has(target)) continue;
@@ -208,7 +310,7 @@ export class PlwcChatRenderer {
     const renderedMarker = PLWC_TOOL_RESULT_MARKER.replace(/^#\s*/u, "");
     let candidate = raw;
     let current = raw.parentElement;
-    while (current && !current.hasAttribute("data-message-author-role")) {
+    while (current && !isChatTurnBoundary(current)) {
       const text = current.textContent ?? "";
       if (text.includes(PLWC_TOOL_RESULT_MARKER) || text.includes(renderedMarker)) candidate = current;
       current = current.parentElement;
@@ -216,37 +318,50 @@ export class PlwcChatRenderer {
     return candidate;
   }
 
-  private findCallContentRoot(raw: HTMLElement): HTMLElement {
-    const rawText = raw.textContent?.trim() ?? "";
-    let candidate = raw;
-    let current = raw.parentElement;
-    for (let depth = 0; current && depth < 4 && !current.hasAttribute("data-message-author-role"); depth += 1) {
-      const text = current.textContent?.trim() ?? "";
-      const remainder = text.replace(rawText, "").replace(/\s+/gu, " ").trim();
-      const wrapsOnlyThisBlock = current.querySelectorAll("pre").length === 1 && text.includes(rawText);
-      if (wrapsOnlyThisBlock && current.querySelector("button") && remainder.length <= 100) {
-        candidate = current;
-      }
-      current = current.parentElement;
-    }
-    return candidate;
-  }
-
   private bindCall(raw: HTMLElement, call: ParsedPlwcToolCall): void {
     const binding = this.createBinding(raw);
+    binding.host.dataset.plwcChatCardKind = "call";
     const bindings = this.callBindings.get(call.callKey) ?? new Set<CardBinding>();
     bindings.add(binding);
     this.callBindings.set(call.callKey, bindings);
-    const snapshot = this.records.get(call.callKey) ?? { call, state: "scheduled" as const };
+    const snapshot = this.records.get(call.callKey) ?? this.historicalSnapshot(call);
     this.records.set(call.callKey, snapshot);
     this.renderCallCard(binding, snapshot);
   }
 
+  private historicalSnapshot(call: ParsedPlwcToolCall): ChatToolRunSnapshot {
+    const candidates = [
+      ...this.documentValue.querySelectorAll<HTMLElement>("pre, code"),
+      ...collectChatTurnContainers(this.documentValue, "user"),
+    ]
+      .slice(-300)
+      .map((node) => node.textContent?.trim() ?? "")
+      .filter(Boolean);
+    const result = findPlwcToolResultForCall(candidates, call.callId);
+    if (!result) return { call, state: "scheduled" };
+    if (result.name !== call.name) {
+      return {
+        call,
+        error: "A result with this call_id belongs to a different PLwC tool name.",
+        result: result.result,
+        resultSubmitted: true,
+        state: "conflict",
+      };
+    }
+    return {
+      call,
+      result: result.result,
+      resultSubmitted: true,
+      state: classifyToolResult(result.is_error, result.result),
+    };
+  }
+
   private bindResult(raw: HTMLElement, result: PlwcToolResultEnvelope): void {
     if (this.boundRawBlocks.has(raw)) return;
-    const message = raw.closest<HTMLElement>("[data-message-author-role='user']");
+    const message = resolveChatTurnRole(raw) === "user" ? closestChatTurnContainer(raw) : null;
     if (message) this.maskedResultContainers.add(message);
     const binding = this.createBinding(raw);
+    binding.host.dataset.plwcChatCardKind = "result";
     this.resultBindings.add(binding);
     this.renderResultCard(binding, result);
   }
@@ -303,16 +418,28 @@ export class PlwcChatRenderer {
       "PLwC-Gateway-Call",
       binding,
       () => this.renderCallCard(binding, snapshot),
-      snapshot.state === "awaiting_confirmation" ? "! CONFIRM" : undefined,
+      compactCallBadges(snapshot),
     );
     const body = this.element("div", "body");
     const detailHeader = this.element("div", "detail-header");
     const identity = this.element("div", "identity");
+    const statusLabel = resultAwareRunStateLabel(
+      snapshot.state,
+      snapshot.call.name,
+      snapshot.result,
+    );
     identity.append(
       this.element("div", "kind", "PLwC CALL"),
       this.element("div", "name", snapshot.call.name),
     );
-    detailHeader.append(identity, this.element("span", `state ${snapshot.state}`, runStateLabel(snapshot.state)));
+    detailHeader.append(
+      identity,
+      this.element(
+        "span",
+        `state ${snapshot.state}${statusLabel === "Unvalidated artifact" ? " warning" : ""}`,
+        statusLabel,
+      ),
+    );
     body.append(
       detailHeader,
       this.element("p", "policy", policy.readOnly ? "READ-ONLY / governed facade" : policy.reason),
@@ -320,12 +447,18 @@ export class PlwcChatRenderer {
     );
 
     if (snapshot.result !== undefined) {
+      const metadata = this.buildResultMetadata(
+        snapshot.call.name,
+        snapshot.state !== "succeeded",
+        snapshot.result,
+      );
+      if (metadata) body.append(metadata);
       body.append(this.element("pre", "result", boundedJson(snapshot.result)));
     }
     if (snapshot.error) body.append(this.element("p", "error", snapshot.error));
 
     const actions = this.element("div", "actions");
-    const canRun = ["scheduled", "awaiting_confirmation", "failed"].includes(snapshot.state);
+    const canRun = ["scheduled", "awaiting_confirmation"].includes(snapshot.state);
     if (canRun) {
       let confirmed = !policy.requiresConfirmation;
       const run = this.button(policy.requiresConfirmation ? "Confirm & Run" : "Run", "primary");
@@ -367,20 +500,41 @@ export class PlwcChatRenderer {
 
   private renderResultCard(binding: CardBinding, result: PlwcToolResultEnvelope): void {
     const shadow = binding.host.shadowRoot ?? binding.host.attachShadow({ mode: "open" });
-    const state = result.is_error ? "failed" : "succeeded";
+    const state = classifyToolResult(result.is_error, result.result);
     const card = this.element("article", `card${binding.expanded ? " expanded" : ""}`);
     const body = this.element("div", "body");
     const detailHeader = this.element("div", "detail-header");
     const identity = this.element("div", "identity");
+    const statusLabel = resultAwareRunStateLabel(state, result.name, result.result);
     identity.append(this.element("div", "kind", "PLwC RESULT"), this.element("div", "name", result.name));
-    detailHeader.append(identity, this.element("span", `state ${state}`, state.toUpperCase()));
+    detailHeader.append(
+      identity,
+      this.element(
+        "span",
+        `state ${state}${statusLabel === "Unvalidated artifact" ? " warning" : ""}`,
+        statusLabel,
+      ),
+    );
     body.append(detailHeader);
+    const metadata = this.buildResultMetadata(result.name, result.is_error, result.result);
+    if (metadata) body.append(metadata);
     body.append(this.element("pre", "", boundedJson(result.result)));
     const actions = this.element("div", "actions");
     actions.append(this.rawToggle(binding));
     body.append(actions);
-    card.append(this.buildCompactHeader("PLwC-Gateway-Result", binding, () =>
-      this.renderResultCard(binding, result),
+    const trustBadge = artifactTrustBadge(result.name, result.is_error, result.result);
+    card.append(this.buildCompactHeader(
+      "PLwC-Gateway-Result",
+      binding,
+      () => this.renderResultCard(binding, result),
+      [
+        {
+          className: statusLabel === "Unvalidated artifact" ? "compact-alert" : `state ${state}`,
+          text: statusLabel,
+        },
+        ...(trustBadge === null || statusLabel === "Unvalidated artifact" ? [] : [trustBadge]),
+        { className: "state succeeded", text: "RESULT SENT" },
+      ],
     ));
     if (binding.expanded) card.append(body);
     const style = this.element("style");
@@ -388,11 +542,29 @@ export class PlwcChatRenderer {
     shadow.replaceChildren(style, card);
   }
 
+  private buildResultMetadata(
+    name: CanonicalToolName,
+    isError: boolean,
+    result: unknown,
+  ): HTMLElement | null {
+    const rows = toolResultMetadataRows(name, isError, result);
+    if (rows.length === 0) return null;
+
+    const metadata = this.element("dl", "result-metadata");
+    for (const row of rows) {
+      metadata.append(
+        this.element("dt", "", row.label),
+        this.element("dd", row.tone === "default" ? "" : row.tone, row.value),
+      );
+    }
+    return metadata;
+  }
+
   private buildCompactHeader(
     label: string,
     binding: CardBinding,
     rerender: () => void,
-    alert?: string,
+    badges: readonly CompactBadge[] = [],
   ): HTMLElement {
     const header = this.element("header", "header");
     const toggle = this.button(binding.expanded ? "−" : "+", "details-toggle");
@@ -405,10 +577,12 @@ export class PlwcChatRenderer {
       rerender();
     });
     header.append(this.element("div", "compact-title", label));
-    if (alert) {
-      const indicator = this.element("span", "compact-alert", alert);
-      indicator.title = "Individual confirmation required before execution";
-      indicator.setAttribute("aria-label", indicator.title);
+    for (const badge of badges) {
+      const indicator = this.element("span", badge.className, badge.text);
+      if (badge.title) {
+        indicator.title = badge.title;
+        indicator.setAttribute("aria-label", badge.title);
+      }
       header.append(indicator);
     }
     header.append(toggle);
@@ -443,18 +617,24 @@ export class PlwcChatRenderer {
   }
 }
 
-function parseResultFromContainerText(text: string): PlwcToolResultEnvelope | null {
-  const renderedMarker = PLWC_TOOL_RESULT_MARKER.replace(/^#\s*/u, "");
-  const exactIndex = text.indexOf(PLWC_TOOL_RESULT_MARKER);
-  const renderedIndex = text.indexOf(renderedMarker);
-  const markerIndex = exactIndex >= 0 ? exactIndex : renderedIndex;
-  if (markerIndex < 0) return null;
-  const markerLength = exactIndex >= 0 ? PLWC_TOOL_RESULT_MARKER.length : renderedMarker.length;
-  const resultText = text.slice(markerIndex + markerLength);
-  const firstBrace = resultText.indexOf("{");
-  const lastBrace = resultText.lastIndexOf("}");
-  if (firstBrace < 0 || lastBrace <= firstBrace) return null;
-  return parsePlwcToolResultMessage(resultText.slice(firstBrace, lastBrace + 1));
+function artifactTrustBadge(
+  name: CanonicalToolName,
+  isError: boolean,
+  result: unknown,
+): CompactBadge | null {
+  if (result === undefined) return null;
+  const presentation = describeToolResultPresentation(name, isError, result);
+  if (presentation.artifactTrust === "unvalidated") {
+    return {
+      className: "compact-alert",
+      text: "UNVALIDATED",
+      title: "Artifact is unvalidated and must not be treated as safe",
+    };
+  }
+  if (presentation.artifactTrust === "validated") {
+    return { className: "state succeeded", text: "VALIDATED" };
+  }
+  return null;
 }
 
 function findSmallestResultContainer(
@@ -463,7 +643,7 @@ function findSmallestResultContainer(
 ): HTMLElement | null {
   const descendants = [...container.querySelectorAll<HTMLElement>("div, p, pre, article")].reverse();
   return descendants.find((candidate) => {
-    const parsed = parseResultFromContainerText(candidate.textContent ?? "");
+    const parsed = parsePlwcToolResultFromText(candidate.textContent ?? "");
     return parsed?.call_id === result.call_id && parsed.name === result.name;
   }) ?? null;
 }

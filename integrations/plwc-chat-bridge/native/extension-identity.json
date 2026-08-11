@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "product": "PLwC Chat Bridge",
+  "releaseVersion": "1.0.0",
+  "extensionId": "nlogfcafjdfdoknpkbehjgihpafpipdb",
+  "allowedOrigin": "chrome-extension://nlogfcafjdfdoknpkbehjgihpafpipdb/",
+  "identities": {
+    "development": {
+      "classification": "development_sideload_only",
+      "extensionId": "nlogfcafjdfdoknpkbehjgihpafpipdb",
+      "nativeMessagingOrigin": "chrome-extension://nlogfcafjdfdoknpkbehjgihpafpipdb/",
+      "webSocketOrigin": "chrome-extension://nlogfcafjdfdoknpkbehjgihpafpipdb"
+    },
+    "chromeStore": {
+      "classification": "chrome_web_store",
+      "extensionId": "feceodobnhefdbfgmbinkndhogpfkicb",
+      "nativeMessagingOrigin": "chrome-extension://feceodobnhefdbfgmbinkndhogpfkicb/",
+      "webSocketOrigin": "chrome-extension://feceodobnhefdbfgmbinkndhogpfkicb"
+    },
+    "edgeStore": {
+      "classification": "microsoft_edge_addons",
+      "extensionId": "nncomjknhhlgcmkmlaljhkiojcnpmflb",
+      "nativeMessagingOrigin": "chrome-extension://nncomjknhhlgcmkmlaljhkiojcnpmflb/",
+      "webSocketOrigin": "chrome-extension://nncomjknhhlgcmkmlaljhkiojcnpmflb"
+    }
+  },
+  "allowedOrigins": [
+    "chrome-extension://nlogfcafjdfdoknpkbehjgihpafpipdb/",
+    "chrome-extension://feceodobnhefdbfgmbinkndhogpfkicb/",
+    "chrome-extension://nncomjknhhlgcmkmlaljhkiojcnpmflb/"
+  ],
+  "webSocketOrigins": [
+    "chrome-extension://nlogfcafjdfdoknpkbehjgihpafpipdb",
+    "chrome-extension://feceodobnhefdbfgmbinkndhogpfkicb",
+    "chrome-extension://nncomjknhhlgcmkmlaljhkiojcnpmflb"
+  ]
+}

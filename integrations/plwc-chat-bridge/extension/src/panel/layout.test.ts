@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { calculateComposerLauncherPosition, calculatePanelLayout } from "./layout";
+import {
+  calculateComposerBusyOverlayPosition,
+  calculateComposerLauncherPosition,
+  calculatePanelLayout,
+} from "./layout";
 
 test("keeps a desktop panel inside the space to the right of host navigation", () => {
   assert.deepEqual(
@@ -48,5 +52,16 @@ test("moves the composer launcher above the input when neither side has room", (
       viewportWidth: 390,
     }),
     { left: 12, top: 702, visible: true },
+  );
+});
+
+test("keeps the busy overlay compact at the bottom of an expanded composer", () => {
+  assert.deepEqual(
+    calculateComposerBusyOverlayPosition({ bottom: 900, height: 420, left: 120, width: 880 }),
+    { height: 64, left: 120, top: 836, width: 880 },
+  );
+  assert.deepEqual(
+    calculateComposerBusyOverlayPosition({ bottom: 900, height: 56, left: 120, width: 880 }),
+    { height: 56, left: 120, top: 844, width: 880 },
   );
 });

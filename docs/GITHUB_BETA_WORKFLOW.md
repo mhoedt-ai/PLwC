@@ -2,7 +2,8 @@
 
 Maintainer document.
 
-This workflow describes how to publish an **open beta** PLwC MCPB package while
+This historical workflow describes how the **open beta** PLwC MCPB package was
+published while
 preserving the security and privacy boundaries of the private development tree.
 It does not create a final public release.
 
@@ -22,7 +23,7 @@ It does not create a final public release.
 - No source A/B MCP server, raw Commander endpoint, raw PBA endpoint, direct
   host shell or second PLwC MCP server may be exposed.
 
-## 2. Current Open Beta Baseline
+## 2. Historical Open Beta Baseline
 
 ```text
 Version: 0.2.0-rc18.dev9

@@ -1,7 +1,7 @@
 # PLwC Security Model
 
 This document is the standing reference for PLwC's security posture.
-It mirrors the security-notes section of the v0.2.0-rc1 release notes
+It mirrors the security-notes section of the v1.0.0 release notes
 and is kept consistent with the source. Release notes pin the model
 to a specific artifact; this file states it in general terms.
 
@@ -174,7 +174,7 @@ binary read/write paths all reject protected paths in either role.
 
 ## 9. Tested scope
 
-The current public release (v0.2.0-rc1) has been tested against the
+The current public release (v1.0.0) has been tested against the
 threat model in the following areas:
 
 - workspace boundary (`allowed_roots`, parent traversal, absolute /
@@ -217,18 +217,17 @@ containment layer.
 
 ## 11. Artifact signing
 
-The MCPB artifact is currently **not signed**. Artifact signing is not
-part of the v0.2 release pipeline. Until signing is added, the
+The MCPB artifact and the explicitly unsigned Windows Setup are **not signed**.
+Artifact signing is not part of the accepted v1.0 release pipeline. The
 authoritative integrity check is the SHA256 of the released MCPB,
 which is recorded in the corresponding `docs/RELEASE_NOTES_*.md` and
 in the GitHub Draft pre-release entry.
 
 ## 12. Risk acceptance
 
-Remaining risks are known, documented and accepted for the current
-Release Candidate. They are recorded as Release Candidate notes, not
-as release blockers, and they will be revisited before any final
-v0.2.0 release decision.
+Remaining risks are known, documented and accepted for v1.0. The unsigned
+publisher status is recorded explicitly in the external build identity and is
+not hidden by filenames or release notes.
 
 This file is the standing reference. Per-RC residual risks and any
 deltas from this baseline are recorded in the corresponding

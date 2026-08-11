@@ -1,13 +1,12 @@
-# PLwC Dev 9 Open Beta Claude Desktop Quickstart
+# PLwC 1.0 Claude Desktop Quickstart
 
 This is a literal step-by-step installation guide. It is written for a
 normal Claude Desktop user, not for developers. Follow the steps in
 order. If a step does not behave as described under "Expected result",
 read the "If you do not see this..." line right under it.
 
-> PLwC v0.2.0-rc18.dev9 is an **Open Beta**, not a final release. The
-> MCPB is **not signed**. Verify the documented SHA256 and do not expect
-> production certification or final-release guarantees.
+> PLwC `1.0.0` is the current release. The MCPB is **not signed**; verify the
+> documented SHA256. No production-certification claim is made.
 
 > This quickstart is Claude Desktop-specific. For the maintainer-confirmed
 > local GPT stdio route, the Odysseus stdio route and the hosted ChatGPT
@@ -22,7 +21,7 @@ This guide installs PLwC as an **MCPB extension** in Claude Desktop.
 There are two installation paths:
 
 - **Normal user (MCPB installation)** — recommended.
-  You install the prepared `plwc-gateway-0.2.0-rc18.dev9.mcpb` file inside
+  You install the prepared `plwc-gateway-1.0.0.mcpb` file inside
   Claude Desktop. You need Python 3.11 or newer, but you do **not** need Git.
 - **Developer (source installation)** — only for contributors.
   You check out the repository, build the worker image yourself and
@@ -61,7 +60,7 @@ mirrors.
 
 - Claude Desktop installed.
 - Claude Desktop **Developer Mode** enabled (see Section 4).
-- The PLwC `.mcpb` file (currently `plwc-gateway-0.2.0-rc18.dev9.mcpb`).
+- The PLwC `.mcpb` file (currently `plwc-gateway-1.0.0.mcpb`).
 - Python 3.11 or newer available on `PATH`.
 - Docker Desktop installed and running, for sandbox / document worker
   features.
@@ -81,7 +80,7 @@ Before you start, confirm:
 
 - Claude Desktop is installed on your computer.
 - You can open Claude Desktop and reach Settings.
-- The PLwC MCPB artifact `plwc-gateway-0.2.0-rc18.dev9.mcpb` is on disk
+- The PLwC MCPB artifact `plwc-gateway-1.0.0.mcpb` is on disk
   somewhere you can find it (Downloads, a release folder, etc.).
 - Python 3.11 or newer is installed and `python --version` works in a new
   terminal.
@@ -130,14 +129,12 @@ Developer Mode, and restart Claude Desktop.
 5. Find **Extension Developer**.
 6. Click **Install Extension**.
 7. In the file picker, select the PLwC MCPB file. The current
-   Open Beta artifact is:
+   1.0 release artifact is:
    ```
-   plwc-gateway-0.2.0-rc18.dev9.mcpb
+   plwc-gateway-1.0.0.mcpb
    ```
-   The expected SHA256 for download verification is:
-   ```
-   2F71AC903BF85CC70023805EC0F901E84C4294982C1B59940350DB3591A2D345
-   ```
+   Compare its SHA256 with the value published alongside the exact 1.0.0
+   artifact before installing it.
 8. Confirm the installation in any Claude Desktop dialog that appears.
 9. If Claude Desktop asks you to restart, restart it.
 
@@ -184,7 +181,7 @@ project, paste the instruction, and save again.
 
 ## 7. Recommended Claude Project Instruction
 
-Paste this text **as-is** into the project instructions. It uses v0.2
+Paste this text **as-is** into the project instructions. It uses v1.0
 public tool names. Do not edit it to use old v0.1 tool names — the
 instruction explicitly blocks them.
 
@@ -228,7 +225,7 @@ Critical changes require the intended PLwC governance flow and explicit confirma
 
 A chat command does not end the active PLwC profile. To stop using PLwC, the user must disable PLwC in Claude Desktop.
 
-Do not use old v0.1 public tool names. In v0.2, the public tools are:
+Do not use old v0.1 public tool names. In v1.0, the public tools are:
 - plwc_status
 - plwc_describe
 - plwc_profile
@@ -238,7 +235,7 @@ Do not use old v0.1 public tool names. In v0.2, the public tools are:
 - plwc_workspace_operation
 - plwc_document_operation
 
-The following old individual tool names are not public tools in v0.2 and must not be used:
+The following old individual tool names are not public tools in v1.0 and must not be used:
 - plwc_compile_profile
 - plwc_first_run_status
 - plwc_profile_status
@@ -512,7 +509,7 @@ conversation in the project. The first session action must be
 
 ### Claude tries to call `plwc_compile_profile`
 
-That is an **old v0.1 tool name**. In v0.2 use:
+That is an **old v0.1 tool name**. In v1.0 use:
 ```
 plwc_profile(operation="compile", compile_mode="boot")
 ```
@@ -523,7 +520,7 @@ Use `compile_mode="boot"` for normal session startup. Use
 
 ### Claude tries to call `plwc_governor_plan` or `plwc_governor_apply`
 
-Those are **old v0.1 tool names**. In v0.2 use:
+Those are **old v0.1 tool names**. In v1.0 use:
 ```
 plwc_governor(operation="plan")
 plwc_governor(operation="apply")
@@ -531,7 +528,7 @@ plwc_governor(operation="apply")
 
 ### Claude tries to call `plwc_write_reflection`
 
-That is an **old v0.1 tool name**. In v0.2 use:
+That is an **old v0.1 tool name**. In v1.0 use:
 ```
 plwc_reflection(operation="write", ...)
 ```
@@ -549,15 +546,15 @@ failure, unless behavior is actually wrong.
 
 This quickstart only verifies that PLwC is installed and reachable.
 
-The full v0.2 release smoke is much larger and covers Office V2,
+The full 1.0 release smoke is much larger and covers Office V2,
 PDF V2, ZIP, read_image, PBA2/Governor, protected boundary, sandbox
 and existing PDF MVP operations.
 
-For the public Open Beta test scope, current package hash and reporting rules,
-see [`BETA_TESTING.md`](../BETA_TESTING.md).
+For the 1.0 release scope, current package hash and reporting rules, see the
+repository acceptance records and the Windows Installer guide.
 
 Internal release evidence and private smoke transcripts are intentionally not
 included in the public snapshot.
 
-Once those checks pass on a clean install, PLwC remains within its
-v0.2.0-rc18.dev9 Open Beta scope. A final release is not yet cut.
+Once those checks pass on a clean install, PLwC remains within its declared
+`1.0.0` release scope.

@@ -1,12 +1,33 @@
 import type { JsonObject, McpTool, ToolSetValidation } from "./contracts";
+import type { BuildIdentity, BuildIdentityValidation } from "./build-identity";
 import type { PolicyDecision } from "./policy";
 
 export type ConnectionState = "disconnected" | "connecting" | "connected" | "error";
+export type LauncherState =
+  | "not_requested"
+  | "starting"
+  | "started"
+  | "already_running"
+  | "unavailable"
+  | "failed";
+
+export interface LauncherStatus {
+  buildIdentity?: BuildIdentity;
+  buildIdentityValidation?: BuildIdentityValidation;
+  code?: string;
+  logPath?: string;
+  message: string;
+  state: LauncherState;
+  toolCount?: number;
+}
 
 export interface BridgeStatus {
+  buildIdentity: BuildIdentity | null;
+  buildIdentityValidation: BuildIdentityValidation | null;
   connection: ConnectionState;
   endpoint: string;
   lastError: string;
+  launcher: LauncherStatus;
   pendingRequests: number;
   toolSet: ToolSetValidation | null;
 }
@@ -18,6 +39,7 @@ export interface BridgeSettings {
   autoInsertDelay: number;
   autoSubmitDelay: number;
   autoSubmitResults: boolean;
+  composerBusyTimeout: number;
   renderChatCards: boolean;
   readOnlyAutoRun: boolean;
 }
@@ -127,10 +149,17 @@ export function parseGatewaySettingsUpdate(value: unknown): GatewaySettingsUpdat
 }
 
 export type BridgeRequest =
-  | { type: "bridge.connect" }
+  | { type: "bridge.connect"; autoStart?: boolean }
   | { type: "bridge.status" }
   | { type: "bridge.tools.list" }
-  | { type: "bridge.tools.call"; name: string; arguments: JsonObject; confirmed: boolean }
+  | {
+      type: "bridge.tools.call";
+      name: string;
+      arguments: JsonObject;
+      confirmed: boolean;
+      callId?: string;
+      conversationId?: string;
+    }
   | { type: "bridge.gateway.settings.get" }
   | { type: "bridge.gateway.settings.update"; settings: GatewaySettingsUpdate }
   | { type: "bridge.gateway.settings.reset" }

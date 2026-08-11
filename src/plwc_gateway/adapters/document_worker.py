@@ -16,6 +16,8 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from plwc_gateway.config import load_gateway_config
 from plwc_gateway.policy.paths import guard_path
 
+from .docker_cli import resolve_docker_executable
+
 
 DOCUMENT_WORKER_IMAGE = "plwc-document-worker:0.1.0"
 WORKER_CONTAINER_WORKDIR = "/work"
@@ -2194,7 +2196,7 @@ class DocumentWorkerAdapter:
 
     def _docker_args(self, worker_command: Sequence[str]) -> list[str]:
         return [
-            "docker",
+            resolve_docker_executable() or "docker",
             "run",
             "--rm",
             "--pull",
@@ -2225,7 +2227,12 @@ class DocumentWorkerAdapter:
         ]
 
     def _inspect_image(self) -> subprocess.CompletedProcess[str]:
-        args = ["docker", "image", "inspect", self.worker_image]
+        args = [
+            resolve_docker_executable() or "docker",
+            "image",
+            "inspect",
+            self.worker_image,
+        ]
         try:
             return self.runner(
                 args,

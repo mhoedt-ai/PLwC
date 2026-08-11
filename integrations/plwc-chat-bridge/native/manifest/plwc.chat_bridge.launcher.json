@@ -1,0 +1,11 @@
+{
+  "name": "plwc.chat_bridge.launcher",
+  "description": "Starts and verifies the local PLwC Chat Bridge.",
+  "path": "__PLWC_NATIVE_LAUNCHER_PATH__",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://nlogfcafjdfdoknpkbehjgihpafpipdb/",
+    "chrome-extension://feceodobnhefdbfgmbinkndhogpfkicb/",
+    "chrome-extension://nncomjknhhlgcmkmlaljhkiojcnpmflb/"
+  ]
+}

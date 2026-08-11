@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PLwC-Konfiguration</title>
+  <link rel="stylesheet" href="/plwc-config.css">
+  <script src="/plwc-config.js" defer></script>
+</head>
+<body data-language="de">
+  <header class="app-header">
+    <div class="header-inner">
+      <div>
+        <p class="product-label">PLwC FÜR WINDOWS</p>
+        <h1>PLwC-Konfiguration</h1>
+        <p class="header-summary">Gemeinsame Einstellungen für alle installierten PLwC-Clients.</p>
+      </div>
+      <div class="header-tools">
+        <a class="header-link" href="/getting-started">Erste Schritte</a>
+        <div class="local-status" aria-label="Verbindungsart">
+          <span class="status-dot" aria-hidden="true"></span>
+          Lokale Sitzung
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+    <section class="overview" aria-labelledby="overview-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Laufzeit</p>
+          <h2 id="overview-title">Aktueller PLwC-Zustand</h2>
+        </div>
+        <button id="refresh-button" class="button secondary" type="button">Aktualisieren</button>
+      </div>
+      <dl class="status-grid">
+        <div><dt>Aktives Profil</dt><dd id="active-profile">Wird geladen...</dd></div>
+        <div><dt>Profilzustand</dt><dd id="profile-state">Wird geladen...</dd></div>
+        <div><dt>Konfigurationsquelle</dt><dd id="profile-source">Wird geladen...</dd></div>
+        <div><dt>Gateway</dt><dd id="gateway-version">Wird geladen...</dd></div>
+      </dl>
+    </section>
+
+    <section aria-labelledby="profile-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Profil</p>
+          <h2 id="profile-title">Aktives Profil auswählen</h2>
+          <p>Lege fest, welches Profil PLwC bei künftigen Aufrufen lädt. Die Änderung wird zuerst geprüft und anschließend über den Governor ausgeführt.</p>
+        </div>
+      </div>
+      <div class="profile-controls">
+        <label class="field wide" for="profile-select">
+          <span>Verfügbare Profile</span>
+          <select id="profile-select"></select>
+        </label>
+        <div class="profile-actions">
+          <button id="review-profile-button" class="button secondary" type="button">Aktivierung prüfen</button>
+          <button id="new-profile-button" class="button primary" type="button">Neues Profil</button>
+        </div>
+      </div>
+      <p class="path-line"><strong>Profilordner:</strong> <span id="profiles-path"></span></p>
+    </section>
+
+    <section aria-labelledby="threshold-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Governance</p>
+          <h2 id="threshold-title">Übernahmeschwellen</h2>
+          <p>Die Schwellen bestimmen, wie viele unabhängige Belege PLwC benötigt, bevor eine bestätigte Reflection zu dauerhaftem Profilwissen werden darf.</p>
+        </div>
+      </div>
+      <div class="field-grid">
+        <label class="field" for="memory-threshold">
+          <span>Memory-Schwelle</span>
+          <input id="memory-threshold" type="number" min="1" max="1000000" step="1" inputmode="numeric">
+          <small>Nötige Evidenz, bevor ein Reflection-Kandidat nach <code>memory.md</code> übernommen werden darf.</small>
+          <span id="memory-source" class="source-label"></span>
+        </label>
+        <label class="field" for="persona-threshold">
+          <span>Persona-Schwelle</span>
+          <input id="persona-threshold" type="number" min="1" max="1000000" step="1" inputmode="numeric">
+          <small>Nötige Evidenz, bevor eine stabile persönliche Eigenschaft für <code>PERSONA.md</code> vorgeschlagen werden darf.</small>
+          <span id="persona-source" class="source-label"></span>
+        </label>
+        <label class="field" for="temperament-threshold">
+          <span>Temperament-Schwelle</span>
+          <input id="temperament-threshold" type="number" min="1" max="1000000" step="1" inputmode="numeric">
+          <small>Nötige Evidenz, bevor ein wiederkehrendes Reaktionsmuster für <code>TEMPERAMENT.md</code> vorgeschlagen werden darf.</small>
+          <span id="temperament-source" class="source-label"></span>
+        </label>
+      </div>
+    </section>
+
+    <section aria-labelledby="features-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Funktionen</p>
+          <h2 id="features-title">Laufzeitfunktionen</h2>
+          <p>Diese Schalter gelten gemeinsam für Chat Bridge, Claude Desktop, Codex, Odysseus und reine Gateway-Installationen.</p>
+        </div>
+      </div>
+      <div class="switch-list">
+        <label class="switch-row" for="persona-toggle">
+          <span>
+            <strong>Persona Layer</strong>
+            <small>Den kompilierten Persona Layer in künftigen PLwC-Kontext aufnehmen. <code>PERSONA.md</code> wird dadurch weder gelöscht noch verändert.</small>
+            <span id="persona-toggle-source" class="source-label"></span>
+          </span>
+          <span class="switch-control">
+            <input id="persona-toggle" type="checkbox">
+            <span class="switch-track" aria-hidden="true"></span>
+          </span>
+        </label>
+        <label class="switch-row" for="qdrant-toggle">
+          <span>
+            <strong>Qdrant-Vektorsuche</strong>
+            <small>PLwC darf den konfigurierten Qdrant-Index verwenden. Das Einschalten erstellt oder aktualisiert keinen Index.</small>
+            <span id="qdrant-toggle-source" class="source-label"></span>
+          </span>
+          <span class="switch-control">
+            <input id="qdrant-toggle" type="checkbox">
+            <span class="switch-track" aria-hidden="true"></span>
+          </span>
+        </label>
+      </div>
+      <div class="save-row">
+        <p>Gespeicherte Einstellungen gelten beim nächsten PLwC-Aufruf. Starte einen Client nur neu, wenn er noch alte Werte anzeigt.</p>
+        <button id="save-button" class="button primary" type="button">Einstellungen speichern</button>
+      </div>
+    </section>
+
+    <section class="technical" aria-labelledby="technical-title">
+      <details>
+        <summary id="technical-title">Konfigurationsdateien und Diagnose</summary>
+        <dl class="detail-list">
+          <div><dt>Gemeinsame Einstellungen</dt><dd id="settings-file"></dd></div>
+          <div><dt>Profilzustand</dt><dd id="profile-state-file"></dd></div>
+          <div><dt>Workspace</dt><dd id="workspace-path"></dd></div>
+        </dl>
+        <div id="setup-warnings" class="warnings" hidden></div>
+      </details>
+    </section>
+  </main>
+
+  <dialog id="profile-dialog" aria-labelledby="profile-dialog-title">
+    <form method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Governor-Plan</p>
+          <h2 id="profile-dialog-title">Profilaktivierung prüfen</h2>
+        </div>
+        <button class="close-button" value="cancel" aria-label="Schließen" title="Schließen" type="submit" formnovalidate>×</button>
+      </div>
+      <div class="plan-flow" aria-label="Profilwechsel">
+        <div><span>Aktuell</span><strong id="plan-current"></strong></div>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <div><span>Angefordert</span><strong id="plan-requested"></strong></div>
+      </div>
+      <dl class="plan-details">
+        <div><dt>Prüfung</dt><dd id="plan-validation"></dd></div>
+        <div><dt>Profilordner</dt><dd id="plan-directory"></dd></div>
+        <div><dt>Geplante Schreibvorgänge</dt><dd id="plan-writes"></dd></div>
+        <div id="plan-missing-row" hidden><dt>Fehlende Dateien</dt><dd id="plan-missing"></dd></div>
+      </dl>
+      <label class="confirmation" for="profile-confirmation">
+        <input id="profile-confirmation" type="checkbox">
+        <span>Ich habe diesen Plan geprüft und möchte, dass PLwC das angeforderte Profil aktiviert.</span>
+      </label>
+      <div class="dialog-actions">
+        <button class="button secondary" value="cancel" type="submit" formnovalidate>Abbrechen</button>
+        <button id="activate-profile-button" class="button primary" type="button" disabled>Profil aktivieren</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="create-profile-dialog" class="onboarding-dialog" aria-labelledby="create-profile-dialog-title">
+    <form id="create-profile-form" method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Geführtes Onboarding</p>
+          <h2 id="create-profile-dialog-title">Neues Profil anlegen</h2>
+        </div>
+        <button class="close-button" value="cancel" aria-label="Schließen" title="Schließen" type="submit" formnovalidate>×</button>
+      </div>
+
+      <div id="create-profile-entry">
+        <p class="dialog-intro">Aus diesen Antworten entstehen die anfänglichen geschützten Profildateien. PLwC zeigt vor jedem Schreibvorgang einen Governor-Plan.</p>
+        <div id="persona-onboarding-note" class="inline-note" hidden>Der Persona Layer ist ausgeschaltet. Persona-spezifische Felder sind nicht erforderlich und werden nicht in dieses Profil aufgenommen.</div>
+
+        <div class="onboarding-group">
+          <h3>Identität und Zweck</h3>
+          <div class="onboarding-grid">
+            <label class="field" for="new-profile-name">
+              <span>Profilname</span>
+              <input id="new-profile-name" name="profile_name" type="text" maxlength="120" required autocomplete="off" placeholder="Beispiel: Recherche">
+              <small>Ordnersicherer Name, über den das Profil ausgewählt wird.</small>
+            </label>
+            <label class="field persona-onboarding-field" for="new-role-use-case">
+              <span>Rolle und Einsatzgebiet</span>
+              <input id="new-role-use-case" name="role_use_case" type="text" maxlength="2000" required placeholder="Assistent für Recherche und technische Texte">
+              <small>Wobei dieses Profil unterstützen soll.</small>
+            </label>
+            <label class="field persona-onboarding-field" for="new-preferred-name">
+              <span>Bevorzugter Name</span>
+              <input id="new-preferred-name" name="preferred_name" type="text" maxlength="2000" required placeholder="Dein Name oder ein fester Anzeigename">
+            </label>
+            <label class="field persona-onboarding-field" for="new-form-of-address">
+              <span>Gewünschte Anrede</span>
+              <input id="new-form-of-address" name="form_of_address" type="text" maxlength="2000" required placeholder="Wie soll dich der Assistent ansprechen?">
+            </label>
+          </div>
+        </div>
+
+        <div class="onboarding-group">
+          <h3>Zusammenarbeit</h3>
+          <div class="onboarding-grid">
+            <label class="field" for="new-tone">
+              <span>Ton</span>
+              <input id="new-tone" name="tone" type="text" maxlength="2000" required placeholder="Klar, ruhig und direkt">
+            </label>
+            <label class="field" for="new-working-style">
+              <span>Arbeitsstil</span>
+              <input id="new-working-style" name="working_style" type="text" maxlength="2000" required placeholder="Strukturiert, kritisch und evidenzorientiert">
+            </label>
+            <label class="field" for="new-strictness">
+              <span>Sorgfalt und Strenge</span>
+              <textarea id="new-strictness" name="strictness" maxlength="2000" required rows="3" placeholder="Wie streng sollen Unsicherheit, Sicherheit und Belege behandelt werden?"></textarea>
+            </label>
+            <label class="field" for="new-language-preference">
+              <span>Sprachpräferenz</span>
+              <textarea id="new-language-preference" name="language_preference" maxlength="2000" required rows="3" placeholder="Sprachen für Gespräche, Code und öffentliche Dokumente"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="onboarding-group">
+          <h3>Memory- und Bestätigungsgrenzen</h3>
+          <div class="onboarding-grid">
+            <label class="field" for="new-memory-scope">
+              <span>Memory-Umfang</span>
+              <textarea id="new-memory-scope" name="memory_scope" maxlength="2000" required rows="4" placeholder="Was darf PLwC über geregelte Memory-Abläufe behalten?"></textarea>
+            </label>
+            <label class="field" for="new-confirmation-boundaries">
+              <span>Bestätigungsgrenzen</span>
+              <textarea id="new-confirmation-boundaries" name="confirmation_boundaries" maxlength="2000" required rows="4" placeholder="Was darf ohne ausdrückliche Bestätigung niemals geändert werden?"></textarea>
+            </label>
+            <label class="field persona-onboarding-field" for="new-project-context">
+              <span>Projektkontext</span>
+              <textarea id="new-project-context" name="project_context" maxlength="2000" required rows="4" placeholder="Wichtigstes Projekt oder Arbeitsgebiet"></textarea>
+            </label>
+            <label class="field" for="new-special-instructions">
+              <span>Besondere Anweisungen <span class="optional-label">optional</span></span>
+              <textarea id="new-special-instructions" name="special_instructions" maxlength="2000" rows="4" placeholder="Weitere ausdrückliche Vorgaben für dieses Profil"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="button secondary" value="cancel" type="submit" formnovalidate>Abbrechen</button>
+          <button id="review-create-profile-button" class="button primary" type="button">Erstellungsplan prüfen</button>
+        </div>
+      </div>
+
+      <div id="create-profile-plan" hidden>
+        <div class="plan-flow single-target">
+          <div><span>Neues Profil</span><strong id="creation-plan-profile"></strong></div>
+          <div><span>Aktivierung</span><strong id="creation-plan-activation"></strong></div>
+        </div>
+        <dl class="plan-details">
+          <div><dt>Prüfung</dt><dd id="creation-plan-validation"></dd></div>
+          <div><dt>Profilordner</dt><dd id="creation-plan-directory"></dd></div>
+          <div><dt>Zu erstellende Dateien</dt><dd id="creation-plan-files"></dd></div>
+          <div id="creation-plan-missing-row" hidden><dt>Fehlende Antworten</dt><dd id="creation-plan-missing"></dd></div>
+        </dl>
+        <label class="confirmation" for="create-profile-confirmation">
+          <input id="create-profile-confirmation" type="checkbox">
+          <span>Ich habe die Antworten und den Governor-Plan geprüft. Die geschützten Dateien dürfen erstellt und das neue Profil aktiviert werden.</span>
+        </label>
+        <div class="dialog-actions split-actions">
+          <button id="back-to-profile-form-button" class="button secondary" type="button">Zurück</button>
+          <span class="action-spacer"></span>
+          <button class="button secondary" value="cancel" type="submit" formnovalidate>Abbrechen</button>
+          <button id="create-profile-button" class="button primary" type="button" disabled>Erstellen und aktivieren</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <footer>
+    <p>Diese Seite läuft ausschließlich auf <code>127.0.0.1</code> und beendet sich nach längerer Inaktivität automatisch.</p>
+  </footer>
+</body>
+</html>

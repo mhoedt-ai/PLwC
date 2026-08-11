@@ -3,9 +3,12 @@ import { dirname, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { buildIdentityDefine, loadBuildIdentity } from "./build-identity.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputDirectory = resolve(projectRoot, ".test-dist");
+const buildIdentity = await loadBuildIdentity(projectRoot);
+const define = buildIdentityDefine(buildIdentity);
 
 async function findTests(directory) {
   let entries;
@@ -41,6 +44,7 @@ for (const test of tests) {
   const outputPath = resolve(outputDirectory, outputName);
   await build({
     bundle: true,
+    define,
     entryPoints: [test],
     format: "cjs",
     outfile: outputPath,

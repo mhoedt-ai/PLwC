@@ -111,7 +111,7 @@ change Governor confirmation.
 
 Direct non-Desktop environments may still set the legacy
 `PLWC_PERSONA_LAYER_ENABLED=false` environment variable. Packaged Claude Desktop
-builds use the disable flag because the rc18.dev2 Desktop smoke showed that a
+builds use the disable flag because an earlier Desktop smoke showed that a
 default-true Boolean did not reliably propagate `false`.
 
 ### Persona / user aliases and the INNER gate (RC12-GEN-001)

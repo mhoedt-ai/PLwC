@@ -19,6 +19,14 @@ const DOCUMENT_WRITE_OPERATIONS = new Set([
   "extract_ods_data", "extract_odp_text", "extract_odt_text", "extract_pdf", "extract_pdf_text", "extract_pptx_text",
   "extract_xlsx_data", "extract_zip", "merge_pdf", "rotate_pdf", "split_pdf",
 ]);
+const PROFILE_READ_OPERATIONS = new Set([
+  "compile",
+  "doctor",
+  "retrieve",
+  "scan_tagebuch",
+  "snapshot",
+  "status",
+]);
 const GOVERNOR_READ_OPERATIONS = new Set(["plan", "list_retirable"]);
 
 function operationOf(argumentsValue: JsonObject): string {
@@ -35,8 +43,15 @@ export function withConfirmedToolArguments(
 }
 
 export function decidePolicy(toolName: CanonicalToolName, argumentsValue: JsonObject): PolicyDecision {
-  if (toolName === "plwc_status" || toolName === "plwc_describe" || toolName === "plwc_profile") {
+  if (toolName === "plwc_status" || toolName === "plwc_describe") {
     return { readOnly: true, requiresConfirmation: false, reason: "Read-only PLwC facade." };
+  }
+
+  if (toolName === "plwc_profile") {
+    if (PROFILE_READ_OPERATIONS.has(operationOf(argumentsValue))) {
+      return { readOnly: true, requiresConfirmation: false, reason: "Read-only profile operation." };
+    }
+    return { readOnly: false, requiresConfirmation: true, reason: "Unknown profile operation." };
   }
 
   if (toolName === "plwc_governor") {

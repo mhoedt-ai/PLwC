@@ -1,13 +1,15 @@
 {
   "name": "@plwc/chat-bridge-extension",
-  "version": "0.2.0-rc19.dev10",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node ./scripts/build.mjs",
+    "build:store:windows": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-store-packages.ps1",
     "build:fixture": "node ./scripts/build-browser-fixture.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node ./scripts/test.mjs",
+    "test:store:windows": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File ./scripts/test-store-packages.ps1",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "devDependencies": {

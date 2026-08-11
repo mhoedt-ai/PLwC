@@ -11,6 +11,7 @@ const settings: BridgeSettings = {
   autoInsertDelay: 2,
   autoSubmitDelay: 2,
   autoSubmitResults: true,
+  composerBusyTimeout: 60,
   readOnlyAutoRun: true,
   renderChatCards: true,
 };

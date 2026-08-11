@@ -1,15 +1,16 @@
-# PLwC v0.2.0-rc18.dev9 Open Beta Installation Guide
+# PLwC 1.0 Installation Guide
 
-This guide covers the supported and planned client paths for the Dev 9 Open
-Beta: Claude Desktop, maintainer-confirmed local GPT clients, local Odysseus and
-hosted ChatGPT web/custom apps.
+This guide covers the supported PLwC 1.0 client paths: Claude Desktop,
+maintainer-confirmed local GPT clients, local Odysseus, and ChatGPT web through
+the local PLwC Chat Bridge. Hosted custom apps remain a separate deployment
+class.
 
-The current Open Beta artifact is unsigned. Verify the exact SHA256 before
+The current 1.0 release artifact is unsigned. Verify the exact SHA256 before
 installation:
 
 ```text
-Package: plwc-gateway-0.2.0-rc18.dev9.mcpb
-SHA256: 2F71AC903BF85CC70023805EC0F901E84C4294982C1B59940350DB3591A2D345
+Package: plwc-gateway-1.0.0.mcpb
+SHA256: use the value published alongside the exact 1.0.0 artifact
 ```
 
 PLwC exposes exactly one public MCP server:
@@ -23,36 +24,34 @@ Commander MCP servers as part of PLwC.
 
 ## Client Support Matrix
 
-| Client | Dev 9 status | Transport | Installation shape |
+| Client | 1.0 status | Transport | Installation shape |
 | --- | --- | --- | --- |
-| Claude Desktop | Supported and smoke-tested | Local MCPB / stdio | Install the rc18.dev9 MCPB extension. |
-| Local GPT client | Supported in the maintainer setup | Local stdio | Extract the rc18.dev9 package and register its bundled `server.py` as one MCP server. |
-| Odysseus | Supported as an external local PoC and smoke-tested | Local stdio | Extract the rc18.dev9 package and configure its bundled `server.py` as one external MCP server. |
-| ChatGPT web/custom app | Planned, not directly installable from the Dev 9 package | Remote MCP over HTTPS or Secure MCP Tunnel | Requires the future authenticated PLwC remote facade from `V1-REMOTE-MCP-FACADE-001`. Do not upload the MCPB or expose the raw local gateway. |
+| Claude Desktop | Supported and smoke-tested | Local MCPB / stdio | Install the 1.0.0 MCPB extension. |
+| Local GPT client | Supported in the maintainer setup | Local stdio | Extract the 1.0.0 package and register its bundled `server.py` as one MCP server. |
+| Odysseus | Supported as an external local PoC and smoke-tested | Local stdio | Extract the 1.0.0 package and configure its bundled `server.py` as one external MCP server. |
+| ChatGPT web in Chrome, Brave or Edge | Supported through PLwC Chat Bridge 1.0 | Loopback WebSocket, Native Messaging and local stdio | Install the PLwC Windows Setup and the matching browser Store extension. |
+| Hosted ChatGPT custom app | Planned, not directly installable from the local package | Remote MCP over HTTPS or Secure MCP Tunnel | Requires the future authenticated PLwC remote facade from `V1-REMOTE-MCP-FACADE-001`. Do not upload the MCPB or expose the raw local gateway. |
 
 Claude Desktop, the maintainer's local GPT client and Odysseus use the existing
 local gateway. Hosted ChatGPT web/custom apps are a different deployment class:
 they connect through remote MCP infrastructure and do not directly install a
 Claude Desktop MCPB.
 
-A separate local browser-extension proof of concept is tracked as
-`V1-LOCAL-CHATGPT-ADAPTER-001` under the working name **PLwC Chat Bridge**. It
-connects ChatGPT web to a loopback bridge and then to the PLwC stdio gateway
-without a public tunnel. It is proposed for the v0.2.0-rc19 development track,
-is not a supported Dev 9 installation path yet and does not replace the hosted
-remote-facade plan. See
-[`LOCAL_CHATGPT_CLIENT_ADAPTER.md`](LOCAL_CHATGPT_CLIENT_ADAPTER.md).
+**PLwC Chat Bridge 1.0** connects ChatGPT web to a loopback-only bridge and then
+to the PLwC stdio gateway without a public tunnel. Its Chrome/Brave and Edge
+Store packages use fixed public identities. This supported local route does not
+replace the future hosted remote-facade plan.
 
 ## Requirements
 
-Windows is the fully smoke-tested Open Beta target. The package manifest also
+Windows is the fully smoke-tested 1.0 release target. The package manifest also
 declares macOS and Linux with Python 3.11 or newer, but those platforms do not
 have the same recorded Desktop evidence as Windows.
 
 Common local requirements:
 
 - Python `>=3.11`;
-- the PLwC artifact: `plwc-gateway-0.2.0-rc18.dev9.mcpb`;
+- the PLwC artifact: `plwc-gateway-1.0.0.mcpb`;
 - separate workspace and profile directories;
 - exactly one PLwC-related MCP server: `plwc-gateway`.
 
@@ -75,22 +74,18 @@ Profile onboarding can still complete in Safe Mode. Docker is required for
 sandbox/document-worker operations, not for creating the first governed PLwC
 profile.
 
-## Verify The Open Beta Artifact
+## Verify The 1.0 release Artifact
 
 On Windows PowerShell:
 
 ```powershell
-Get-FileHash .\plwc-gateway-0.2.0-rc18.dev9.mcpb -Algorithm SHA256
+Get-FileHash .\plwc-gateway-1.0.0.mcpb -Algorithm SHA256
 ```
 
-Expected hash:
-
-```text
-2F71AC903BF85CC70023805EC0F901E84C4294982C1B59940350DB3591A2D345
-```
-
-Stop if the hash differs. The package is unsigned, so exact hash verification
-is the current integrity check.
+Compare the result with the SHA256 published alongside the exact artifact.
+Stop if it differs. The package is unsigned, so external exact-hash
+verification is the current integrity check; a hash embedded inside the package
+being verified would not be an independent trust source.
 
 ## Install Python
 
@@ -148,7 +143,7 @@ security behavior.
 3. Open Extensions.
 4. Open Advanced settings or the Extension Developer section if required.
 5. Choose Install Extension.
-6. Select `plwc-gateway-0.2.0-rc18.dev9.mcpb`.
+6. Select `plwc-gateway-1.0.0.mcpb`.
 7. Confirm installation.
 
 After installation, Claude Desktop should show PLwC Gateway. No separate PBA,
@@ -167,7 +162,7 @@ Choose a dedicated local application directory outside the PLwC workspace and
 profile roots. Then extract the package with Python:
 
 ```powershell
-python -m zipfile -e .\plwc-gateway-0.2.0-rc18.dev9.mcpb .\plwc-gateway-0.2.0-rc18.dev9
+python -m zipfile -e .\plwc-gateway-1.0.0.mcpb .\plwc-gateway-1.0.0
 ```
 
 The extracted directory must contain `server.py`, `src/`, `manifest.json` and
@@ -224,7 +219,7 @@ Use plwc-gateway as the only MCP path for PLwC-managed workspaces, profiles, doc
 ### 4. Run the local stdio first-run checks
 
 1. Start or reload the configured MCP server.
-2. Confirm the runtime reports `0.2.0rc18.dev9` and server
+2. Confirm the runtime reports `1.0.0` and server
    `plwc-gateway`.
 3. Confirm exactly eight PLwC public tools are visible.
 4. Call `plwc_status(scope="first_run")` and follow the returned next action.
@@ -237,20 +232,20 @@ Use plwc-gateway as the only MCP path for PLwC-managed workspaces, profiles, doc
    read-only diagnostic.
 9. Do not call Governor `apply` without explicit user approval.
 
-The recorded rc18.dev9 Odysseus smoke passed this boundary model, and the local
+The recorded 1.0.0 Odysseus smoke passed this boundary model, and the local
 GPT stdio route is maintainer-confirmed. Both prove PLwC behavior only for calls
 that actually pass through `plwc-gateway`.
 
 ## Hosted ChatGPT Web And Custom-App Status
 
-The local GPT stdio route above is distinct from a hosted ChatGPT web/custom
-app. The Dev 9 MCPB cannot be uploaded as a ChatGPT web app. Hosted ChatGPT
+The local GPT stdio and PLwC Chat Bridge routes are distinct from a hosted
+ChatGPT custom app. The 1.0 MCPB cannot be uploaded as a ChatGPT web app. Hosted ChatGPT
 connects to remote MCP infrastructure; local or private servers require a
 reachable HTTPS MCP endpoint or OpenAI Secure MCP Tunnel. The current PLwC
 package exposes a local stdio server and does not yet implement the
 authenticated remote facade required by `V1-REMOTE-MCP-FACADE-001`.
 
-Therefore the current Open Beta instructions are:
+For a hosted custom-app deployment, the current 1.0 instructions are:
 
 - do not upload the `.mcpb` file to ChatGPT;
 - do not point a public tunnel directly at the raw PLwC gateway;
@@ -411,7 +406,7 @@ block profile onboarding solely because Docker is absent.
 ## Profile Selection Through Chat
 
 Claude Desktop MCPB user configuration cannot be assumed to support dynamic
-profile dropdowns or buttons in the Dev 9 Open Beta. The `active_profile_name` field may
+profile dropdowns or buttons in the 1.0 release. The `active_profile_name` field may
 remain a text field, but users do not need to type profile directory names
 blindly.
 

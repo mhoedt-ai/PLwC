@@ -1,12 +1,22 @@
 import { WebSocket, WebSocketServer } from "ws";
 
+import { BUILD_IDENTITY } from "./build-identity.js";
 import type { BridgeConfig } from "./config.js";
 import { ToolContractError } from "./contract.js";
+import {
+  APPROVED_EXTENSION_WEB_SOCKET_ORIGINS,
+  EXTENSION_IDENTITY_CONTRACT,
+} from "./extension-identity.js";
 import { parseGatewaySettingsUpdate, type BridgeSession } from "./gateway-session.js";
 import { failure, parseRequest, RpcFault, success, type JsonRpcRequest } from "./rpc.js";
 
 const MAX_PAYLOAD_BYTES = 1024 * 1024;
-const CHROME_EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;
+export const TOOL_CALL_HEARTBEAT_METHOD = "bridge/heartbeat";
+const TOOL_CALL_HEARTBEAT_INTERVAL_MS = 5_000;
+
+if (EXTENSION_IDENTITY_CONTRACT.releaseVersion !== BUILD_IDENTITY.releaseVersion) {
+  throw new Error("PLwC extension identity and common build versions do not match.");
+}
 
 function requireEmptyParams(request: JsonRpcRequest): void {
   if (request.params !== undefined && Object.keys(request.params).length > 0) {
@@ -51,6 +61,7 @@ export class LoopbackBridgeServer {
   constructor(
     private readonly config: BridgeConfig["bridge"],
     private readonly session: BridgeSession,
+    private readonly toolCallHeartbeatIntervalMs = TOOL_CALL_HEARTBEAT_INTERVAL_MS,
   ) {}
 
   async start(): Promise<void> {
@@ -66,7 +77,11 @@ export class LoopbackBridgeServer {
       maxPayload: MAX_PAYLOAD_BYTES,
       perMessageDeflate: false,
       verifyClient: ({ origin }, done) => {
-        done(typeof origin === "string" && CHROME_EXTENSION_ORIGIN.test(origin), 403, "Extension origin required");
+        done(
+          origin !== undefined && APPROVED_EXTENSION_WEB_SOCKET_ORIGINS.has(origin),
+          403,
+          "Approved PLwC extension origin required",
+        );
       },
     });
 
@@ -115,21 +130,40 @@ export class LoopbackBridgeServer {
 
   private async handleMessage(socket: WebSocket, source: string | undefined): Promise<void> {
     let request: JsonRpcRequest | undefined;
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
     try {
       if (source === undefined) {
         throw new RpcFault(-32600, "Binary requests are not supported.");
       }
       request = parseRequest(source);
+      if (request.method === "tools/call") {
+        const startedAt = Date.now();
+        heartbeat = setInterval(() => {
+          this.send(socket, JSON.stringify({
+            jsonrpc: "2.0",
+            method: TOOL_CALL_HEARTBEAT_METHOD,
+            params: {
+              elapsed_ms: Date.now() - startedAt,
+              request_id: request!.id,
+            },
+          }));
+        }, this.toolCallHeartbeatIntervalMs);
+      }
       const result = await this.dispatch(request);
       this.send(socket, success(request.id, result));
     } catch (error) {
       const fault = publicFault(error);
       this.send(socket, failure(request?.id ?? null, { code: fault.code, message: fault.message }));
+    } finally {
+      if (heartbeat !== undefined) clearInterval(heartbeat);
     }
   }
 
   private async dispatch(request: JsonRpcRequest): Promise<unknown> {
     switch (request.method) {
+      case "build/identity":
+        requireEmptyParams(request);
+        return BUILD_IDENTITY;
       case "ping":
         requireEmptyParams(request);
         return { ok: true };

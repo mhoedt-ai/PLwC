@@ -1,6 +1,6 @@
 {
   "name": "@plwc/chat-bridge-workspace",
-  "version": "0.2.0-rc19.dev10",
+  "version": "1.0.0",
   "private": true,
   "description": "Build coordinator for PLwC Chat Bridge",
   "license": "Apache-2.0 AND MIT",
@@ -10,7 +10,9 @@
   "scripts": {
     "install:packages": "npm --prefix bridge install && npm --prefix extension install",
     "build": "npm --prefix bridge run build && npm --prefix extension run build",
+    "build:native:windows": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File ./scripts/install-native-launcher-windows.ps1 -BuildOnly",
     "test": "npm --prefix bridge test && npm --prefix extension test",
-    "check": "npm run build && npm test"
+    "check": "npm run build && npm test",
+    "check:windows": "npm run check && npm run build:native:windows"
   }
 }

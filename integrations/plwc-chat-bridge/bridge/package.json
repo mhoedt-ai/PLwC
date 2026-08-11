@@ -1,6 +1,6 @@
 {
   "name": "@plwc/chat-bridge-loopback",
-  "version": "0.2.0-rc19.dev10",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,7 +10,7 @@
     "build": "tsc -p tsconfig.json",
     "smoke": "npm run build && node scripts/smoke.mjs --config ../config/plwc.example.json",
     "start": "node dist/src/index.js",
-    "test": "npm run build && node --test dist/test/config.test.js dist/test/contract.test.js dist/test/rpc.test.js dist/test/server.test.js",
+    "test": "npm run build && node --test dist/test/build-identity.test.js dist/test/config.test.js dist/test/contract.test.js dist/test/extension-identity.test.js dist/test/gateway-settings-store.test.js dist/test/healthcheck.test.js dist/test/rpc.test.js dist/test/server.test.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

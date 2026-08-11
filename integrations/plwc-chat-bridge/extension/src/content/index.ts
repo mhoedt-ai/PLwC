@@ -1,5 +1,6 @@
 import { BridgeClient } from "./bridge-client";
 import { PlwcChatRenderer } from "./chat-renderer";
+import { observePlwcChainStalls } from "./chain-recovery";
 import { observePlwcToolCalls } from "./tool-call-observer";
 import { PlwcPanel } from "../panel/plwc-panel";
 
@@ -15,5 +16,9 @@ if (ALLOWED_HOSTS.has(location.hostname) && !document.getElementById(HOST_ID)) {
   const panel = new PlwcPanel(shadowRoot, new BridgeClient(), chatRenderer);
   panel.mount();
   chatRenderer.mount();
-  observePlwcToolCalls((call) => panel.offerToolCall(call));
+  observePlwcToolCalls({
+    onCall: (call) => panel.offerToolCall(call),
+    onConflict: (conflict) => panel.offerToolCallConflict(conflict),
+  });
+  observePlwcChainStalls(() => panel.recoverStalledChain());
 }

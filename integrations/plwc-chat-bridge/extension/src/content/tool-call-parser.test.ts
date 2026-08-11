@@ -9,36 +9,49 @@ import {
   type ToolCallTextCandidate,
 } from './tool-call-parser.js';
 
-function jsonlCall(
+function wrappedCall(
   name: PlwcToolName | string,
   callId: number | string,
   parameters: ReadonlyArray<readonly [string, JsonValue]> = [],
 ): string {
-  return [
-    JSON.stringify({ type: 'function_call_start', name, call_id: callId }),
-    JSON.stringify({ type: 'description', text: `Run ${name}` }),
-    ...parameters.map(([key, value]) => JSON.stringify({ type: 'parameter', key, value })),
-    JSON.stringify({ type: 'function_call_end', call_id: callId }),
-  ].join('\n');
+  return JSON.stringify({
+    plwc_tool_call: {
+      arguments: Object.fromEntries(parameters),
+      call_id: callId,
+      name,
+    },
+  });
+}
+
+function wrappedCallWithEnvelope(
+  envelope: Record<string, unknown>,
+): string {
+  return JSON.stringify({ plwc_tool_call: envelope });
 }
 
 function visible(text: string, overrides: Partial<ToolCallTextCandidate> = {}): ToolCallTextCandidate {
-  return { text, visible: true, sourceKind: 'rendered', ...overrides };
+  return {
+    conversationId: '/c/parser-test',
+    text,
+    visible: true,
+    sourceKind: 'rendered',
+    ...overrides,
+  };
 }
 
 test('accepts exactly the eight canonical PLwC tool names', () => {
   const calls = parseVisiblePlwcToolCalls(
-    PLWC_TOOL_NAMES.map((name, index) => visible(jsonlCall(name, index + 1))),
+    PLWC_TOOL_NAMES.map((name, index) => visible(wrappedCall(name, index + 1))),
   );
 
   assert.deepEqual(calls.map(call => call.name), PLWC_TOOL_NAMES);
   assert.equal(calls.length, 8);
 });
 
-test('parses fenced JSONL and preserves nested JSON argument values', () => {
+test('parses fenced wrapper JSON and preserves nested JSON argument values', () => {
   const text = [
-    '```jsonl',
-    jsonlCall('plwc_governor', 'plan-17', [
+    '```json',
+    wrappedCall('plwc_governor', 'plan-17', [
       ['operation', 'plan'],
       ['confirmed', false],
       ['onboarding_answers', { goals: ['clarity', 'continuity'], score: 0.75 }],
@@ -60,67 +73,101 @@ test('parses fenced JSONL and preserves nested JSON argument values', () => {
   });
 });
 
-test('rejects unknown, legacy, and near-match tool names', () => {
+test('parses the current ChatGPT language label joined directly to wrapper JSON', () => {
+  const payload = wrappedCall('plwc_status', 'live-dom-1', [['scope', 'runtime']]);
+
+  for (const text of [`JSON${payload}`, `json ${payload}`]) {
+    const [call] = parseVisiblePlwcToolCalls([visible(text)]);
+    assert.equal(call?.callId, 'live-dom-1');
+    assert.equal(call?.name, 'plwc_status');
+    assert.deepEqual(call?.arguments, { scope: 'runtime' });
+  }
+
+  assert.deepEqual(parseVisiblePlwcToolCalls([visible(`javascript${payload}`)]), []);
+});
+
+test('normalizes ChatGPT non-breaking indentation without changing string content', () => {
+  const payload = [
+    '{',
+    '\u00a0\u00a0"plwc_tool_call": {',
+    '\u00a0\u00a0\u00a0\u00a0"name": "plwc_status",',
+    '\u00a0\u00a0\u00a0\u00a0"call_id": "live-nbsp-1",',
+    '\u00a0\u00a0\u00a0\u00a0"arguments": {"scope": "run\u00a0time"}',
+    '\u00a0\u00a0}',
+    '}',
+  ].join('\n');
+
+  const [call] = parseVisiblePlwcToolCalls([visible(`json\n${payload}`)]);
+  assert.equal(call?.callId, 'live-nbsp-1');
+  assert.deepEqual(call?.arguments, { scope: 'run\u00a0time' });
+});
+
+test('ignores event-shaped tool JSON', () => {
+  const text = JSON.stringify({
+    call_id: 'workspace-list-17',
+    name: 'plwc_workspace_operation',
+    type: 'tool_event_start',
+  });
+
+  assert.deepEqual(parseVisiblePlwcToolCalls([visible(text)]), []);
+});
+
+test('rejects unknown and near-match tool names', () => {
   for (const name of ['plwc_governor_apply', 'plwc_status ', 'PLWC_STATUS', 'unknown_tool']) {
-    assert.deepEqual(parseVisiblePlwcToolCalls([visible(jsonlCall(name, 1))]), []);
+    assert.deepEqual(parseVisiblePlwcToolCalls([visible(wrappedCall(name, 1))]), []);
   }
 });
 
 test('fails closed for malformed JSON without returning a preceding partial call', () => {
   const malformed = [
-    jsonlCall('plwc_status', 1, [['scope', 'runtime']]),
-    '{"type":"function_call_start","name":"plwc_profile","call_id":2',
+    wrappedCall('plwc_status', 1, [['scope', 'runtime']]),
+    '{"plwc_tool_call":{"name":"plwc_profile","call_id":2',
   ].join('\n');
 
   assert.deepEqual(parseVisiblePlwcToolCalls([visible(malformed)]), []);
 });
 
-test('rejects incomplete calls, mismatched IDs, unknown events, and extra fields', () => {
-  const incomplete = jsonlCall('plwc_status', 1).split('\n').slice(0, -1).join('\n');
-  const mismatchedId = jsonlCall('plwc_status', 1).replace(
-    '{"type":"function_call_end","call_id":1}',
-    '{"type":"function_call_end","call_id":2}',
-  );
-  const unknownEvent = jsonlCall('plwc_status', 1).replace(
-    '{"type":"description","text":"Run plwc_status"}',
-    '{"type":"execute","text":"Run plwc_status"}',
-  );
-  const extraField = jsonlCall('plwc_status', 1).replace(
-    '{"type":"function_call_end","call_id":1}',
-    '{"type":"function_call_end","call_id":1,"execute":true}',
-  );
+test('rejects incomplete wrappers, direct objects, and extra fields', () => {
+  const incomplete = wrappedCallWithEnvelope({ call_id: 1, name: 'plwc_status' });
+  const directObject = JSON.stringify({ arguments: { scope: 'runtime' }, call_id: 1, name: 'plwc_status' });
+  const extraTopLevel = JSON.stringify({
+    extra: true,
+    plwc_tool_call: { arguments: { scope: 'runtime' }, call_id: 1, name: 'plwc_status' },
+  });
+  const extraEnvelope = wrappedCallWithEnvelope({
+    arguments: { scope: 'runtime' },
+    call_id: 1,
+    execute: true,
+    name: 'plwc_status',
+  });
 
-  for (const text of [incomplete, mismatchedId, unknownEvent, extraField]) {
+  for (const text of [incomplete, directObject, extraTopLevel, extraEnvelope]) {
     assert.deepEqual(parseVisiblePlwcToolCalls([visible(text)]), []);
   }
 });
 
-test('rejects duplicate, empty, and prototype-sensitive argument keys', () => {
-  const duplicate = jsonlCall('plwc_workspace_operation', 1, [
-    ['path', 'first.txt'],
-    ['path', 'second.txt'],
-  ]);
-  const empty = jsonlCall('plwc_status', 2, [['', 'runtime']]);
-  const prototypeKey = jsonlCall('plwc_status', 3, [['__proto__', 'runtime']]);
-  const nestedPrototypeKey = jsonlCall('plwc_governor', 4, [
+test('rejects empty and prototype-sensitive argument keys', () => {
+  const empty = wrappedCall('plwc_status', 2, [['', 'runtime']]);
+  const prototypeKey = wrappedCall('plwc_status', 3, [['__proto__', 'runtime']]);
+  const nestedPrototypeKey = wrappedCall('plwc_governor', 4, [
     ['onboarding_answers', JSON.parse('{"safe":{"constructor":"blocked"}}') as JsonValue],
   ]);
 
-  for (const text of [duplicate, empty, prototypeKey, nestedPrototypeKey]) {
+  for (const text of [empty, prototypeKey, nestedPrototypeKey]) {
     assert.deepEqual(parseVisiblePlwcToolCalls([visible(text)]), []);
   }
 });
 
 test('deduplicates by a stable key and prefers rendered text over editor copies', () => {
   const editorCopy = visible(
-    jsonlCall('plwc_workspace_operation', 'call-9', [
+    wrappedCall('plwc_workspace_operation', 'call-9', [
       ['path', 'notes.txt'],
       ['operation', 'read'],
     ]),
     { sourceId: 'editor-copy', sourceKind: 'editor-copy' },
   );
   const rendered = visible(
-    jsonlCall('plwc_workspace_operation', 'call-9', [
+    wrappedCall('plwc_workspace_operation', 'call-9', [
       ['operation', 'read'],
       ['path', 'notes.txt'],
     ]),
@@ -142,15 +189,44 @@ test('deduplicates by a stable key and prefers rendered text over editor copies'
   const editorKey = editorCall.callKey;
   const renderedKey = renderedCall.callKey;
   assert.equal(editorKey, renderedKey);
+  assert.equal(editorCall.callSignatureKey, renderedCall.callSignatureKey);
+});
+
+test('uses conversation_id and call_id as identity while keeping payload changes detectable', () => {
+  const original = visible(
+    wrappedCall('plwc_status', 'shared-call', [['scope', 'runtime']]),
+    { conversationId: '/c/first' },
+  );
+  const changed = visible(
+    wrappedCall('plwc_status', 'shared-call', [['scope', 'config']]),
+    { conversationId: '/c/first' },
+  );
+  const otherConversation = visible(
+    wrappedCall('plwc_status', 'shared-call', [['scope', 'runtime']]),
+    { conversationId: '/c/second' },
+  );
+
+  const [firstCall, changedCall, otherConversationCall] = parseVisiblePlwcToolCalls([
+    original,
+    changed,
+    otherConversation,
+  ]);
+
+  assert.ok(firstCall);
+  assert.ok(changedCall);
+  assert.ok(otherConversationCall);
+  assert.equal(firstCall.callKey, changedCall.callKey);
+  assert.notEqual(firstCall.callSignatureKey, changedCall.callSignatureKey);
+  assert.notEqual(firstCall.callKey, otherConversationCall.callKey);
 });
 
 test('ignores hidden editor copies even when they appear before visible content', () => {
-  const hiddenCopy = visible(jsonlCall('plwc_status', 1, [['scope', 'config']]), {
+  const hiddenCopy = visible(wrappedCall('plwc_status', 1, [['scope', 'config']]), {
     visible: false,
     sourceId: 'hidden-editor-copy',
     sourceKind: 'editor-copy',
   });
-  const rendered = visible(jsonlCall('plwc_status', 1, [['scope', 'runtime']]), {
+  const rendered = visible(wrappedCall('plwc_status', 1, [['scope', 'runtime']]), {
     sourceId: 'rendered-code',
   });
 
@@ -161,9 +237,9 @@ test('ignores hidden editor copies even when they appear before visible content'
   assert.deepEqual(call.arguments, { scope: 'runtime' });
 });
 
-test('does not interpret arbitrary prose or direct JSON objects as JSONL events', () => {
-  const prose = `Please run this: ${jsonlCall('plwc_status', 1)}`;
-  const directObject = JSON.stringify({ name: 'plwc_status', call_id: 1, parameters: {} });
+test('does not interpret arbitrary prose or direct JSON objects as tool calls', () => {
+  const prose = `Please run this: ${wrappedCall('plwc_status', 1)}`;
+  const directObject = JSON.stringify({ name: 'plwc_status', call_id: 1, arguments: {} });
 
   assert.deepEqual(parseVisiblePlwcToolCalls([visible(prose)]), []);
   assert.deepEqual(parseVisiblePlwcToolCalls([visible(directObject)]), []);

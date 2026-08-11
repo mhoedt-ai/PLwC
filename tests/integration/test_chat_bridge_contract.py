@@ -17,6 +17,8 @@ from plwc_gateway.mcp.server import build_mcp_server
 
 ROOT = Path(__file__).resolve().parents[2]
 BRIDGE_CONFIG = ROOT / "integrations" / "plwc-chat-bridge" / "config" / "plwc.example.json"
+BRIDGE_ROOT = ROOT / "integrations" / "plwc-chat-bridge"
+BUILD_IDENTITY = BRIDGE_ROOT / "build-identity.json"
 EXTENSION_ROOT = ROOT / "integrations" / "plwc-chat-bridge" / "extension"
 EXTENSION_MANIFEST = EXTENSION_ROOT / "src" / "manifest.json"
 EXTENSION_ICON = EXTENSION_ROOT / "public" / "icons" / "plwc-icon-512.png"
@@ -52,6 +54,33 @@ def test_bridge_example_config_is_loopback_only_and_requires_eight_tools() -> No
     assert config["tools"] == {
         "publicFacadeOnly": True,
         "expectedPublicToolCount": len(EXPECTED_PUBLIC_TOOLS),
+    }
+
+
+def test_shared_build_identity_matches_release_and_component_sources() -> None:
+    identity = json.loads(BUILD_IDENTITY.read_text(encoding="utf-8"))
+    workspace_package = json.loads((BRIDGE_ROOT / "package.json").read_text(encoding="utf-8"))
+    bridge_package = json.loads((BRIDGE_ROOT / "bridge" / "package.json").read_text(encoding="utf-8"))
+    extension_package = json.loads((BRIDGE_ROOT / "extension" / "package.json").read_text(encoding="utf-8"))
+    extension_manifest = json.loads(EXTENSION_MANIFEST.read_text(encoding="utf-8"))
+
+    assert identity["schemaVersion"] == 1
+    assert identity["buildId"] == f"plwc-chat-bridge@{identity['releaseVersion']}"
+    assert identity["installer"] == {
+        "componentId": "chat-bridge",
+        "directoryName": f"chat-bridge-{identity['releaseVersion']}",
+    }
+    assert identity["releaseVersion"] == workspace_package["version"]
+    assert identity["components"] == {
+        "nodeBridge": bridge_package["version"],
+        "browserExtension": extension_package["version"],
+        "nativeLauncher": identity["releaseVersion"],
+    }
+    assert identity["components"]["browserExtension"] == extension_manifest["version_name"]
+    assert identity["components"] == {
+        "nodeBridge": identity["releaseVersion"],
+        "browserExtension": identity["releaseVersion"],
+        "nativeLauncher": identity["releaseVersion"],
     }
 
 

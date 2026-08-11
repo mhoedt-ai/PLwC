@@ -56,11 +56,11 @@ Pick one role for a test pass.
 - A disposable workspace and, if profile/governance behavior is tested, a
   disposable profile.
 
-Current baseline:
+Current 1.0 acceptance candidate:
 
 ```text
-Package: plwc-gateway-0.2.0-rc18.dev9.mcpb
-SHA256: 2F71AC903BF85CC70023805EC0F901E84C4294982C1B59940350DB3591A2D345
+Package: plwc-gateway-1.0.0.mcpb
+SHA256: 5E870F40B9B3FAEA79D3997AF9C657EF62C11295E85635A049214F7B63678FE7
 Signature: unsigned
 ```
 

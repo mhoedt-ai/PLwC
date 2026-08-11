@@ -14,12 +14,24 @@ automatically. A validated settings update may restart only that managed child.
 - The tool contract is checked at startup and again before every tool call.
 - Unknown, missing or duplicate tools fail closed.
 - WebSocket requests require JSON-RPC 2.0 and non-negative numeric IDs.
-- Only `ping`, `tools/list`, `tools/call`, `settings/get`, `settings/update` and
-  `settings/reset` are exposed.
+- Only `ping`, `build/identity`, `tools/list`, `tools/call`, `settings/get`,
+  `settings/update` and `settings/reset` are exposed.
+- `build/identity` returns the canonical integration build ID, its installer
+  component and directory identity, and the separate Node Bridge, extension
+  and native launcher versions.
 - `settings/get` returns only the nine PLwC MCPB configuration values; it never
   serializes the complete bridge environment.
-- `settings/update` accepts exactly those nine values and serializes child
-  restarts; `settings/reset` restores the launcher's imported environment.
+- `settings/update` accepts exactly those nine values, atomically persists the
+  shared PLwC settings, mirrors installed Claude MCPB settings, and serializes
+  child restarts. Its profile value is a bootstrap fallback only.
+- Governed `active_profile.json` state is owned exclusively by confirmed
+  profile creation or activation flows. Settings updates, rollback and reset
+  never overwrite or delete it.
+- An update succeeds only after runtime status confirms a self-consistent
+  effective profile. A failed update restores the previous shared files and
+  managed gateway child; the bridge listener remains usable.
+- `settings/reset` removes the shared override and restores the launcher's
+  imported environment while preserving governed profile state.
 - Gateway and configuration errors returned to clients are bounded and never
   contain command lines, environment values or local paths.
 
@@ -72,3 +84,5 @@ npm start -- --config <config.json>
 ```
 
 `npm test` builds the TypeScript sources, then runs the focused Node test suite.
+The health check verifies `build/identity` before the exact eight-tool contract
+and rejects a bridge from a different common build.
