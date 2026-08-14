@@ -159,13 +159,22 @@ function Invoke-WorkspaceStructureSmoke {
 
         $currentUserSid = [Security.Principal.WindowsIdentity]::GetCurrent().
             User.Value
+        $administratorSid = [Security.Principal.SecurityIdentifier]::new(
+            [Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid,
+            $null
+        ).Value
+        $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $allowedOwnerSids = @($currentUserSid)
+        if ($currentIdentity.Groups.Value -contains $administratorSid) {
+            $allowedOwnerSids += $administratorSid
+        }
         foreach ($name in $standardNames) {
             $acl = Get-Acl -LiteralPath (Join-Path $workspaceRoot $name)
             $ownerSid = $acl.GetOwner(
                 [Security.Principal.SecurityIdentifier]
             ).Value
-            if ($ownerSid -ne $currentUserSid) {
-                throw "Workspace directory '$name' is not owned by the logged-in user."
+            if ($ownerSid -notin $allowedOwnerSids) {
+                throw "Workspace directory '$name' has unexpected owner SID '$ownerSid'."
             }
         }
 

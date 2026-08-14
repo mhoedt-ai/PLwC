@@ -36,7 +36,7 @@ $oversizedFiles = @(
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "Tracked path is missing from the checkout: $path"
         }
-        $file = Get-Item -LiteralPath $path
+        $file = Get-Item -LiteralPath $path -Force
         if ($file.Length -gt $maximumPublicFileBytes) {
             "{0} bytes  {1}" -f $file.Length, $path
         }

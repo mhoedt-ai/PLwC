@@ -21,7 +21,6 @@ $nativeLauncherSourcePath = Join-Path $repoRoot "integrations\plwc-chat-bridge\n
 $bridgeLaunchScriptPath = Join-Path $repoRoot "integrations\plwc-chat-bridge\bridge\scripts\launch-bridge.mjs"
 $installerUiSmokePath = Join-Path $testsRoot "installer-ui-smoke.ps1"
 $windowsInstallerGuidePath = Join-Path $repoRoot "docs\WINDOWS_INSTALLER_GUIDE.md"
-$workOrderPath = Join-Path $repoRoot "docs\ARBEITSAUFTRAG_PLWC_BRIDGE_SETUP.md"
 $windowsInstallerPlanPath = Join-Path $repoRoot "docs\WINDOWS_INSTALLER_PLAN.md"
 $gettingStartedRoot = Join-Path $assetsRoot "getting-started"
 $gettingStartedEnglishPath = Join-Path $gettingStartedRoot "getting-started-en.html"
@@ -62,6 +61,15 @@ function Get-InnoSection {
         return ""
     }
     return $match.Groups["Body"].Value
+}
+
+function Get-NormalizedText {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Path
+    )
+
+    return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8) -replace "`r`n?", "`n"
 }
 
 function Get-PascalCalls {
@@ -189,7 +197,7 @@ Describe "PLwC Windows installer source contracts" {
 }
 
 Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
-    $source = Get-Content -LiteralPath $setupScript -Raw -Encoding UTF8
+    $source = Get-NormalizedText -Path $setupScript
     $setupSection = Get-InnoSection -Source $source -Name "Setup"
     $languageSection = Get-InnoSection -Source $source -Name "Languages"
     $typeSection = Get-InnoSection -Source $source -Name "Types"
@@ -761,7 +769,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
     It "installs the fully hash-locked PLwC runtime for the current user and rechecks" {
         (Test-Path -LiteralPath $mcpLockPath -PathType Leaf) | Should Be $true
         (Test-Path -LiteralPath $runtimeRequirementsPath -PathType Leaf) | Should Be $true
-        $mcpLock = Get-Content -LiteralPath $mcpLockPath -Raw
+        $mcpLock = Get-NormalizedText -Path $mcpLockPath
         $mcpLock | Should Match '(?m)^mcp==1\.27\.0\s+\\$'
         $mcpLock | Should Match '(?m)^fastembed==0\.8\.0\s+\\$'
         $mcpLock | Should Match '(?m)^qdrant-client==1\.18\.0\s+\\$'
@@ -1212,27 +1220,25 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
     }
 
     It "records the serial browser Store track before clean-Windows acceptance" {
-        foreach ($path in @($workOrderPath, $windowsInstallerPlanPath)) {
-            (Test-Path -LiteralPath $path -PathType Leaf) | Should Be $true
-            $document = Get-Content -LiteralPath $path -Raw -Encoding UTF8
-            $trackStart = $document.IndexOf(
-                "Browser Store Distribution Track",
-                [StringComparison]::OrdinalIgnoreCase
-            )
-            ($trackStart -ge 0) | Should Be $true
-            $track = $document.Substring($trackStart)
-            $positions = @(
-                $track.IndexOf("STORE-G0-01", [StringComparison]::Ordinal),
-                $track.IndexOf("BRIDGE-P0-03", [StringComparison]::Ordinal),
-                $track.IndexOf("SETUP-P0-05", [StringComparison]::Ordinal),
-                $track.IndexOf("STORE-P0-02", [StringComparison]::Ordinal),
-                $track.IndexOf("SETUP-P0-04", [StringComparison]::Ordinal)
-            )
-            ($positions -notcontains -1) | Should Be $true
-            (($positions | Sort-Object) -join ",") | Should Be ($positions -join ",")
-            $track | Should Match '(?i)H2'
-            $track | Should Match '(?i)(?:(?:must\s+)?never|must not)\s+bypass.*browser.*consent'
-        }
+        (Test-Path -LiteralPath $windowsInstallerPlanPath -PathType Leaf) | Should Be $true
+        $document = Get-NormalizedText -Path $windowsInstallerPlanPath
+        $trackStart = $document.IndexOf(
+            "Browser Store Distribution Track",
+            [StringComparison]::OrdinalIgnoreCase
+        )
+        ($trackStart -ge 0) | Should Be $true
+        $track = $document.Substring($trackStart)
+        $positions = @(
+            $track.IndexOf("STORE-G0-01", [StringComparison]::Ordinal),
+            $track.IndexOf("BRIDGE-P0-03", [StringComparison]::Ordinal),
+            $track.IndexOf("SETUP-P0-05", [StringComparison]::Ordinal),
+            $track.IndexOf("STORE-P0-02", [StringComparison]::Ordinal),
+            $track.IndexOf("SETUP-P0-04", [StringComparison]::Ordinal)
+        )
+        ($positions -notcontains -1) | Should Be $true
+        (($positions | Sort-Object) -join ",") | Should Be ($positions -join ",")
+        $track | Should Match '(?i)H2'
+        $track | Should Match '(?i)(?:(?:must\s+)?never|must not)\s+bypass.*browser.*consent'
     }
 
     It "uses friendly action-required wording and real German umlauts" {

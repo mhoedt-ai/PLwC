@@ -646,9 +646,10 @@ function Write-PayloadManifest {
             Measure-Object -Sum
     ).Sum)
     $payloadSizeMiB = [int] [Math]::Ceiling($payloadSizeBytes / 1MB)
+    $mcpbAvailable = -not [string]::IsNullOrWhiteSpace($McpbArtifact)
     $components = @(
         [ordered]@{ id = "gateway"; required = $true; available = $true; version = $GatewayVersion },
-        [ordered]@{ id = "claude-mcpb"; required = $false; available = ($null -ne $McpbArtifact); version = $(if ($null -ne $McpbArtifact) { $GatewayVersion } else { $null }) },
+        [ordered]@{ id = "claude-mcpb"; required = $false; available = $mcpbAvailable; version = $(if ($mcpbAvailable) { $GatewayVersion } else { $null }) },
         [ordered]@{ id = "stdio-codex"; required = $false; available = $true; version = $GatewayVersion },
         [ordered]@{ id = "stdio-odysseus"; required = $false; available = $true; version = $GatewayVersion },
         [ordered]@{
