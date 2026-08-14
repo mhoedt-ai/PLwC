@@ -79,4 +79,7 @@ if ($contentFindings.Count -ne 0) {
     throw "The public snapshot content scan failed:`n$($contentFindings -join [Environment]::NewLine)"
 }
 
+# `git grep` uses exit code 1 for a successful no-match result. The result is
+# handled above, so do not leak that native status as the pwsh process status.
+$global:LASTEXITCODE = 0
 Write-Output ("Public snapshot check passed for {0} tracked files." -f $trackedFiles.Count)
