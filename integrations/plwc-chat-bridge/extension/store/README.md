@@ -11,7 +11,7 @@ website deployment, draft-item creation, certification, and publication.
 ## Artifact index
 
 - `official-requirements.md` records the official Chrome and Microsoft sources
-  verified on 2026-08-09 and the requirements derived from them.
+  verified on 2026-08-15 and the requirements derived from them.
 - `store-contract.json` is the public-only identity and URL contract. It must
   never contain account identifiers, credentials, tokens, payment data, or
   recovery material.
@@ -20,6 +20,9 @@ website deployment, draft-item creation, certification, and publication.
 - `listing-en.md` contains English listing copy, privacy-field answers,
   permission justifications, reviewer instructions, and the screenshot plan.
 - `publisher-draft-id-checklist.md` is the Product Owner handoff checklist.
+- `submission-checklist.md` binds the exact draft identities, packages, assets,
+  dashboard order, and remaining HOLD conditions without authorizing an upload.
+- `assets/` contains the reviewed static listing graphics and their hashes.
 - `public/chat-bridge/` contains the English privacy and support pages prepared
   for the existing `plwc.de` website.
 - `../scripts/build-store-packages.ps1` creates the final-candidate
@@ -27,14 +30,16 @@ website deployment, draft-item creation, certification, and publication.
 - `../scripts/test-store-packages.ps1` rebuilds the packages twice and verifies
   byte reproducibility, the four-entry allowlist, identity sidecars, hashes,
   development-key removal, source-map exclusion, and the secret scan.
+- `../scripts/build-store-listing-assets.ps1` derives the static listing icon,
+  Edge logo, and Chrome small promotional tile from the canonical PLwC icon.
 
 ## Public URL targets
 
 - Privacy: `https://plwc.de/chat-bridge/privacy/`
 - Support: `https://plwc.de/chat-bridge/support/`
 
-Both URLs and the shared branded stylesheet were externally verified over
-HTTPS on 2026-08-09. The non-`www` targets redirect once to the canonical
+Both URLs and the shared branded stylesheet were externally reverified over
+HTTPS on 2026-08-15. The non-`www` targets redirect once to the canonical
 `www.plwc.de` host and return the intended public, indexable content with a
 successful status. Their Store-contract status is therefore `verified`.
 
@@ -65,6 +70,7 @@ Run from the extension directory on Windows:
 ```powershell
 npm run test:store:windows
 npm run build:store:windows
+npm run build:store:assets:windows
 ```
 
 The builder creates these ignored local artifacts under `store/out/`:
@@ -94,6 +100,10 @@ The final browser/native acceptance must use the real Store identities. Five
 final 1280 x 800 screenshots and a versioned public Setup artifact URL remain
 external completion evidence and must not be replaced with fixture screenshots
 or an unpublished local EXE.
+
+Only the two ZIP files are browser-dashboard upload candidates. Their adjacent
+identity JSON files and everything under `assets/` are evidence or listing
+material, not extension-package uploads.
 
 ## Security boundary
 

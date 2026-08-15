@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node ./scripts/build.mjs",
+    "build:store:assets:windows": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-store-listing-assets.ps1",
     "build:store:windows": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-store-packages.ps1",
     "build:fixture": "node ./scripts/build-browser-fixture.mjs",
     "typecheck": "tsc --noEmit",

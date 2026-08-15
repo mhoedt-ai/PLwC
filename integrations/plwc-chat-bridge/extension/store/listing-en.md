@@ -2,7 +2,7 @@
 
 Prepared for Chrome Web Store and Microsoft Edge Add-ons.
 
-Status: complete English form copy and asset specification for the current
+Status: complete English form copy and static listing assets for the current
 multi-identity build. Do not submit until the exact versioned public Setup
 artifact URL, five final Store-ID screenshots, live Chrome/Brave/Edge Native
 Messaging acceptance, and renewed H2 handoff have been recorded.
@@ -187,10 +187,12 @@ OpenAI as part of the reviewer's ChatGPT session.
 
 ## Screenshot and promotional-asset plan
 
-Asset status: the specification is complete, but the five submission
-screenshots are intentionally pending until the final packages have been loaded
-under their real Store identities with the exact public Setup candidate. Local
-fixture or development-ID captures must not be labeled as final Store evidence.
+Asset status: the static icon, Edge logo, and small promotional tile are ready
+under `assets/` and recorded with dimensions and hashes in `assets/README.md`.
+The five submission screenshots are intentionally pending until the final
+packages have been loaded under their real Store identities with the exact
+public Setup candidate. Local fixture or development-ID captures must not be
+labeled as final Store evidence.
 
 Capture all screenshots from the final Store-ID build on a clean Windows 11
 test user with synthetic data. Do not show account email addresses, browser
@@ -212,13 +214,17 @@ and Edge:
 5. **Local settings and safety controls** — Settings tab with synthetic paths,
    default-off write/sandbox automation, and the red warnings visible.
 
-Additional assets:
+Ready static assets:
 
-- Chrome store icon: render the packaged source icon at 128 x 128 PNG.
-- Edge logo: render the same source at 300 x 300 PNG.
-- Small promotional tile: 440 x 280 PNG, PLwC icon and the concise line
-  `Local governance bridge for ChatGPT`; no Store ranking or certification
+- Chrome store icon: `assets/plwc-chat-bridge-icon-128.png`.
+- Edge logo: `assets/plwc-chat-bridge-edge-logo-300.png`.
+- Small promotional tile (440 x 280 PNG):
+  `assets/plwc-chat-bridge-small-promo-440x280.png`, using the concise line
+  `Local governance bridge for ChatGPT` without Store ranking or certification
   claims.
+
+Optional asset not currently required:
+
 - Optional Chrome marquee / Edge large tile: 1400 x 560 PNG using the same
   branding and no screenshot collage.
 - Edge allows a sixth screenshot; leave it unused unless certification needs a

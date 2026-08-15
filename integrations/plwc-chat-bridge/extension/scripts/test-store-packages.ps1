@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $builder = Join-Path $scriptRoot "build-store-packages.ps1"

@@ -1,6 +1,6 @@
 # Official Store Requirements Verified for STORE-G0-01
 
-Verification date: 2026-08-09
+Verification date: 2026-08-15
 
 Scope: requirements for establishing publisher ownership, creating unpublished
 extension items, preparing listing and privacy disclosures, and retaining a
