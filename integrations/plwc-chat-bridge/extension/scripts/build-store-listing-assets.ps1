@@ -63,7 +63,7 @@ function Write-SmallPromoTile {
     $bitmap = [Drawing.Bitmap]::new(
         440,
         280,
-        [Drawing.Imaging.PixelFormat]::Format32bppArgb
+        [Drawing.Imaging.PixelFormat]::Format24bppRgb
     )
     $graphics = [Drawing.Graphics]::FromImage($bitmap)
     $background = [Drawing.Drawing2D.LinearGradientBrush]::new(
