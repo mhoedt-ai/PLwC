@@ -945,7 +945,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
     }
 
     It "uses an unmistakable installer revision in the UI and artifact name" {
-        $source | Should Match '(?im)^\s*#define\s+InstallerRevision\s+"installer-r22"\s*$'
+        $source | Should Match '(?im)^\s*#define\s+InstallerRevision\s+"installer-r23"\s*$'
         $setupSection | Should Match '(?im)^\s*AppVerName=.*\{#InstallerRevision\}\)\s*$'
         $setupSection | Should Match '(?im)^\s*OutputBaseFilename=PLwC-Setup-\{#AppVersion\}-\{#InstallerRevision\}\s*$'
     }
@@ -961,7 +961,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $iconSection | Should Match '(?im)^Name:\s*"\{userdesktop\}\\\{cm:IconConfig\}";.*GetConfigurationPythonPath.*GetConfigurationArguments'
         $iconSection | Should Match '(?im)^Name:.*IconConfigFolder.*explorer\.exe.*GetConfigPath'
         $runSection | Should Match '(?im)^Filename:\s*"\{code:GetConfigurationPythonPath\}".*RunOpenConfiguration.*unchecked'
-        $codeSection | Should Match '(?is)function\s+GetConfigurationArguments.*?--project-root.*?--gateway-root.*?--workspace.*?--profiles.*?--active-profile.*?--memory-threshold.*?--persona-threshold.*?--temperament-threshold.*?--qdrant-enabled.*?--persona-layer-disabled.*?--language'
+        $codeSection | Should Match '(?is)function\s+GetConfigurationArguments.*?--project-root.*?--installer-config-root.*?--gateway-root.*?--workspace.*?--profiles.*?--active-profile.*?--memory-threshold.*?--persona-threshold.*?--temperament-threshold.*?--qdrant-enabled.*?--persona-layer-disabled.*?--language'
         $codeSection | Should Match '(?is)function\s+ConfigurationUiExists.*?plwc-config\.js.*?plwc-config\.css'
 
         $python = Get-Content -LiteralPath (Join-Path $configurationRoot "plwc-config.py") -Raw -Encoding UTF8
@@ -997,12 +997,37 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $source | Should Match '(?im)^\s*#define\s+NodeBridgeVersion\s+"1\.0\.0"\s*$'
         $source | Should Match '(?im)^\s*#define\s+BrowserExtensionVersion\s+"1\.0\.0"\s*$'
         $source | Should Match '(?im)^\s*#define\s+NativeLauncherVersion\s+"1\.0\.0"\s*$'
-        $source | Should Match '(?im)^\s*#define\s+BridgeDirectoryName\s+"chat-bridge-1\.0\.0"\s*$'
+        $source | Should Match '(?im)^\s*#define\s+BridgeDirectoryName\s+"bridge"\s*$'
+        $source | Should Match '(?is)ReadStoredPath\(''GatewayPath'',\s*LastAppRoot\s*\+\s*''\\gateway''\)'
+        $expectedBuildIdentity.installer.directoryName | Should Be "bridge"
         $source | Should Match '"track": "v1\.0\.0"'
         $componentManifest.product.chatBridgeVersion | Should Be $expectedBuildIdentity.releaseVersion
         (@($componentManifest.components | Where-Object { $_.id -eq "chat_bridge" })[0].version) |
             Should Be $expectedBuildIdentity.releaseVersion
         $componentManifestSource | Should Not Match '0\.2\.0-rc19\.dev\d+'
+    }
+
+    It "detects an existing installation and skips repeated directory questions during update" {
+        $codeSection | Should Match '(?is)function\s+DetectExistingInstall.*?selection\.ini.*?DirExists'
+        $codeSection | Should Match '(?is)function\s+HasCompleteExistingSettings.*?WorkspacePath.*?BackupsPath'
+        $codeSection | Should Match '(?is)function\s+ShouldSkipPage.*?ExistingSettingsComplete.*?RuntimeDirsPage.*?DataDirsPage.*?OperatingDirsPage.*?ProfilePage.*?RuntimeSettingsPage.*?RuntimeOptionsPage'
+        $codeSection | Should Match '(?is)procedure\s+InitializeWizard.*?ReadStoredPath\(''AppPath''.*?ReadStoredPath\(''GatewayPath''.*?ReadStoredPath\(''BridgePath''.*?ReadStoredPath\(''WorkspacePath'''
+        $customMessageSection | Should Match '(?im)^german\.ReadyUpdateMode=Vorhandene PLwC-Installation erkannt\.'
+    }
+
+    It "synchronizes the selected workspace into shared settings and later editable client references" {
+        $codeSection | Should Match '(?is)procedure\s+SynchronizeSharedSettings.*?--sync-installation.*?ewWaitUntilTerminated'
+        $codeSection | Should Match '(?is)procedure\s+SaveGeneratedFiles.*?SynchronizeSharedSettings'
+        $python = Get-Content -LiteralPath (Join-Path $configurationRoot "plwc-config.py") -Raw -Encoding UTF8
+        $javascript = Get-Content -LiteralPath (Join-Path $configurationRoot "plwc-config.js") -Raw -Encoding UTF8
+        $german = Get-Content -LiteralPath (Join-Path $configurationRoot "plwc-config-de.html") -Raw -Encoding UTF8
+        $python | Should Match 'def\s+sync_installation'
+        $python | Should Match 'def\s+_synchronize_workspace_references'
+        $python | Should Match 'installer_config_root'
+        $python | Should Match 'WorkspacePath'
+        $python | Should Match 'PLWC_WORKSPACE_ROOT'
+        $javascript | Should Match 'workspace_path:\s*elements\["workspace-input"\]'
+        $german | Should Match 'id="workspace-input"'
     }
 
     It "records one complete runtime build identity in summary diagnostics and selection state" {
@@ -1052,7 +1077,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $buildSource | Should Match '(?is)function\s+Get-InstallerRevision.*?PLwCSetup\.iss'
         $buildSource | Should Match '(?is)function\s+Write-InstallerBuildIdentity.*?Get-FileHash.*?InstallerPath.*?Get-FileHash.*?PayloadManifestPath'
         $buildSource | Should Match 'CHAT-BRIDGE-1\.0'
-        $buildSource | Should Match 'docs/evidence/CHAT_BRIDGE_1_0_ACCEPTANCE_EN\.md'
+        $buildSource | Should Match 'docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R23_ACCEPTANCE_EN\.md'
         foreach ($define in @(
             "InstallerRevision",
             "GatewayVersion",
@@ -1200,7 +1225,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         (Test-Path -LiteralPath $windowsInstallerGuidePath -PathType Leaf) | Should Be $true
         $guide = Get-Content -LiteralPath $windowsInstallerGuidePath -Raw -Encoding UTF8
         foreach ($requiredText in @(
-            '%APPDATA%\PLwC\app\chat-bridge-<version>\extension',
+            '%APPDATA%\PLwC\app\bridge\extension',
             '<selected Chat Bridge directory>\extension',
             'chrome://extensions',
             'brave://extensions',
@@ -1427,15 +1452,15 @@ Describe "PLwC Windows payload build gate" {
     It "binds staged payload metadata to the installer revision and component versions" {
         $manifest = Get-Content -LiteralPath (Join-Path $stageRoot "payload-manifest.json") -Raw | ConvertFrom-Json
         $expectedBuildIdentity = Get-Content -LiteralPath $bridgeBuildIdentityPath -Raw | ConvertFrom-Json
-        $manifest.installer.revision | Should Be "installer-r22"
+        $manifest.installer.revision | Should Be "installer-r23"
         $manifest.installer.artifactName | Should Be (
-            "PLwC-Setup-{0}-installer-r22.exe" -f $manifest.version
+            "PLwC-Setup-{0}-installer-r23.exe" -f $manifest.version
         )
         $manifest.installer.buildIdentityArtifact | Should Be (
-            "PLwC-{0}-installer-r22-build-identity.json" -f $manifest.version
+            "PLwC-{0}-installer-r23-build-identity.json" -f $manifest.version
         )
         $manifest.installer.evidencePackage | Should Be "CHAT-BRIDGE-1.0"
-        $manifest.installer.evidencePath | Should Be "docs/evidence/CHAT_BRIDGE_1_0_ACCEPTANCE_EN.md"
+        $manifest.installer.evidencePath | Should Be "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R23_ACCEPTANCE_EN.md"
         $componentManifest = Get-Content -LiteralPath $componentsManifestPath -Raw | ConvertFrom-Json
         $manifest.version | Should Be $componentManifest.product.releaseVersion
         $manifest.installer.components.gateway | Should Be $componentManifest.product.gatewayVersion

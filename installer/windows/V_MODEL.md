@@ -103,8 +103,8 @@ ueberstimmen.
 | Feld | Default |
 | --- | --- |
 | App root | `%APPDATA%\PLwC\app` |
-| Gateway runtime | `%APPDATA%\PLwC\app\gateway-<version>` |
-| Chat Bridge | `%APPDATA%\PLwC\app\chat-bridge-<version>` |
+| Gateway runtime | `%APPDATA%\PLwC\app\gateway` |
+| Chat Bridge | `%APPDATA%\PLwC\app\bridge` |
 | Workspace | `%APPDATA%\PLwC\workspace` |
 | Profiles | `%APPDATA%\PLwC\profiles` |
 | Global config | `%APPDATA%\PLwC\config` |

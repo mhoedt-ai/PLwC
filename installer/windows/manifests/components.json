@@ -107,7 +107,7 @@
             "type": "directory"
           },
           "destination": {
-            "path": "%APPDATA%\\PLwC\\app\\gateway-1.0.0",
+            "path": "%APPDATA%\\PLwC\\app\\gateway",
             "type": "directory",
             "overwritePolicy": "versioned_replace",
             "mutable": false
@@ -307,7 +307,7 @@
               "-m",
               "compileall",
               "-q",
-              "%APPDATA%\\PLwC\\app\\gateway-1.0.0"
+              "%APPDATA%\\PLwC\\app\\gateway"
             ]
           },
           "assertions": [
@@ -323,7 +323,7 @@
           "phase": "post_install",
           "type": "mcp_contract",
           "required": true,
-          "target": "%APPDATA%\\PLwC\\app\\gateway-1.0.0\\server.py",
+          "target": "%APPDATA%\\PLwC\\app\\gateway\\server.py",
           "assertions": [
             {
               "subject": "serverName",
@@ -722,7 +722,7 @@
             "type": "directory"
           },
           "destination": {
-            "path": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\bridge\\dist",
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\bridge\\dist",
             "type": "directory",
             "overwritePolicy": "versioned_replace",
             "mutable": false
@@ -745,7 +745,7 @@
             "type": "directory"
           },
           "destination": {
-            "path": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\bridge\\node_modules",
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\bridge\\node_modules",
             "type": "directory",
             "overwritePolicy": "versioned_replace",
             "mutable": false
@@ -768,7 +768,7 @@
             "type": "directory"
           },
           "destination": {
-            "path": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\extension",
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\extension",
             "type": "directory",
             "overwritePolicy": "versioned_replace",
             "mutable": false
@@ -791,7 +791,7 @@
             "type": "file"
           },
           "destination": {
-            "path": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\config\\plwc.json",
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\config\\plwc.json",
             "type": "file",
             "overwritePolicy": "backup_merge",
             "mutable": true
@@ -814,7 +814,7 @@
             "type": "file"
           },
           "destination": {
-            "path": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\scripts\\start-windows.ps1",
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\scripts\\start-windows.ps1",
             "type": "file",
             "overwritePolicy": "versioned_replace",
             "mutable": false
@@ -837,7 +837,7 @@
             "type": "file"
           },
           "destination": {
-            "path": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\bridge\\scripts\\healthcheck.mjs",
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\bridge\\scripts\\healthcheck.mjs",
             "type": "file",
             "overwritePolicy": "versioned_replace",
             "mutable": false
@@ -860,7 +860,7 @@
             "type": "file"
           },
           "destination": {
-            "path": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\bridge\\scripts\\launch-bridge.mjs",
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\bridge\\scripts\\launch-bridge.mjs",
             "type": "file",
             "overwritePolicy": "versioned_replace",
             "mutable": false
@@ -883,7 +883,7 @@
             "type": "file"
           },
           "destination": {
-            "path": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\native\\bin\\plwc-chat-bridge-launcher.exe",
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\native\\bin\\plwc-chat-bridge-launcher.exe",
             "type": "file",
             "overwritePolicy": "versioned_replace",
             "mutable": false
@@ -906,7 +906,7 @@
             "type": "file"
           },
           "destination": {
-            "path": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\native\\extension-identity.json",
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\native\\extension-identity.json",
             "type": "file",
             "overwritePolicy": "versioned_replace",
             "mutable": false
@@ -929,7 +929,7 @@
             "type": "file"
           },
           "destination": {
-            "path": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\native\\manifest\\plwc.chat_bridge.launcher.json",
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\native\\manifest\\plwc.chat_bridge.launcher.json",
             "type": "file",
             "overwritePolicy": "backup_merge",
             "mutable": true
@@ -1076,7 +1076,7 @@
             {
               "subject": "defaultValue",
               "operator": "equals",
-              "expected": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\native\\manifest\\plwc.chat_bridge.launcher.json"
+              "expected": "%APPDATA%\\PLwC\\app\\bridge\\native\\manifest\\plwc.chat_bridge.launcher.json"
             }
           ]
         },
@@ -1140,7 +1140,7 @@
         "name": "plwc-gateway",
         "command": "{pythonExe}",
         "arguments": [
-          "%APPDATA%\\PLwC\\app\\gateway-1.0.0\\server.py"
+          "%APPDATA%\\PLwC\\app\\gateway\\server.py"
         ],
         "environment": {
           "PLWC_WORKSPACE_ROOT": "%APPDATA%\\PLwC\\workspace",
@@ -1175,7 +1175,7 @@
         "name": "plwc-gateway",
         "command": "{pythonExe}",
         "arguments": [
-          "%APPDATA%\\PLwC\\app\\gateway-1.0.0\\server.py"
+          "%APPDATA%\\PLwC\\app\\gateway\\server.py"
         ],
         "environment": {
           "PLWC_WORKSPACE_ROOT": "%APPDATA%\\PLwC\\workspace",
@@ -1204,7 +1204,7 @@
       "installable": true,
       "installationMode": "assisted_unpacked_extension",
       "automaticClientConfiguration": false,
-      "installerOutputPath": "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0\\extension",
+      "installerOutputPath": "%APPDATA%\\PLwC\\app\\bridge\\extension",
       "clientConfigurationPath": null,
       "limitations": [
         "The unpacked extension uses the stable ID nlogfcafjdfdoknpkbehjgihpafpipdb from its manifest key.",

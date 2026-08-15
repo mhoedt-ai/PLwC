@@ -13,7 +13,7 @@
 #define AppVersion "1.0.0"
 #endif
 #ifndef InstallerRevision
-#define InstallerRevision "installer-r22"
+#define InstallerRevision "installer-r23"
 #endif
 #ifndef GatewayVersion
 #define GatewayVersion "1.0.0"
@@ -31,7 +31,7 @@
 #define StageDir "stage"
 #endif
 #ifndef BridgeDirectoryName
-#define BridgeDirectoryName "chat-bridge-1.0.0"
+#define BridgeDirectoryName "bridge"
 #endif
 #ifndef McpbAvailable
 #define McpbAvailable "0"
@@ -651,6 +651,10 @@ english.SummaryPythonPlaceholder=Python 3.11+ was not found; STDIO snippets cont
 german.SummaryPythonPlaceholder=Python 3.11+ wurde nicht gefunden; die STDIO-Snippets enthalten einen sichtbaren Platzhalter.
 english.SnippetPreparedComment=Prepared by PLwC Setup. Existing host configuration was not changed.
 german.SnippetPreparedComment=Vom PLwC-Installationsprogramm vorbereitet. Die bestehende Konfiguration der Zielanwendung wurde nicht verändert.
+english.ReadyUpdateMode=Existing PLwC installation detected. Stored folders and settings are reused for this update.
+german.ReadyUpdateMode=Vorhandene PLwC-Installation erkannt. Gespeicherte Ordner und Einstellungen werden für dieses Update wiederverwendet.
+english.ErrorSharedSync=Setup could not synchronize the shared PLwC settings. Exit code:
+german.ErrorSharedSync=Setup konnte die gemeinsamen PLwC-Einstellungen nicht synchronisieren. Rückgabecode:
 
 [Types]
 Name: "compact"; Description: "{cm:TypeGatewayOnly}"
@@ -829,6 +833,8 @@ var
   CurrentPrerequisitePhase: String;
   DefaultNextButtonCaption: String;
   SetupExeSha256: String;
+  ExistingInstallDetected: Boolean;
+  ExistingSettingsComplete: Boolean;
 
 function GetDataRoot: String;
 begin
@@ -846,12 +852,78 @@ end;
 function ReadStoredPath(ValueName, DefaultValue: String): String;
 var
   StoredValue: String;
+  SelectionPath: String;
 begin
   if RegQueryStringValue(HKCU, InstallerSettingsKey, ValueName, StoredValue) and
      (Trim(StoredValue) <> '') then
     Result := StoredValue
   else
+  begin
+    SelectionPath := GetDataRoot + '\config\installer\selection.ini';
+    StoredValue := GetIniString('PLwC', ValueName, '', SelectionPath);
+    if Trim(StoredValue) <> '' then
+      Result := StoredValue
+    else
+      Result := DefaultValue;
+  end;
+end;
+
+function GetStoredSelectionPath: String;
+var
+  StoredConfigPath: String;
+begin
+  StoredConfigPath := '';
+  RegQueryStringValue(HKCU, InstallerSettingsKey, 'ConfigPath', StoredConfigPath);
+  if Trim(StoredConfigPath) = '' then
+    StoredConfigPath := GetDataRoot + '\config';
+  Result := RemoveBackslashUnlessRoot(StoredConfigPath) + '\installer\selection.ini';
+end;
+
+function ReadStoredSetting(ValueName, DefaultValue: String): String;
+var
+  StoredValue: String;
+begin
+  StoredValue := GetIniString('PLwC', ValueName, '', GetStoredSelectionPath);
+  if Trim(StoredValue) <> '' then
+    Result := StoredValue
+  else
     Result := DefaultValue;
+end;
+
+function ReadStoredBoolean(ValueName: String; DefaultValue: Boolean): Boolean;
+var
+  StoredValue: String;
+begin
+  StoredValue := Lowercase(Trim(ReadStoredSetting(ValueName, '')));
+  if StoredValue = 'true' then
+    Result := True
+  else if StoredValue = 'false' then
+    Result := False
+  else
+    Result := DefaultValue;
+end;
+
+function DetectExistingInstall: Boolean;
+var
+  StoredAppPath: String;
+begin
+  StoredAppPath := ReadStoredPath('AppPath', '');
+  Result := FileExists(GetStoredSelectionPath) or
+    ((StoredAppPath <> '') and DirExists(StoredAppPath));
+end;
+
+function HasCompleteExistingSettings: Boolean;
+begin
+  Result :=
+    (ReadStoredPath('AppPath', '') <> '') and
+    (ReadStoredPath('GatewayPath', '') <> '') and
+    (ReadStoredPath('BridgePath', '') <> '') and
+    (ReadStoredPath('WorkspacePath', '') <> '') and
+    (ReadStoredPath('ProfilesPath', '') <> '') and
+    (ReadStoredPath('ConfigPath', '') <> '') and
+    (ReadStoredPath('StatePath', '') <> '') and
+    (ReadStoredPath('LogsPath', '') <> '') and
+    (ReadStoredPath('BackupsPath', '') <> '');
 end;
 
 function GetGatewayPath(Param: String): String;
@@ -859,7 +931,7 @@ begin
   if RuntimeDirsPage <> nil then
     Result := RuntimeDirsPage.Values[1]
   else
-    Result := ReadStoredPath('GatewayPath', ExpandConstant('{app}\gateway-{#GatewayVersion}'));
+    Result := ReadStoredPath('GatewayPath', ExpandConstant('{app}\gateway'));
 end;
 
 function GetBridgePath(Param: String): String;
@@ -1949,6 +2021,7 @@ begin
   Result :=
     '"' + GetConfigurationScriptPath + '"' +
     ' --project-root "' + GetDataRoot + '"' +
+    ' --installer-config-root "' + GetConfigPath('') + '"' +
     ' --gateway-root "' + GetGatewayPath('') + '"' +
     ' --workspace "' + GetWorkspacePath('') + '"' +
     ' --profiles "' + GetProfilesPath('') + '"' +
@@ -2368,6 +2441,8 @@ begin
     RaiseException(CustomMessage('ErrorStoreDirs'));
 end;
 
+procedure SynchronizeSharedSettings; forward;
+
 procedure SaveGeneratedFiles;
 var
   SelectionPath: String;
@@ -2411,6 +2486,10 @@ begin
     'BuildIdentity', 'NativeLauncherVersion',
     '{#NativeLauncherVersion}', SelectionPath);
   SetIniString('BuildIdentity', 'InstallationMode', GetInstallationMode, SelectionPath);
+  if ExistingInstallDetected then
+    SetIniString('BuildIdentity', 'InstallAction', 'update', SelectionPath)
+  else
+    SetIniString('BuildIdentity', 'InstallAction', 'install', SelectionPath);
   SetIniString(
     'BuildIdentity', 'SelectedComponents',
     GetSelectedComponentIds, SelectionPath);
@@ -2455,6 +2534,8 @@ begin
       RaiseException(CustomMessage('ErrorBridgeConfig'));
   end;
 
+  SynchronizeSharedSettings;
+
   if not SaveStringToFile(GetInstallSummaryPath(''), BuildInstallSummary, False) then
     RaiseException(CustomMessage('ErrorSummary'));
 end;
@@ -2462,6 +2543,31 @@ end;
 function QuoteProcessArgument(Value: String): String;
 begin
   Result := '"' + Value + '"';
+end;
+
+procedure SynchronizeSharedSettings;
+var
+  ResultCode: Integer;
+  Started: Boolean;
+  Parameters: String;
+begin
+  if not FileExists(GetConfigurationScriptPath) then
+    RaiseException(CustomMessage('ErrorSharedSync') + ' -1');
+  Parameters := GetConfigurationArguments('') +
+    ' --sync-installation --no-browser';
+  ResultCode := -1;
+  Started := Exec(
+    ResolvePythonPath,
+    Parameters,
+    GetAppPath + '\configuration',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode);
+  Log(
+    'Shared settings synchronization: started=' + IntToStr(Ord(Started)) +
+    '; exit=' + IntToStr(ResultCode));
+  if (not Started) or (ResultCode <> 0) then
+    RaiseException(CustomMessage('ErrorSharedSync') + ' ' + IntToStr(ResultCode));
 end;
 
 function GetBridgeScriptLanguage: String;
@@ -3547,7 +3653,15 @@ var
   ActionButtonRow2Top: Integer;
   SizeMemoTop: Integer;
 begin
-  LastAppRoot := NormalizePath(WizardDirValue);
+  ExistingInstallDetected := DetectExistingInstall;
+  ExistingSettingsComplete := ExistingInstallDetected and HasCompleteExistingSettings;
+  if ExistingInstallDetected then
+    LastAppRoot := NormalizePath(ReadStoredPath('AppPath', WizardDirValue))
+  else
+    LastAppRoot := NormalizePath(WizardDirValue);
+  Log(
+    'Existing PLwC installation detected=' + IntToStr(Ord(ExistingInstallDetected)) +
+    '; complete_settings=' + IntToStr(Ord(ExistingSettingsComplete)));
   DefaultNextButtonCaption := SetupMessage(msgButtonNext);
   PrerequisiteAcquisitionFailed := False;
   PrerequisiteOperationBusy := False;
@@ -3684,9 +3798,9 @@ begin
   RuntimeDirsPage.Add(CustomMessage('FieldApp'));
   RuntimeDirsPage.Add(CustomMessage('FieldGateway'));
   RuntimeDirsPage.Add(CustomMessage('FieldChatBridge'));
-  RuntimeDirsPage.Values[0] := LastAppRoot;
-  RuntimeDirsPage.Values[1] := LastAppRoot + '\gateway-{#GatewayVersion}';
-  RuntimeDirsPage.Values[2] := LastAppRoot + '\{#BridgeDirectoryName}';
+  RuntimeDirsPage.Values[0] := ReadStoredPath('AppPath', LastAppRoot);
+  RuntimeDirsPage.Values[1] := ReadStoredPath('GatewayPath', LastAppRoot + '\gateway');
+  RuntimeDirsPage.Values[2] := ReadStoredPath('BridgePath', LastAppRoot + '\{#BridgeDirectoryName}');
 
   DataDirsPage := CreateInputDirPage(
     RuntimeDirsPage.ID,
@@ -3698,9 +3812,9 @@ begin
   DataDirsPage.Add(CustomMessage('FieldWorkspace'));
   DataDirsPage.Add(CustomMessage('FieldProfiles'));
   DataDirsPage.Add(CustomMessage('FieldConfig'));
-  DataDirsPage.Values[0] := GetDataRoot + '\workspace';
-  DataDirsPage.Values[1] := GetDataRoot + '\profiles';
-  DataDirsPage.Values[2] := GetDataRoot + '\config';
+  DataDirsPage.Values[0] := ReadStoredPath('WorkspacePath', GetDataRoot + '\workspace');
+  DataDirsPage.Values[1] := ReadStoredPath('ProfilesPath', GetDataRoot + '\profiles');
+  DataDirsPage.Values[2] := ReadStoredPath('ConfigPath', GetDataRoot + '\config');
 
   OperatingDirsPage := CreateInputDirPage(
     DataDirsPage.ID,
@@ -3712,9 +3826,9 @@ begin
   OperatingDirsPage.Add(CustomMessage('FieldState'));
   OperatingDirsPage.Add(CustomMessage('FieldLogs'));
   OperatingDirsPage.Add(CustomMessage('FieldBackups'));
-  OperatingDirsPage.Values[0] := GetDataRoot + '\state';
-  OperatingDirsPage.Values[1] := GetDataRoot + '\logs';
-  OperatingDirsPage.Values[2] := GetDataRoot + '\profile_backups';
+  OperatingDirsPage.Values[0] := ReadStoredPath('StatePath', GetDataRoot + '\state');
+  OperatingDirsPage.Values[1] := ReadStoredPath('LogsPath', GetDataRoot + '\logs');
+  OperatingDirsPage.Values[2] := ReadStoredPath('BackupsPath', GetDataRoot + '\profile_backups');
 
   ProfilePage := CreateInputQueryPage(
     OperatingDirsPage.ID,
@@ -3723,8 +3837,8 @@ begin
     CustomMessage('PageProfileSubCaption'));
   ProfilePage.Add(CustomMessage('FieldProfileName'), False);
   ProfilePage.Add(CustomMessage('FieldSecurityConfig'), False);
-  ProfilePage.Values[0] := 'default';
-  ProfilePage.Values[1] := '';
+  ProfilePage.Values[0] := ReadStoredSetting('ActiveProfile', 'default');
+  ProfilePage.Values[1] := ReadStoredSetting('SecurityConfig', '');
 
   RuntimeSettingsPage := CreateInputQueryPage(
     ProfilePage.ID,
@@ -3734,9 +3848,9 @@ begin
   RuntimeSettingsPage.Add(CustomMessage('FieldMemoryThreshold'), False);
   RuntimeSettingsPage.Add(CustomMessage('FieldPersonaThreshold'), False);
   RuntimeSettingsPage.Add(CustomMessage('FieldTemperamentThreshold'), False);
-  RuntimeSettingsPage.Values[0] := '2';
-  RuntimeSettingsPage.Values[1] := '3';
-  RuntimeSettingsPage.Values[2] := '2';
+  RuntimeSettingsPage.Values[0] := ReadStoredSetting('MemoryWriteThreshold', '2');
+  RuntimeSettingsPage.Values[1] := ReadStoredSetting('PersonaWriteThreshold', '3');
+  RuntimeSettingsPage.Values[2] := ReadStoredSetting('TemperamentWriteThreshold', '2');
 
   RuntimeOptionsPage := CreateInputOptionPage(
     RuntimeSettingsPage.ID,
@@ -3747,8 +3861,8 @@ begin
     False);
   RuntimeOptionsPage.Add(CustomMessage('OptionQdrant'));
   RuntimeOptionsPage.Add(CustomMessage('OptionPersonaDisabled'));
-  RuntimeOptionsPage.Values[0] := False;
-  RuntimeOptionsPage.Values[1] := True;
+  RuntimeOptionsPage.Values[0] := ReadStoredBoolean('QdrantEnabled', False);
+  RuntimeOptionsPage.Values[1] := ReadStoredBoolean('PersonaLayerDisabled', True);
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
@@ -3804,8 +3918,8 @@ begin
   if CurPageID = RuntimeDirsPage.ID then
   begin
     CurrentAppRoot := NormalizePath(RuntimeDirsPage.Values[0]);
-    if CompareText(NormalizePath(RuntimeDirsPage.Values[1]), LastAppRoot + '\gateway-{#GatewayVersion}') = 0 then
-      RuntimeDirsPage.Values[1] := CurrentAppRoot + '\gateway-{#GatewayVersion}';
+    if CompareText(NormalizePath(RuntimeDirsPage.Values[1]), LastAppRoot + '\gateway') = 0 then
+      RuntimeDirsPage.Values[1] := CurrentAppRoot + '\gateway';
     if CompareText(NormalizePath(RuntimeDirsPage.Values[2]), LastAppRoot + '\{#BridgeDirectoryName}') = 0 then
       RuntimeDirsPage.Values[2] := CurrentAppRoot + '\{#BridgeDirectoryName}';
     LastAppRoot := CurrentAppRoot;
@@ -3814,7 +3928,13 @@ end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := False;
+  Result := ExistingSettingsComplete and
+    ((PageID = RuntimeDirsPage.ID) or
+     (PageID = DataDirsPage.ID) or
+     (PageID = OperatingDirsPage.ID) or
+     (PageID = ProfilePage.ID) or
+     (PageID = RuntimeSettingsPage.ID) or
+     (PageID = RuntimeOptionsPage.ID));
 end;
 
 function GetDataPathByIndex(Index: Integer): String;
@@ -4118,7 +4238,10 @@ function UpdateReadyMemo(
   Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo,
   MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
 begin
-  Result := CustomMessage('ReadyRuntime') + NewLine +
+  Result := '';
+  if ExistingInstallDetected then
+    Result := CustomMessage('ReadyUpdateMode') + NewLine + NewLine;
+  Result := Result + CustomMessage('ReadyRuntime') + NewLine +
     Space + CustomMessage('SummaryApp') + GetAppPath + NewLine +
     Space + CustomMessage('SummaryGateway') + GetGatewayPath('') + NewLine;
   if WizardIsComponentSelected('chatbridge') then

@@ -197,8 +197,8 @@ The installer should present editable directory fields with these defaults:
 | Field | Default |
 | --- | --- |
 | PLwC app root | `%APPDATA%\PLwC\app` |
-| Gateway runtime root | `%APPDATA%\PLwC\app\gateway-<version>` |
-| Chat Bridge root | `%APPDATA%\PLwC\app\chat-bridge-<version>` |
+| Gateway runtime root | `%APPDATA%\PLwC\app\gateway` |
+| Chat Bridge root | `%APPDATA%\PLwC\app\bridge` |
 | Workspace root | `%APPDATA%\PLwC\workspace` |
 | Profiles root | `%APPDATA%\PLwC\profiles` |
 | Global config root | `%APPDATA%\PLwC\config` |
@@ -214,6 +214,12 @@ Rules:
 - source checkouts and mapped development drives must not become default user
   workspace roots;
 - selected directories must be created only after the final confirmation step.
+- a complete existing installation is an update: stored directories and
+  runtime settings are reused and the corresponding wizard pages are skipped;
+- existing versioned runtime paths are preserved during an update and are not
+  migrated destructively;
+- changing the workspace later must update the shared Gateway, Bridge, Codex,
+  Odysseus, installer-selection and per-user installer state consistently.
 
 Profile-owned state lives under the selected profiles root, for example:
 

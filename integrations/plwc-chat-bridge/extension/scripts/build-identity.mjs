@@ -17,7 +17,7 @@ export async function loadBuildIdentity(projectRoot) {
     identity.product !== "PLwC Chat Bridge" ||
     identity.buildId !== `plwc-chat-bridge@${identity.releaseVersion}` ||
     identity.installer?.componentId !== "chat-bridge" ||
-    identity.installer?.directoryName !== `chat-bridge-${identity.releaseVersion}`
+    identity.installer?.directoryName !== "bridge"
   ) {
     throw new Error("PLwC Chat Bridge build identity is inconsistent.");
   }

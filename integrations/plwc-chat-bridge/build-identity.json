@@ -5,7 +5,7 @@
   "buildId": "plwc-chat-bridge@1.0.0",
   "installer": {
     "componentId": "chat-bridge",
-    "directoryName": "chat-bridge-1.0.0"
+    "directoryName": "bridge"
   },
   "components": {
     "nodeBridge": "1.0.0",

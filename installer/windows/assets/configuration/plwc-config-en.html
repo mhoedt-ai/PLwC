@@ -65,6 +65,21 @@
       <p class="path-line"><strong>Profiles folder:</strong> <span id="profiles-path"></span></p>
     </section>
 
+    <section aria-labelledby="workspace-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Workspace</p>
+          <h2 id="workspace-title">Change the workspace folder</h2>
+          <p>Choose an absolute folder. PLwC applies it jointly to Gateway, Chat Bridge, Codex and Odysseus.</p>
+        </div>
+      </div>
+      <label class="field wide" for="workspace-input">
+        <span>Workspace folder</span>
+        <input id="workspace-input" type="text" autocomplete="off" spellcheck="false" placeholder="F:\USER\PLWC_Workspace">
+        <small>Saving creates the folder and its <code>Tagebuch</code>, <code>Temp</code> and <code>Trashcan</code> directories when needed. Existing files are not moved or deleted.</small>
+      </label>
+    </section>
+
     <section aria-labelledby="threshold-title">
       <div class="section-heading">
         <div>

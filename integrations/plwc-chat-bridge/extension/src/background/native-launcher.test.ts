@@ -67,7 +67,7 @@ test("rejects a successful launcher response from a different common build", () 
     releaseVersion: "0.2.0-rc19.dev17",
     installer: {
       ...EXTENSION_BUILD_IDENTITY.installer,
-      directoryName: "chat-bridge-0.2.0-rc19.dev17",
+      directoryName: "bridge",
     },
   };
   assert.throws(() => parseNativeLauncherResponse({

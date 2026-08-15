@@ -42,7 +42,7 @@ export function parseBuildIdentity(value: unknown): BuildIdentity {
     record.product !== "PLwC Chat Bridge" ||
     buildId !== `plwc-chat-bridge@${releaseVersion}` ||
     installer.componentId !== "chat-bridge" ||
-    requireString(installer, "directoryName") !== `chat-bridge-${releaseVersion}`
+    requireString(installer, "directoryName") !== "bridge"
   ) {
     throw new Error("PLwC Chat Bridge build identity is inconsistent.");
   }

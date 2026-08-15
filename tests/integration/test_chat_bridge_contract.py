@@ -68,7 +68,7 @@ def test_shared_build_identity_matches_release_and_component_sources() -> None:
     assert identity["buildId"] == f"plwc-chat-bridge@{identity['releaseVersion']}"
     assert identity["installer"] == {
         "componentId": "chat-bridge",
-        "directoryName": f"chat-bridge-{identity['releaseVersion']}",
+        "directoryName": "bridge",
     }
     assert identity["releaseVersion"] == workspace_package["version"]
     assert identity["components"] == {

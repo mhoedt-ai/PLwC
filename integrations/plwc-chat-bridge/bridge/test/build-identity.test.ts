@@ -9,7 +9,7 @@ test("loads the canonical installer-addressable build identity", () => {
   assert.equal(BUILD_IDENTITY.installer.componentId, "chat-bridge");
   assert.equal(
     BUILD_IDENTITY.installer.directoryName,
-    `chat-bridge-${BUILD_IDENTITY.releaseVersion}`,
+    "bridge",
   );
   assert.equal(BUILD_IDENTITY.components.nodeBridge, BUILD_IDENTITY.releaseVersion);
   assert.equal(BUILD_IDENTITY.components.browserExtension, BUILD_IDENTITY.releaseVersion);

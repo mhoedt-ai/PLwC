@@ -26,7 +26,7 @@ test("reports component and build mismatches without hiding internal versions", 
     releaseVersion: "0.2.0-rc19.dev17",
     installer: {
       ...EXTENSION_BUILD_IDENTITY.installer,
-      directoryName: "chat-bridge-0.2.0-rc19.dev17",
+      directoryName: "bridge",
     },
     components: {
       ...EXTENSION_BUILD_IDENTITY.components,
@@ -39,7 +39,6 @@ test("reports component and build mismatches without hiding internal versions", 
   assert.deepEqual(validation.mismatches, [
     "buildId",
     "releaseVersion",
-    "installer.directoryName",
     "components.nodeBridge",
   ]);
   assert.equal(actual.components.nodeBridge, "0.2.0-rc19.dev11");

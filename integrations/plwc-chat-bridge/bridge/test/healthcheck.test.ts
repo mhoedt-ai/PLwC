@@ -79,7 +79,7 @@ test("rejects a healthy bridge carrying a different build identity", async () =>
     releaseVersion: "0.2.0-rc19.dev17",
     installer: {
       ...BUILD_IDENTITY.installer,
-      directoryName: "chat-bridge-0.2.0-rc19.dev17",
+      directoryName: "bridge",
     },
   });
   try {

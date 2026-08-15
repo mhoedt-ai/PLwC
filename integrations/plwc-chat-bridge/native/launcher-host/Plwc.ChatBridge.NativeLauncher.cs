@@ -947,7 +947,7 @@ internal static class Program
                     !String.Equals(identity.buildId, "plwc-chat-bridge@" + identity.releaseVersion, StringComparison.Ordinal) ||
                     identity.installer == null ||
                     !String.Equals(identity.installer.componentId, "chat-bridge", StringComparison.Ordinal) ||
-                    !String.Equals(identity.installer.directoryName, "chat-bridge-" + identity.releaseVersion, StringComparison.Ordinal) ||
+                    !String.Equals(identity.installer.directoryName, "bridge", StringComparison.Ordinal) ||
                     identity.components == null ||
                     String.IsNullOrWhiteSpace(identity.components.nodeBridge) ||
                     String.IsNullOrWhiteSpace(identity.components.browserExtension) ||

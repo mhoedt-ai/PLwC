@@ -64,7 +64,7 @@ const text = {
 
 const elements = Object.fromEntries([
   "notice", "refresh-button", "active-profile", "profile-state", "profile-source",
-  "gateway-version", "profile-select", "review-profile-button", "profiles-path",
+  "gateway-version", "profile-select", "review-profile-button", "profiles-path", "workspace-input",
   "memory-threshold", "persona-threshold", "temperament-threshold", "memory-source",
   "persona-source", "temperament-source", "persona-toggle", "qdrant-toggle",
   "persona-toggle-source", "qdrant-toggle-source", "save-button", "settings-file",
@@ -162,6 +162,7 @@ function renderState(state) {
   elements["settings-file"].textContent = state.files.shared_settings || "-";
   elements["profile-state-file"].textContent = state.files.active_profile_state || "-";
   elements["workspace-path"].textContent = runtime.workspace_path || "-";
+  elements["workspace-input"].value = settings.workspace_path || runtime.workspace_path || "";
 
   const profileSelect = elements["profile-select"];
   profileSelect.replaceChildren();
@@ -237,6 +238,7 @@ async function saveSettings() {
   let settings;
   try {
     settings = {
+      workspace_path: elements["workspace-input"].value.trim(),
       memory_write_threshold: readThreshold("memory-threshold"),
       persona_write_threshold: readThreshold("persona-threshold"),
       temperament_write_threshold: readThreshold("temperament-threshold"),

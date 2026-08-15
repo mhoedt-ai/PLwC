@@ -87,6 +87,25 @@ Docker-, WSL-, Image- und Modelldaten.
 9. Prüfen Sie die vollständige Vorschau.
 10. Starten Sie die Installation.
 
+Bei einer Neuinstallation verwendet das Setup stabile Laufzeitverzeichnisse:
+
+```text
+%APPDATA%\PLwC\app\gateway
+%APPDATA%\PLwC\app\bridge
+```
+
+Die Produktversion steht in den Build- und Installationsnachweisen, nicht im
+Ordnernamen. Dadurch muss ein Update keinen neuen Laufzeitordner nur wegen
+einer Versionsänderung anlegen.
+
+Findet das Setup eine vollständige vorhandene PLwC-Installation, wechselt es
+automatisch in den Update-Modus. Es übernimmt die gespeicherten App-, Gateway-,
+Bridge-, Arbeits-, Profil-, Konfigurations-, Status-, Protokoll- und
+Sicherungsverzeichnisse sowie die vorhandenen Laufzeiteinstellungen. Die
+entsprechenden Seiten werden nicht erneut abgefragt. Auch ältere, bereits
+verwendete versionsgebundene Gateway- oder Bridge-Pfade bleiben erhalten; das
+Update verschiebt oder löscht keine Benutzerdaten.
+
 Ein fehlendes Claude Desktop blockiert nur die ausgewählte Claude-Integration.
 Ein fehlender Chrome-, Edge- oder Brave-Browser blockiert nur die ausgewählte
 Chat Bridge. Fehlendes Codex oder Odysseus erzeugt eine klar als vorbereitet
@@ -148,6 +167,19 @@ Falls die Verbindung nicht hergestellt wird, verwenden Sie die
 PLwC-Reparaturfunktion. Die Fehlermeldung und der Installationsbericht nennen
 den genauen Protokollpfad. Führen Sie keine Skripte aus einem
 Entwicklungs-Repository aus.
+
+### Arbeitsordner nachträglich ändern
+
+Öffnen Sie die installierte **PLwC-Konfiguration** und tragen Sie unter
+**Arbeitsordner ändern** den gewünschten absoluten Pfad ein. Nach
+**Einstellungen speichern** legt PLwC dort bei Bedarf ausschließlich die
+Standardordner `Tagebuch`, `Temp` und `Trashcan` an. Vorhandene Dateien werden
+nicht verschoben, überschrieben oder gelöscht.
+
+Der neue Pfad wird als gemeinsamer Arbeitsordner für Gateway, Chat Bridge,
+Codex und Odysseus gespeichert und vom Setup bei späteren Updates wieder
+verwendet. Bereits laufende Clients müssen nur dann neu gestartet werden, wenn
+sie noch den alten Pfad anzeigen.
 
 ### Erste Schritte nach der Installation
 
@@ -256,6 +288,24 @@ selected known-download total.
 9. Review the complete write preview.
 10. Start installation.
 
+On a new installation, Setup uses stable runtime directories:
+
+```text
+%APPDATA%\PLwC\app\gateway
+%APPDATA%\PLwC\app\bridge
+```
+
+The product version belongs in build and installation evidence, not in the
+directory name. An update therefore does not create a new runtime directory
+only because the version changed.
+
+When Setup finds a complete existing PLwC installation, it automatically
+switches to update mode. It reuses the stored app, Gateway, Bridge, workspace,
+profiles, config, state, log and backup directories together with the existing
+runtime settings. Those pages are not requested again. Older versioned Gateway
+or Bridge paths that are already in use are preserved; an update does not move
+or delete user data.
+
 A missing Claude Desktop application blocks only the selected Claude
 integration. A missing Chrome, Edge or Brave browser blocks only the selected
 Chat Bridge. Missing Codex or Odysseus creates a clearly marked prepared
@@ -313,6 +363,17 @@ The directories are created by the non-elevated setup process and belong to
 the signed-in Windows user. Administrator approval for a prerequisite installer
 does not change workspace ownership.
 
+### Change the workspace later
+
+Open the installed **PLwC Configuration** page and enter the required absolute
+path under **Change workspace folder**. After **Save settings**, PLwC creates
+only the standard `Tagebuch`, `Temp` and `Trashcan` directories when they are
+missing. Existing files are not moved, overwritten or deleted.
+
+The new path is stored as the shared workspace for Gateway, Chat Bridge, Codex
+and Odysseus and is reused by later Setup updates. Restart a running client only
+if it still displays the previous path.
+
 ### Manual Chat Bridge extension installation for Chrome and Brave
 
 When PLwC Chat Bridge is selected, setup opens the installed extension folder
@@ -320,7 +381,7 @@ after installation. Use that folder directly. For a default installation, the
 folder is:
 
 ```text
-%APPDATA%\PLwC\app\chat-bridge-<version>\extension
+%APPDATA%\PLwC\app\bridge\extension
 ```
 
 If you changed the Chat Bridge directory during setup, use:
@@ -392,7 +453,7 @@ on `chrome://extensions` or `brave://extensions`.
 
 If the wrong extension directory was loaded, remove that unpacked extension
 entry, select **Load unpacked** again and choose the installed PLwC
-`extension` folder under `%APPDATA%\PLwC\app\chat-bridge-<version>`.
+`extension` folder under `%APPDATA%\PLwC\app\bridge`.
 
 If the Bridge is unavailable while the launcher is available, select
 **Reconnect**. If the status still does not reach `Tools 8 / 8`, use PLwC

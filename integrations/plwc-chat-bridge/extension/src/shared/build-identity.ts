@@ -50,7 +50,7 @@ export function parseBuildIdentity(value: unknown): BuildIdentity {
     record.product !== "PLwC Chat Bridge" ||
     buildId !== `plwc-chat-bridge@${releaseVersion}` ||
     installer.componentId !== "chat-bridge" ||
-    directoryName !== `chat-bridge-${releaseVersion}`
+    directoryName !== "bridge"
   ) {
     throw new Error("Inconsistent PLwC Chat Bridge build identity.");
   }

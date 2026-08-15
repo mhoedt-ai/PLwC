@@ -678,7 +678,7 @@ function Write-PayloadManifest {
             artifactName = "PLwC-Setup-$ProductVersion-$InstallerRevision.exe"
             buildIdentityArtifact = "PLwC-$ProductVersion-$InstallerRevision-build-identity.json"
             evidencePackage = "CHAT-BRIDGE-1.0"
-            evidencePath = "docs/evidence/CHAT_BRIDGE_1_0_ACCEPTANCE_EN.md"
+            evidencePath = "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R23_ACCEPTANCE_EN.md"
             components = [ordered]@{
                 gateway = $GatewayVersion
                 nodeBridge = [string] $BuildIdentity.components.nodeBridge
@@ -779,7 +779,7 @@ function Write-InstallerBuildIdentity {
         })
         evidence = [ordered]@{
             package = "CHAT-BRIDGE-1.0"
-            acceptanceRecord = "docs/evidence/CHAT_BRIDGE_1_0_ACCEPTANCE_EN.md"
+            acceptanceRecord = "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R23_ACCEPTANCE_EN.md"
         }
     }
     Write-Utf8File -Path $identityPath -Content (($identity | ConvertTo-Json -Depth 8) + "`n")
@@ -829,7 +829,7 @@ try {
         [string] $buildIdentity.product -ne "PLwC Chat Bridge" -or
         [string] $buildIdentity.buildId -ne "plwc-chat-bridge@$($buildIdentity.releaseVersion)" -or
         [string] $buildIdentity.installer.componentId -ne "chat-bridge" -or
-        [string] $buildIdentity.installer.directoryName -ne "chat-bridge-$($buildIdentity.releaseVersion)" -or
+        [string] $buildIdentity.installer.directoryName -ne "bridge" -or
         [string] $buildIdentity.releaseVersion -ne [string] $bridgeWorkspacePackage.version -or
         [string] $buildIdentity.components.nodeBridge -ne [string] $bridgePackage.version -or
         [string] $buildIdentity.components.browserExtension -ne [string] $extensionPackage.version -or

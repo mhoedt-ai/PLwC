@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import configparser
 import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import sys
 import threading
@@ -46,6 +48,7 @@ from plwc_gateway.mcp.server import plwc_governor, plwc_status
 
 
 EDITABLE_SETTING_KEYS = {
+    "workspace_path",
     "memory_write_threshold",
     "persona_write_threshold",
     "temperament_write_threshold",
@@ -119,10 +122,44 @@ def _atomic_write_json(path: Path, payload: dict[str, Any], *, root: Path) -> No
             pass
 
 
-def _normalize_settings(value: Any) -> dict[str, int | bool]:
+def _atomic_write_text(path: Path, content: str, *, root: Path) -> None:
+    resolved_root = root.resolve(strict=False)
+    resolved_path = path.resolve(strict=False)
+    if not _is_inside(resolved_path, resolved_root):
+        raise ConfigurationError("Generated configuration path escapes its allowed root.")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.{secrets.token_hex(6)}.tmp")
+    try:
+        with temporary.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _normalize_workspace_path(value: Any) -> Path:
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigurationError("Choose an absolute workspace path.")
+    text = value.strip()
+    if any(ord(character) < 32 for character in text):
+        raise ConfigurationError("The workspace path contains unsupported control characters.")
+    path = Path(text).expanduser()
+    if not path.is_absolute():
+        raise ConfigurationError("The workspace path must be absolute.")
+    return path.resolve(strict=False)
+
+
+def _normalize_settings(value: Any) -> dict[str, int | bool | str]:
     if not isinstance(value, dict) or set(value) != EDITABLE_SETTING_KEYS:
         raise ConfigurationError("Settings must contain exactly the supported PLwC controls.")
-    normalized: dict[str, int | bool] = {}
+    normalized: dict[str, int | bool | str] = {
+        "workspace_path": str(_normalize_workspace_path(value.get("workspace_path"))),
+    }
     for key in THRESHOLD_KEYS:
         raw = value.get(key)
         if type(raw) is not int or raw < 1 or raw > 1_000_000:
@@ -216,10 +253,22 @@ def _profile_creation_plan_digest(data: dict[str, Any]) -> str:
 
 
 class PlwcConfigurationService:
-    def __init__(self, project_root: Path, *, language: str = "en") -> None:
+    def __init__(
+        self,
+        project_root: Path,
+        *,
+        installer_config_root: Path | None = None,
+        language: str = "en",
+    ) -> None:
         self.project_root = project_root.resolve(strict=False)
+        self.installer_config_root = (
+            installer_config_root.resolve(strict=False)
+            if installer_config_root is not None
+            else self.project_root / "config"
+        )
         self.language = "de" if language.casefold().startswith("de") else "en"
         self.settings_path = self.project_root / "config" / SHARED_SETTINGS_FILE_NAME
+        self.selection_path = self.installer_config_root / "installer" / "selection.ini"
         self._write_lock = threading.Lock()
 
     def _config(self):
@@ -264,6 +313,7 @@ class PlwcConfigurationService:
                 "workspace_path": str(config.allowed_roots[0]) if config.allowed_roots else None,
             },
             "settings": {
+                "workspace_path": str(config.allowed_roots[0]) if config.allowed_roots else None,
                 "memory_write_threshold": governance.memory_write_threshold,
                 "memory_write_threshold_source": governance.memory_write_threshold_source,
                 "persona_write_threshold": governance.persona_write_threshold,
@@ -288,6 +338,7 @@ class PlwcConfigurationService:
             current = self._read_shared_settings()
             current.update(
                 {
+                    "workspace_path": normalized["workspace_path"],
                     "memory_write_threshold": normalized["memory_write_threshold"],
                     "persona_write_threshold": normalized["persona_write_threshold"],
                     "temperament_write_threshold": normalized["temperament_write_threshold"],
@@ -299,6 +350,8 @@ class PlwcConfigurationService:
             if unsupported:
                 names = ", ".join(sorted(unsupported))
                 raise ConfigurationError(f"Shared settings contain unsupported keys: {names}.")
+            workspace = Path(str(normalized["workspace_path"]))
+            self._ensure_workspace_structure(workspace)
             _atomic_write_json(
                 self.settings_path,
                 {
@@ -309,7 +362,127 @@ class PlwcConfigurationService:
                 },
                 root=self.project_root / "config",
             )
+            self._synchronize_workspace_references(workspace)
         return self.snapshot()
+
+    @staticmethod
+    def _ensure_workspace_structure(workspace: Path) -> None:
+        for path in (workspace, workspace / "Tagebuch", workspace / "Temp", workspace / "Trashcan"):
+            path.mkdir(parents=True, exist_ok=True)
+
+    def _read_installer_selection(self) -> configparser.ConfigParser:
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.optionxform = str
+        if self.selection_path.is_file():
+            parser.read(self.selection_path, encoding="utf-8-sig")
+        if not parser.has_section("PLwC"):
+            parser.add_section("PLwC")
+        return parser
+
+    def _write_installer_selection(self, parser: configparser.ConfigParser) -> None:
+        from io import StringIO
+
+        output = StringIO()
+        parser.write(output, space_around_delimiters=False)
+        _atomic_write_text(
+            self.selection_path,
+            output.getvalue(),
+            root=self.installer_config_root,
+        )
+
+    @staticmethod
+    def _replace_workspace_in_toml(content: str, workspace: Path) -> str:
+        escaped = json.dumps(str(workspace), ensure_ascii=False)[1:-1]
+        pattern = re.compile(r'("PLWC_WORKSPACE_ROOT"\s*=\s*")[^"]*(")')
+        return pattern.sub(lambda match: f"{match.group(1)}{escaped}{match.group(2)}", content, count=1)
+
+    @staticmethod
+    def _update_json_workspace(path: Path, keys: tuple[str, ...], workspace: Path) -> None:
+        if not path.is_file():
+            return
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        target: Any = payload
+        for key in keys[:-1]:
+            if not isinstance(target, dict) or not isinstance(target.get(key), dict):
+                return
+            target = target[key]
+        if not isinstance(target, dict):
+            return
+        target[keys[-1]] = str(workspace)
+        _atomic_write_json(path, payload, root=path.parent)
+
+    @staticmethod
+    def _store_workspace_registry(workspace: Path) -> None:
+        if os.name != "nt":
+            return
+        import winreg
+
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, r"Software\PLwC\Installer", 0, winreg.KEY_SET_VALUE) as key:
+            winreg.SetValueEx(key, "WorkspacePath", 0, winreg.REG_SZ, str(workspace))
+
+    def _synchronize_workspace_references(self, workspace: Path) -> None:
+        selection = self._read_installer_selection()
+        selection.set("PLwC", "WorkspacePath", str(workspace))
+        app_path = selection.get("PLwC", "AppPath", fallback="").strip()
+        bridge_path = selection.get("PLwC", "BridgePath", fallback="").strip()
+        self._write_installer_selection(selection)
+        self._store_workspace_registry(workspace)
+
+        codex = self.installer_config_root / "clients" / "codex" / "plwc-gateway.generated.toml"
+        if codex.is_file():
+            updated = self._replace_workspace_in_toml(codex.read_text(encoding="utf-8-sig"), workspace)
+            _atomic_write_text(codex, updated, root=self.installer_config_root)
+        self._update_json_workspace(
+            self.installer_config_root / "clients" / "odysseus" / "plwc-gateway.generated.json",
+            ("mcpServers", "plwc-gateway", "env", "PLWC_WORKSPACE_ROOT"),
+            workspace,
+        )
+        if app_path and bridge_path:
+            app_root = Path(app_path).resolve(strict=False)
+            bridge_root = Path(bridge_path).resolve(strict=False)
+            if _is_inside(bridge_root, app_root):
+                self._update_json_workspace(
+                    bridge_root / "config" / "plwc.json",
+                    ("gateway", "env", "PLWC_WORKSPACE_ROOT"),
+                    workspace,
+                )
+
+    def sync_installation(self, value: Any) -> None:
+        if not isinstance(value, dict):
+            raise ConfigurationError("Installation settings must be a JSON object.")
+        normalized = _normalize_settings({key: value.get(key) for key in EDITABLE_SETTING_KEYS})
+        workspace = Path(str(normalized["workspace_path"]))
+        profiles = _normalize_workspace_path(value.get("profiles_path"))
+        with self._write_lock:
+            current = self._read_shared_settings()
+            if not current:
+                current = {
+                    "active_profile_name": value.get("active_profile_name") or "default",
+                    "security_config": value.get("security_config") or None,
+                    "memory_write_threshold": normalized["memory_write_threshold"],
+                    "persona_write_threshold": normalized["persona_write_threshold"],
+                    "temperament_write_threshold": normalized["temperament_write_threshold"],
+                    "qdrant_enabled": normalized["qdrant_enabled"],
+                    "persona_layer_disabled": not normalized["persona_layer_enabled"],
+                }
+            current["workspace_path"] = str(workspace)
+            current["profiles_path"] = str(profiles)
+            unsupported = set(current) - SHARED_SETTING_KEYS
+            if unsupported:
+                names = ", ".join(sorted(unsupported))
+                raise ConfigurationError(f"Shared settings contain unsupported keys: {names}.")
+            self._ensure_workspace_structure(workspace)
+            _atomic_write_json(
+                self.settings_path,
+                {
+                    "schema_version": 1,
+                    "settings": current,
+                    "updated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                    "updated_by": "plwc-windows-setup",
+                },
+                root=self.project_root / "config",
+            )
+            self._synchronize_workspace_references(workspace)
 
     def plan_profile_activation(self, profile_name: Any) -> dict[str, Any]:
         if not isinstance(profile_name, str) or not profile_name.strip():
@@ -646,6 +819,7 @@ def _apply_launch_overrides(args: argparse.Namespace) -> None:
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Open the local PLwC configuration page.")
     parser.add_argument("--project-root", type=Path, default=default_app_root())
+    parser.add_argument("--installer-config-root", type=Path)
     parser.add_argument("--gateway-root", type=Path)
     parser.add_argument("--workspace")
     parser.add_argument("--profiles")
@@ -656,6 +830,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--temperament-threshold")
     parser.add_argument("--qdrant-enabled", choices=("true", "false"))
     parser.add_argument("--persona-layer-disabled", choices=("true", "false"))
+    parser.add_argument("--sync-installation", action="store_true")
     parser.add_argument("--language", choices=("de", "en"), default="en")
     parser.add_argument("--start-page", choices=("configuration", "getting-started"), default="configuration")
     parser.add_argument("--idle-timeout", type=int, default=900)
@@ -669,7 +844,26 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--idle-timeout must be from 30 through 3600 seconds.")
     _apply_launch_overrides(args)
     static_root = Path(__file__).resolve().parent
-    service = PlwcConfigurationService(args.project_root, language=args.language)
+    service = PlwcConfigurationService(
+        args.project_root,
+        installer_config_root=args.installer_config_root,
+        language=args.language,
+    )
+    if args.sync_installation:
+        service.sync_installation(
+            {
+                "workspace_path": args.workspace,
+                "profiles_path": args.profiles,
+                "active_profile_name": args.active_profile,
+                "security_config": args.security_config,
+                "memory_write_threshold": int(args.memory_threshold or "2"),
+                "persona_write_threshold": int(args.persona_threshold or "3"),
+                "temperament_write_threshold": int(args.temperament_threshold or "2"),
+                "qdrant_enabled": args.qdrant_enabled == "true",
+                "persona_layer_enabled": args.persona_layer_disabled != "true",
+            }
+        )
+        return 0
     server = create_http_server(service, static_root)
     if not args.no_browser:
         start_path = "/getting-started" if args.start_page == "getting-started" else "/"

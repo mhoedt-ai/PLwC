@@ -131,6 +131,7 @@ def test_snapshot_and_atomic_settings_update_are_shared_across_clients(
     before = service.snapshot()
     after = service.update_settings(
         {
+            "workspace_path": str(configured_root / "workspace-new"),
             "memory_write_threshold": 4,
             "persona_write_threshold": 5,
             "temperament_write_threshold": 6,
@@ -146,10 +147,14 @@ def test_snapshot_and_atomic_settings_update_are_shared_across_clients(
     assert after["settings"]["persona_layer_enabled"] is False
     payload = json.loads((configured_root / "config" / "gateway-settings.json").read_text(encoding="utf-8"))
     assert payload["updated_by"] == "plwc-local-configuration"
-    assert payload["settings"]["workspace_path"] == str(configured_root / "workspace")
+    assert payload["settings"]["workspace_path"] == str(configured_root / "workspace-new")
     assert payload["settings"]["active_profile_name"] == "default"
     assert payload["settings"]["persona_layer_disabled"] is True
     assert not list((configured_root / "config").glob("*.tmp"))
+    assert all(
+        (configured_root / "workspace-new" / name).is_dir()
+        for name in ("Tagebuch", "Temp", "Trashcan")
+    )
 
 
 @pytest.mark.parametrize(
@@ -157,6 +162,7 @@ def test_snapshot_and_atomic_settings_update_are_shared_across_clients(
     (
         {},
         {
+            "workspace_path": "/absolute/workspace",
             "memory_write_threshold": 0,
             "persona_write_threshold": 3,
             "temperament_write_threshold": 2,
@@ -164,6 +170,7 @@ def test_snapshot_and_atomic_settings_update_are_shared_across_clients(
             "persona_layer_enabled": True,
         },
         {
+            "workspace_path": "/absolute/workspace",
             "memory_write_threshold": 2,
             "persona_write_threshold": 3,
             "temperament_write_threshold": 2,
@@ -181,6 +188,139 @@ def test_settings_update_rejects_incomplete_or_ineffective_values(
 
     with pytest.raises(configuration_module.ConfigurationError):
         service.update_settings(settings)
+
+
+def test_workspace_update_synchronizes_installer_and_generated_client_files(
+    configuration_module: ModuleType,
+    configured_root: Path,
+) -> None:
+    selection = configured_root / "config" / "installer" / "selection.ini"
+    bridge_root = configured_root / "app" / "bridge"
+    selection.parent.mkdir(parents=True)
+    selection.write_text(
+        "[PLwC]\n"
+        f"AppPath={configured_root / 'app'}\n"
+        f"BridgePath={bridge_root}\n"
+        f"WorkspacePath={configured_root / 'workspace'}\n",
+        encoding="utf-8",
+    )
+    codex = configured_root / "config" / "clients" / "codex" / "plwc-gateway.generated.toml"
+    codex.parent.mkdir(parents=True)
+    codex.write_text(
+        'env = { "PLWC_WORKSPACE_ROOT" = "old", "PLWC_PROFILE_ROOT" = "profiles" }\n',
+        encoding="utf-8",
+    )
+    odysseus = configured_root / "config" / "clients" / "odysseus" / "plwc-gateway.generated.json"
+    odysseus.parent.mkdir(parents=True)
+    odysseus.write_text(
+        json.dumps({"mcpServers": {"plwc-gateway": {"env": {"PLWC_WORKSPACE_ROOT": "old"}}}}),
+        encoding="utf-8",
+    )
+    bridge = bridge_root / "config" / "plwc.json"
+    bridge.parent.mkdir(parents=True)
+    bridge.write_text(
+        json.dumps({"gateway": {"env": {"PLWC_WORKSPACE_ROOT": "old"}}}),
+        encoding="utf-8",
+    )
+    service = configuration_module.PlwcConfigurationService(configured_root)
+    new_workspace = configured_root / "relocated-workspace"
+
+    service.update_settings(
+        {
+            "workspace_path": str(new_workspace),
+            "memory_write_threshold": 2,
+            "persona_write_threshold": 3,
+            "temperament_write_threshold": 2,
+            "qdrant_enabled": False,
+            "persona_layer_enabled": True,
+        }
+    )
+
+    assert f"WorkspacePath={new_workspace}" in selection.read_text(encoding="utf-8")
+    assert str(new_workspace).replace("\\", "\\\\") in codex.read_text(encoding="utf-8")
+    assert json.loads(odysseus.read_text(encoding="utf-8"))["mcpServers"]["plwc-gateway"]["env"][
+        "PLWC_WORKSPACE_ROOT"
+    ] == str(new_workspace)
+    assert json.loads(bridge.read_text(encoding="utf-8"))["gateway"]["env"]["PLWC_WORKSPACE_ROOT"] == str(
+        new_workspace
+    )
+
+
+def test_installer_sync_updates_paths_without_replacing_existing_runtime_choices(
+    configuration_module: ModuleType,
+    configured_root: Path,
+) -> None:
+    settings_path = configured_root / "config" / "gateway-settings.json"
+    existing = json.loads(settings_path.read_text(encoding="utf-8"))
+    existing["settings"]["active_profile_name"] = "Writer"
+    existing["settings"]["memory_write_threshold"] = 9
+    existing["settings"]["qdrant_enabled"] = True
+    settings_path.write_text(json.dumps(existing), encoding="utf-8")
+    service = configuration_module.PlwcConfigurationService(configured_root)
+    new_workspace = configured_root / "setup-workspace"
+
+    service.sync_installation(
+        {
+            "workspace_path": str(new_workspace),
+            "profiles_path": str(configured_root / "profiles"),
+            "active_profile_name": "default",
+            "security_config": None,
+            "memory_write_threshold": 2,
+            "persona_write_threshold": 3,
+            "temperament_write_threshold": 2,
+            "qdrant_enabled": False,
+            "persona_layer_enabled": True,
+        }
+    )
+
+    updated = json.loads(settings_path.read_text(encoding="utf-8"))
+    assert updated["updated_by"] == "plwc-windows-setup"
+    assert updated["settings"]["workspace_path"] == str(new_workspace)
+    assert updated["settings"]["active_profile_name"] == "Writer"
+    assert updated["settings"]["memory_write_threshold"] == 9
+    assert updated["settings"]["qdrant_enabled"] is True
+
+
+def test_workspace_update_uses_a_custom_installer_configuration_root(
+    configuration_module: ModuleType,
+    configured_root: Path,
+    tmp_path: Path,
+) -> None:
+    custom_config = tmp_path / "custom-installer-config"
+    selection = custom_config / "installer" / "selection.ini"
+    selection.parent.mkdir(parents=True)
+    selection.write_text(
+        "[PLwC]\n"
+        f"AppPath={configured_root / 'app'}\n"
+        f"BridgePath={configured_root / 'app' / 'bridge'}\n"
+        f"WorkspacePath={configured_root / 'workspace'}\n",
+        encoding="utf-8",
+    )
+    codex = custom_config / "clients" / "codex" / "plwc-gateway.generated.toml"
+    codex.parent.mkdir(parents=True)
+    codex.write_text(
+        'env = { "PLWC_WORKSPACE_ROOT" = "old", "PLWC_PROFILE_ROOT" = "profiles" }\n',
+        encoding="utf-8",
+    )
+    service = configuration_module.PlwcConfigurationService(
+        configured_root,
+        installer_config_root=custom_config,
+    )
+    new_workspace = configured_root / "custom-config-workspace"
+
+    service.update_settings(
+        {
+            "workspace_path": str(new_workspace),
+            "memory_write_threshold": 2,
+            "persona_write_threshold": 3,
+            "temperament_write_threshold": 2,
+            "qdrant_enabled": False,
+            "persona_layer_enabled": True,
+        }
+    )
+
+    assert f"WorkspacePath={new_workspace}" in selection.read_text(encoding="utf-8")
+    assert str(new_workspace).replace("\\", "\\\\") in codex.read_text(encoding="utf-8")
 
 
 def test_profile_activation_uses_governor_plan_and_explicit_confirmation(
@@ -325,6 +465,7 @@ def test_loopback_http_session_requires_bootstrap_cookie_and_same_origin_posts(
 
         settings = {
             "settings": {
+                "workspace_path": str(configured_root / "workspace-http"),
                 "memory_write_threshold": 3,
                 "persona_write_threshold": 4,
                 "temperament_write_threshold": 5,
@@ -370,6 +511,7 @@ def test_static_configuration_ui_is_bilingual_local_and_feature_complete() -> No
 
     for control in (
         'id="profile-select"',
+        'id="workspace-input"',
         'id="memory-threshold"',
         'id="persona-threshold"',
         'id="temperament-threshold"',

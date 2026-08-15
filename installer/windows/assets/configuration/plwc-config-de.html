@@ -65,6 +65,21 @@
       <p class="path-line"><strong>Profilordner:</strong> <span id="profiles-path"></span></p>
     </section>
 
+    <section aria-labelledby="workspace-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Arbeitsbereich</p>
+          <h2 id="workspace-title">Arbeitsordner ändern</h2>
+          <p>Lege einen absoluten Ordner fest. PLwC übernimmt ihn gemeinsam für Gateway, Chat Bridge, Codex und Odysseus.</p>
+        </div>
+      </div>
+      <label class="field wide" for="workspace-input">
+        <span>Arbeitsordner</span>
+        <input id="workspace-input" type="text" autocomplete="off" spellcheck="false" placeholder="F:\USER\PLWC_Arbeitsbereich">
+        <small>Beim Speichern werden der Ordner sowie <code>Tagebuch</code>, <code>Temp</code> und <code>Trashcan</code> bei Bedarf angelegt. Vorhandene Dateien werden nicht verschoben oder gelöscht.</small>
+      </label>
+    </section>
+
     <section aria-labelledby="threshold-title">
       <div class="section-heading">
         <div>
