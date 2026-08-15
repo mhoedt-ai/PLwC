@@ -1,8 +1,9 @@
 # PLwC Chat Bridge 1.0 — Installer r23 Acceptance Record
 
 Date: 2026-08-15
-Status: **HOLD — internal update, configuration and unsigned-build checks pass;
-the public r23 reviewer artifact and live Store acceptance are pending**
+Status: **HOLD — internal update, configuration, unsigned-build, public-artifact
+and Chrome reviewer-record checks pass; the Edge reviewer record and live Store
+acceptance are pending**
 
 This record is an addendum for `installer-r23`. The historical
 `CHAT_BRIDGE_1_0_ACCEPTANCE_EN.md` record remains the immutable evidence for
@@ -66,7 +67,8 @@ authorized by this record.
 | Explicit unsigned Setup candidate | `PASS` | `PLwC-Setup-1.0.0-installer-r23.exe`, 5,218,577 bytes, Authenticode `NotSigned`, SHA-256 `08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10` |
 | Exact r23 build identity | `PASS` | Payload-manifest SHA-256 `73ac6bbc041803f4e15cda6182c5f62aac1550d931f19a299d43afec90e8e3ce`; external-identity SHA-256 `c29d4f8aa4b76ae52aa56b731be8b319b78700ef6e52a14ecd742d0243059404`; every `SHA256SUMS.txt` entry verified |
 | Public versioned r23 reviewer URL | `PASS` | Anonymous HTTPS download from the new r23 prerelease returned 5,218,577 bytes, SHA-256 `08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10`, byte equality with the local candidate and Authenticode `NotSigned`; GitHub reports the same asset digest |
-| Chrome and Edge saved reviewer records | `PENDING` | Reviewer URL and exact SHA-256 may be updated after public r23 verification; drafts must not be submitted or published |
+| Chrome saved reviewer record | `PASS` | The draft test instructions contain the public r23 URL and exact SHA-256; the former r22 reference is absent; the item remains an unsubmitted draft |
+| Edge reviewer/certification record | `PENDING (external)` | Partner Center exposes no editable certification-note field outside the Publish flow; the draft remains unchanged and unsubmitted because entering that flow requires explicit Product Owner authorization |
 | Live Store identity acceptance | `PENDING (external)` | Chrome/Brave and Edge tests under the assigned Store identities |
 
 ## Historical preservation and release decision
@@ -95,6 +97,7 @@ reconstructed or relabelled.
 
 Formal r23 reviewer-artifact gate: `PASS`.
 
-The overall Chat Bridge 1.0 Store gate remains `HOLD` until the saved Chrome
-and Edge reviewer records are updated and live Store-identity acceptance is
-complete. Store submission remains a separate explicit Product Owner decision.
+The overall Chat Bridge 1.0 Store gate remains `HOLD` until the Edge reviewer
+record can be supplied in an explicitly authorized submission flow and live
+Store-identity acceptance is complete. Store submission remains a separate
+explicit Product Owner decision.
