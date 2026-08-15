@@ -1,9 +1,9 @@
 # PLwC Chat Bridge Store Submission Checklist
 
-Status: `PREPARED / HOLD`
+Status: `DRAFTS SAVED / HOLD`
 
-This record prepares a later dashboard session. It is not authorization to
-upload, submit for review, certify, or publish either extension.
+This record binds the completed draft-only dashboard session. It is not
+authorization to submit for review, certify, or publish either extension.
 
 ## Bound identities and packages
 
@@ -17,6 +17,27 @@ for its own public identity. Upload only the ZIP for the matching existing
 draft. Do not create another item, and do not upload the adjacent
 `*-store-build-identity.json` evidence file.
 
+## Saved draft result - 2026-08-15
+
+- Chrome accepted the bound Chrome / Brave ZIP as version `1.0.0` in the
+  existing item `feceodobnhefdbfgmbinkndhogpfkicb`. The English listing,
+  static graphics, privacy declarations, permission justifications, and public
+  privacy and support URLs were saved. No review submission or publication was
+  requested.
+- Edge accepted the bound Edge ZIP as version `1.0.0` in the existing public
+  CRX identity `nncomjknhhlgcmkmlaljhkiojcnpmflb`. Package, availability,
+  properties, privacy, and the English Store listing were saved as completed
+  draft steps. The extension overview was re-read and showed `Version 1.0.0`
+  and `In draft`. The enabled `Publish` action was not used.
+- The Chrome package and Edge package displayed only `storage`,
+  `nativeMessaging`, and the loopback origin `ws://127.0.0.1:3007/*` as their
+  requested permissions or host access.
+- Chrome reviewer test instructions remain empty until the exact versioned
+  public Setup URL exists. The five final Store-identity screenshots were not
+  replaced with fixture or local-development screenshots.
+- No developer-account, Partner Center, payment, recovery, or other private
+  identifiers are part of this record.
+
 ## Preflight before any dashboard change
 
 - Re-run `npm run test:store:windows` from the extension directory.
@@ -27,7 +48,7 @@ draft. Do not create another item, and do not upload the adjacent
 - Keep publisher account, legal, payment, recovery, and Partner Center data out
   of the repository, screenshots, and chat.
 
-## Recommended dashboard order
+## Executed dashboard order
 
 1. Open the existing unpublished Chrome item and verify its item ID.
 2. Upload only the Chrome / Brave ZIP as a package update.

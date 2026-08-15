@@ -21,7 +21,8 @@ website deployment, draft-item creation, certification, and publication.
   permission justifications, reviewer instructions, and the screenshot plan.
 - `publisher-draft-id-checklist.md` is the Product Owner handoff checklist.
 - `submission-checklist.md` binds the exact draft identities, packages, assets,
-  dashboard order, and remaining HOLD conditions without authorizing an upload.
+  saved dashboard result, and remaining HOLD conditions without authorizing a
+  review submission or publication.
 - `assets/` contains the reviewed static listing graphics and their hashes.
 - `public/chat-bridge/` contains the English privacy and support pages prepared
   for the existing `plwc.de` website.
@@ -43,14 +44,24 @@ HTTPS on 2026-08-15. The non-`www` targets redirect once to the canonical
 `www.plwc.de` host and return the intended public, indexable content with a
 successful status. Their Store-contract status is therefore `verified`.
 
-## Draft identity seed
+## Saved Store draft state
+
+On 2026-08-15, both existing public Store items accepted their bound version
+`1.0.0` package. Their English listings, public URLs, privacy declarations,
+permission justifications, and static listing graphics were saved as drafts.
+Edge was re-read as `Version 1.0.0` and `In draft`; Chrome likewise remains an
+unsubmitted saved draft. No review, certification, or publication was started.
+The exact public-safe evidence is recorded in `submission-checklist.md`.
+
+## Historical draft identity seed
 
 The current source manifest contains a public development key which resolves to
 the retained development/sideload ID. It must not be uploaded to either store
 to establish the production identities.
 
-Run the following command from the extension directory when the Product Owner
-is ready to create the two unpublished items:
+The two unpublished items already exist and retain their bound public
+identities. The following command remains only for reproducibility of the
+historical identity-seed process; its output must not be uploaded again:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-store-draft-seed.ps1
