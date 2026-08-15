@@ -38,11 +38,19 @@ website deployment, draft-item creation, certification, and publication.
 
 - Privacy: `https://plwc.de/chat-bridge/privacy/`
 - Support: `https://plwc.de/chat-bridge/support/`
+- Exact unsigned Setup reviewer artifact:
+  `https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r22/PLwC-Setup-1.0.0-installer-r22.exe`
 
 Both URLs and the shared branded stylesheet were externally reverified over
 HTTPS on 2026-08-15. The non-`www` targets redirect once to the canonical
 `www.plwc.de` host and return the intended public, indexable content with a
 successful status. Their Store-contract status is therefore `verified`.
+
+The Setup URL is a non-final GitHub prerelease reviewer asset. An anonymous
+download on 2026-08-15 reproduced the accepted 5,216,209-byte EXE, SHA-256
+`b4f34b6a42a19f060e0765c1be9ef82e39ea813cf46e97576e3fb5357576ab5a`,
+and Authenticode status `NotSigned`. Windows may show an unknown-publisher
+warning. Publishing this artifact does not authorize Store review or release.
 
 ## Saved Store draft state
 

@@ -170,8 +170,11 @@ test("store identity contract keeps development and public Store identities sepa
   assert.equal(contract.stores.chrome.extensionId, nativeIdentity.identities.chromeStore.extensionId);
   assert.equal(contract.stores.edge.extensionId, nativeIdentity.identities.edgeStore.extensionId);
   assert.equal(contract.setupDownload.releasesUrl, "https://github.com/mhoedt-ai/PLwC/releases");
-  assert.equal(contract.setupDownload.reviewerArtifactUrl, null);
-  assert.equal(contract.setupDownload.status, "pending_versioned_setup_publication");
+  assert.equal(
+    contract.setupDownload.reviewerArtifactUrl,
+    "https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r22/PLwC-Setup-1.0.0-installer-r22.exe",
+  );
+  assert.equal(contract.setupDownload.status, "verified_public_explicit_unsigned_candidate");
 });
 
 test("Bridge and Native Messaging enforce exactly the three approved origins", async () => {

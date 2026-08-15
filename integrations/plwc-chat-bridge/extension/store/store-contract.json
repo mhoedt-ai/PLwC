@@ -46,7 +46,7 @@
   },
   "setupDownload": {
     "releasesUrl": "https://github.com/mhoedt-ai/PLwC/releases",
-    "reviewerArtifactUrl": null,
-    "status": "pending_versioned_setup_publication"
+    "reviewerArtifactUrl": "https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r22/PLwC-Setup-1.0.0-installer-r22.exe",
+    "status": "verified_public_explicit_unsigned_candidate"
   }
 }

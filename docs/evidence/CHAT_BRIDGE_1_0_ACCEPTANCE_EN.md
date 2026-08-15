@@ -78,7 +78,8 @@ directories.
 | Exact unsigned `installer-r22` identity | `PASS` | Payload-manifest SHA-256 `957ed84920949ce91e550f87471dd06901da1040aa5ae5eb0a62f4efed551666`; external-identity SHA-256 `92ea1290e54aa39468ca56f29f7742bac6cfb7fed2e856e3fab32b6206568399`; exact `SHA256SUMS.txt` verified |
 | Chrome Store identity in Chrome and Brave | `PENDING (external)` | Live acceptance under the assigned Chrome Store ID |
 | Edge Store identity in Edge | `PENDING (external)` | Live acceptance under the assigned Edge Store ID |
-| Final Store screenshots and public versioned Setup URL | `PENDING (external)` | Sanitized final captures and published exact artifact route |
+| Public versioned Setup reviewer URL | `PASS` | Public prerelease asset URL reproduced the exact unsigned EXE bytes and SHA-256 without authenticated access |
+| Final Store screenshots | `PENDING (external)` | Sanitized final captures from the Store-identity builds |
 | Renewed H2 | `HOLD` | Bind the exact unsigned and live-accepted release set after Store publication |
 
 ## Internal artifact evidence
@@ -99,6 +100,13 @@ the Edge sidecar has SHA-256
 The exact explicit unsigned Windows release candidate is
 `PLwC-Setup-1.0.0-installer-r22.exe`, SHA-256
 `b4f34b6a42a19f060e0765c1be9ef82e39ea813cf46e97576e3fb5357576ab5a`.
+It is published as a non-final GitHub prerelease reviewer asset at
+`https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r22/PLwC-Setup-1.0.0-installer-r22.exe`.
+An anonymous HTTPS download on 2026-08-15 returned `5216209` bytes with the
+same SHA-256 and Authenticode status `NotSigned`. GitHub's asset digest matched
+the same value. The prerelease tag points to source/evidence commit
+`5cfd43c109cbd8fc0379b909709b32e05ba655ca` and does not claim the final PLwC
+1.0 release.
 Its payload manifest has SHA-256
 `957ed84920949ce91e550f87471dd06901da1040aa5ae5eb0a62f4efed551666`,
 and its external build identity has SHA-256

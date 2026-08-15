@@ -2,10 +2,10 @@
 
 Prepared for Chrome Web Store and Microsoft Edge Add-ons.
 
-Status: complete English form copy and static listing assets for the current
-multi-identity build. Do not submit until the exact versioned public Setup
-artifact URL, five final Store-ID screenshots, live Chrome/Brave/Edge Native
-Messaging acceptance, and renewed H2 handoff have been recorded.
+Status: complete English form copy, static listing assets, and exact public
+Setup reviewer artifact for the current multi-identity build. Do not submit
+until five final Store-ID screenshots, live Chrome/Brave/Edge Native Messaging
+acceptance, and renewed H2 handoff have been recorded.
 
 ## Product identity
 
@@ -23,6 +23,12 @@ Messaging acceptance, and renewed H2 handoff have been recorded.
 - Security overview: `https://www.plwc.de/index.html#security`
 - Privacy policy: `https://plwc.de/chat-bridge/privacy/`
 - Support: `https://plwc.de/chat-bridge/support/`
+- Exact Windows Setup reviewer artifact:
+  `https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r22/PLwC-Setup-1.0.0-installer-r22.exe`
+- Setup SHA-256:
+  `b4f34b6a42a19f060e0765c1be9ef82e39ea813cf46e97576e3fb5357576ab5a`
+- Setup signing: explicit unsigned candidate; Windows may show an unknown-
+  publisher warning.
 
 ## Detailed description
 
@@ -136,9 +142,13 @@ material.
 
 ## Reviewer instructions
 
-These instructions require the final stable PLwC Setup download URL before
-submission. Do not replace that requirement with credentials in Partner Center
-or in this repository.
+Use only the exact public Setup artifact and SHA-256 recorded above. Do not
+replace that artifact binding with the generic releases page or with
+credentials in Partner Center or in this repository.
+
+### Chrome dashboard test instructions (500-character field)
+
+> Windows 11: Download https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r22/PLwC-Setup-1.0.0-installer-r22.exe (unsigned; SHA-256 b4f34b6a42a19f060e0765c1be9ef82e39ea813cf46e97576e3fb5357576ab5a). Install with Chat Bridge selected. Add the extension, open chatgpt.com, then PLwC > Status > Reconnect. Expect 127.0.0.1, valid build and 8/8 tools. Primer inserts text; writes wait for confirmation. No PLwC credentials.
 
 1. Test on Windows 11 with current Microsoft Edge or Google Chrome and a
    reviewer-controlled ChatGPT session. The extension has no PLwC account and

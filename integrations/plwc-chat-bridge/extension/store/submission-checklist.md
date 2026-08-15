@@ -28,13 +28,18 @@ draft. Do not create another item, and do not upload the adjacent
   CRX identity `nncomjknhhlgcmkmlaljhkiojcnpmflb`. Package, availability,
   properties, privacy, and the English Store listing were saved as completed
   draft steps. The extension overview was re-read and showed `Version 1.0.0`
-  and `In draft`. The enabled `Publish` action was not used.
+  and `In draft`. The public support contact URL was separately saved and
+  visually re-read after navigation. The enabled `Publish` action was not used.
 - The Chrome package and Edge package displayed only `storage`,
   `nativeMessaging`, and the loopback origin `ws://127.0.0.1:3007/*` as their
   requested permissions or host access.
-- Chrome reviewer test instructions remain empty until the exact versioned
-  public Setup URL exists. The five final Store-identity screenshots were not
-  replaced with fixture or local-development screenshots.
+- The exact explicitly unsigned Setup reviewer artifact is publicly available
+  at the versioned URL recorded in `store-contract.json`. An anonymous HTTPS
+  download reproduced SHA-256
+  `b4f34b6a42a19f060e0765c1be9ef82e39ea813cf46e97576e3fb5357576ab5a`
+  and Authenticode status `NotSigned`. Chrome saved the matching 445-character
+  reviewer test instruction without credentials. The five final Store-identity
+  screenshots were not replaced with fixture or local-development screenshots.
 - No developer-account, Partner Center, payment, recovery, or other private
   identifiers are part of this record.
 
@@ -68,9 +73,9 @@ the order has no release or priority meaning.
 
 ## HOLD conditions before review submission
 
-- Publish the exact versioned, unsigned PLwC Windows Setup candidate at a
-  stable public HTTPS URL and set `setupDownload.reviewerArtifactUrl` in
-  `store-contract.json` to that exact artifact.
+- Completed on 2026-08-15: publish the exact versioned, explicitly unsigned
+  PLwC Windows Setup candidate and bind its stable public HTTPS URL in
+  `store-contract.json`.
 - Install the saved packages under their real Chrome and Edge Store identities
   and complete live Native Messaging, loopback, tool-contract, confirmation,
   restart, and missing-native-host acceptance.
