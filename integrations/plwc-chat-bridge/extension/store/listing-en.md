@@ -24,9 +24,9 @@ acceptance, and renewed H2 handoff have been recorded.
 - Privacy policy: `https://plwc.de/chat-bridge/privacy/`
 - Support: `https://plwc.de/chat-bridge/support/`
 - Exact Windows Setup reviewer artifact:
-  `https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r22/PLwC-Setup-1.0.0-installer-r22.exe`
+  `https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r23/PLwC-Setup-1.0.0-installer-r23.exe`
 - Setup SHA-256:
-  `b4f34b6a42a19f060e0765c1be9ef82e39ea813cf46e97576e3fb5357576ab5a`
+  `08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10`
 - Setup signing: explicit unsigned candidate; Windows may show an unknown-
   publisher warning.
 
@@ -148,7 +148,7 @@ credentials in Partner Center or in this repository.
 
 ### Chrome dashboard test instructions (500-character field)
 
-> Windows 11: Download https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r22/PLwC-Setup-1.0.0-installer-r22.exe (unsigned; SHA-256 b4f34b6a42a19f060e0765c1be9ef82e39ea813cf46e97576e3fb5357576ab5a). Install with Chat Bridge selected. Add the extension, open chatgpt.com, then PLwC > Status > Reconnect. Expect 127.0.0.1, valid build and 8/8 tools. Primer inserts text; writes wait for confirmation. No PLwC credentials.
+> Windows 11: Download https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r23/PLwC-Setup-1.0.0-installer-r23.exe (unsigned; SHA-256 08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10). Install with Chat Bridge selected. Add the extension, open chatgpt.com, then PLwC > Status > Reconnect. Expect 127.0.0.1, valid build and 8/8 tools. Primer inserts text; writes wait for confirmation. No PLwC credentials.
 
 1. Test on Windows 11 with current Microsoft Edge or Google Chrome and a
    reviewer-controlled ChatGPT session. The extension has no PLwC account and

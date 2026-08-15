@@ -65,7 +65,7 @@ authorized by this record.
 | Full Windows installer Pester suite | `PASS — 69/69` | Completed through the mapped workspace path in isolated `.test-build` output without changing canonical `stage` or `dist`; a preceding UNC invocation failed at a .NET path-format boundary before staging and is not an installer failure |
 | Explicit unsigned Setup candidate | `PASS` | `PLwC-Setup-1.0.0-installer-r23.exe`, 5,218,577 bytes, Authenticode `NotSigned`, SHA-256 `08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10` |
 | Exact r23 build identity | `PASS` | Payload-manifest SHA-256 `73ac6bbc041803f4e15cda6182c5f62aac1550d931f19a299d43afec90e8e3ce`; external-identity SHA-256 `c29d4f8aa4b76ae52aa56b731be8b319b78700ef6e52a14ecd742d0243059404`; every `SHA256SUMS.txt` entry verified |
-| Public versioned r23 reviewer URL | `PENDING` | A new GitHub prerelease must use a new r23 tag and must reproduce the final local EXE bytes anonymously |
+| Public versioned r23 reviewer URL | `PASS` | Anonymous HTTPS download from the new r23 prerelease returned 5,218,577 bytes, SHA-256 `08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10`, byte equality with the local candidate and Authenticode `NotSigned`; GitHub reports the same asset digest |
 | Chrome and Edge saved reviewer records | `PENDING` | Reviewer URL and exact SHA-256 may be updated after public r23 verification; drafts must not be submitted or published |
 | Live Store identity acceptance | `PENDING (external)` | Chrome/Brave and Edge tests under the assigned Store identities |
 
@@ -79,6 +79,12 @@ SHA-256 08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10
 Build ID plwc-windows-setup@1.0.0/installer-r23#sha256:08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10
 ```
 
+The public reviewer URL is:
+
+```text
+https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r23/PLwC-Setup-1.0.0-installer-r23.exe
+```
+
 The external identity records `explicit_unsigned`, `NotSigned` for both Setup
 and the Native Launcher, and `1.0.0` for Gateway, Node Bridge, Browser
 Extension and Native Launcher.
@@ -87,6 +93,8 @@ The public `installer-r22` prerelease and its acceptance record remain
 unchanged. The previously lost historical `installer-r21` executable is not
 reconstructed or relabelled.
 
-Formal r23 reviewer gate: `HOLD` until the new public r23 URL and its anonymous
-byte/hash verification are recorded here. Store submission remains a separate
-explicit Product Owner decision.
+Formal r23 reviewer-artifact gate: `PASS`.
+
+The overall Chat Bridge 1.0 Store gate remains `HOLD` until the saved Chrome
+and Edge reviewer records are updated and live Store-identity acceptance is
+complete. Store submission remains a separate explicit Product Owner decision.

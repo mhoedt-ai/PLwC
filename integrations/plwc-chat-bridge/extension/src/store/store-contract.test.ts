@@ -38,6 +38,7 @@ interface StoreContract {
   setupDownload: {
     releasesUrl: string;
     reviewerArtifactUrl: string | null;
+    reviewerArtifactSha256: string;
     status: string;
   };
 }
@@ -172,7 +173,11 @@ test("store identity contract keeps development and public Store identities sepa
   assert.equal(contract.setupDownload.releasesUrl, "https://github.com/mhoedt-ai/PLwC/releases");
   assert.equal(
     contract.setupDownload.reviewerArtifactUrl,
-    "https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r22/PLwC-Setup-1.0.0-installer-r22.exe",
+    "https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r23/PLwC-Setup-1.0.0-installer-r23.exe",
+  );
+  assert.equal(
+    contract.setupDownload.reviewerArtifactSha256,
+    "08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10",
   );
   assert.equal(contract.setupDownload.status, "verified_public_explicit_unsigned_candidate");
 });

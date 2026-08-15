@@ -36,7 +36,7 @@ draft. Do not create another item, and do not upload the adjacent
 - The exact explicitly unsigned Setup reviewer artifact is publicly available
   at the versioned URL recorded in `store-contract.json`. An anonymous HTTPS
   download reproduced SHA-256
-  `b4f34b6a42a19f060e0765c1be9ef82e39ea813cf46e97576e3fb5357576ab5a`
+  `08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10`
   and Authenticode status `NotSigned`. Chrome saved the matching 445-character
   reviewer test instruction without credentials. The five final Store-identity
   screenshots were not replaced with fixture or local-development screenshots.
