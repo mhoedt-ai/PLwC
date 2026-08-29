@@ -2,8 +2,8 @@
 
 Date: 2026-08-29
 Status: **HOLD — shortcut/update contracts, source validation, unsigned r24
-artifact, pre-install update detection and installed update acceptance pass;
-the public reviewer URL and live Store acceptance are pending**
+artifact, pre-install update detection, installed update acceptance and the
+public reviewer URL pass; live Store acceptance is pending**
 
 This record is an addendum for `installer-r24`. The historical r22 and r23
 acceptance records and their published artifacts remain unchanged.
@@ -64,12 +64,12 @@ directories.
 | Exact r24 build identity | `PASS` | Payload-manifest SHA-256 `81a8321aaba16f4e10da9c8dc2b2fd41142e361f19df4fa7e7b859d90f8e8e8d`; external-identity SHA-256 `a7560c5d12628383d61b854da251f3ecccc405504609e701bf8b527ae74a5d72`; every `SHA256SUMS.txt` entry verified |
 | Existing-install preflight | `PASS` | German UI smoke against the installed r23 state logged `Existing PLwC installation detected=1; complete_settings=1`, displayed `installer-r24`, skipped the six repeated path/profile/runtime pages, reached the Update ready page, and stopped before installation |
 | Installed r23-to-r24 shortcut acceptance | `PASS` | Explicit full update recorded final Setup SHA-256 `b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0` and `InstallAction=update`; exactly one `PLwC-Konfiguration.lnk` remains, targets Python 3.12 `pythonw.exe`, uses the installed `plwc.ico`, and carries workspace `F:\USER\PLWC_Arbeitsbereich`, profile `Sororitas`, thresholds `2/3/2`, Qdrant enabled and persona layer enabled. The preserved legacy `app\chat-bridge` installation root was reused rather than renamed. Live Bridge health returned build `plwc-chat-bridge@1.0.0` and eight public tools; the Native Launcher returned the same 1.0 component identity. |
-| Public versioned reviewer URL | `PENDING` | Must be published and anonymously downloaded byte-identically before Store records change |
+| Public versioned reviewer URL | `PASS` | Public GitHub prerelease `plwc-setup-1.0.0-installer-r24`; anonymous HTTPS download reproduced 5,218,213 bytes and SHA-256 `b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0` exactly |
 | Live Store identity acceptance | `PENDING (external)` | Chrome/Brave and Edge tests under the assigned Store identities |
 
 ## Release decision
 
-The local r24 artifact and installed-update gates are `PASS`; the public
-reviewer URL and Store gates remain `HOLD`. Do not relabel an older EXE as r24,
-do not overwrite historical evidence, and do not submit or publish either
-Store draft without a separate explicit Product Owner decision.
+The local r24 artifact, installed-update and public-reviewer-URL gates are
+`PASS`; the Store gates remain `HOLD`. Do not relabel an older EXE as r24, do
+not overwrite historical evidence, and do not submit or publish either Store
+draft without a separate explicit Product Owner decision.

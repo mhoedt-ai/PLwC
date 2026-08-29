@@ -15,6 +15,7 @@ as required by the live dashboard. The icon and Edge logo use RGBA for their
 transparent backgrounds. PNG metadata contains only standard sRGB, gamma, and
 DPI values. No user, machine, account, or filesystem-path metadata is present.
 
-These files are listing material, not extension-package contents. The five
-final 1280 x 800 screenshots remain pending because they must show the real
-Store identities and exact public Setup candidate with synthetic data.
+These files are listing material, not extension-package contents. Three
+privacy-sanitized 1280 x 800 Store-candidate screenshots are prepared under
+`screenshots-draft/`; verify them against the current 1.0 UI before upload.
+Live Store-identity acceptance remains separate evidence.

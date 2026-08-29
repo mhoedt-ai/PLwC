@@ -36,10 +36,11 @@ draft. Do not create another item, and do not upload the adjacent
 - The exact explicitly unsigned Setup reviewer artifact is publicly available
   at the versioned URL recorded in `store-contract.json`. An anonymous HTTPS
   download reproduced SHA-256
-  `08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10`
+  `b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0`
   and Authenticode status `NotSigned`. Chrome saved the matching 445-character
-  reviewer test instruction without credentials. The five final Store-identity
-  screenshots were not replaced with fixture or local-development screenshots.
+  reviewer test instruction without credentials. Three privacy-sanitized
+  1280 x 800 Store-candidate drafts are prepared but have not yet been uploaded
+  to either saved Store draft.
 - No developer-account, Partner Center, payment, recovery, or other private
   identifiers are part of this record.
 
@@ -79,8 +80,9 @@ the order has no release or priority meaning.
 - Install the saved packages under their real Chrome and Edge Store identities
   and complete live Native Messaging, loopback, tool-contract, confirmation,
   restart, and missing-native-host acceptance.
-- Capture the five planned 1280 x 800 screenshots from that accepted Store-ID
-  build using synthetic data.
+- Verify the three prepared 1280 x 800 screenshots against that accepted
+  Store-ID build using synthetic data; replace any image that no longer matches
+  the live 1.0 UI.
 - Renew the H2 handoff and bind the Setup hash, public URL, Gateway identity,
   Bridge identity, and both Store package identities.
 - Complete the separate comprehensive PLwC 1.0 software-documentation update.

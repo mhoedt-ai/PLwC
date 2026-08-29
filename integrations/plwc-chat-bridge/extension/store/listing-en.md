@@ -4,8 +4,9 @@ Prepared for Chrome Web Store and Microsoft Edge Add-ons.
 
 Status: complete English form copy, static listing assets, and exact public
 Setup reviewer artifact for the current multi-identity build. Do not submit
-until five final Store-ID screenshots, live Chrome/Brave/Edge Native Messaging
-acceptance, and renewed H2 handoff have been recorded.
+until the selected screenshots have been checked against the current 1.0 UI,
+live Chrome/Brave/Edge Native Messaging acceptance and renewed H2 handoff have
+been recorded.
 
 ## Product identity
 
@@ -24,9 +25,9 @@ acceptance, and renewed H2 handoff have been recorded.
 - Privacy policy: `https://plwc.de/chat-bridge/privacy/`
 - Support: `https://plwc.de/chat-bridge/support/`
 - Exact Windows Setup reviewer artifact:
-  `https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r23/PLwC-Setup-1.0.0-installer-r23.exe`
+  `https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r24/PLwC-Setup-1.0.0-installer-r24.exe`
 - Setup SHA-256:
-  `08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10`
+  `b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0`
 - Setup signing: explicit unsigned candidate; Windows may show an unknown-
   publisher warning.
 
@@ -148,7 +149,7 @@ credentials in Partner Center or in this repository.
 
 ### Chrome dashboard test instructions (500-character field)
 
-> Windows 11: Download https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r23/PLwC-Setup-1.0.0-installer-r23.exe (unsigned; SHA-256 08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10). Install with Chat Bridge selected. Add the extension, open chatgpt.com, then PLwC > Status > Reconnect. Expect 127.0.0.1, valid build and 8/8 tools. Primer inserts text; writes wait for confirmation. No PLwC credentials.
+> Windows 11: Download https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r24/PLwC-Setup-1.0.0-installer-r24.exe (unsigned; SHA-256 b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0). Install with Chat Bridge selected. Add the extension, open chatgpt.com, then PLwC > Status > Reconnect. Expect 127.0.0.1, valid build and 8/8 tools. Primer inserts text; writes wait for confirmation. No PLwC credentials.
 
 1. Test on Windows 11 with current Microsoft Edge or Google Chrome and a
    reviewer-controlled ChatGPT session. The extension has no PLwC account and
@@ -199,19 +200,20 @@ OpenAI as part of the reviewer's ChatGPT session.
 
 Asset status: the static icon, Edge logo, and small promotional tile are ready
 under `assets/` and recorded with dimensions and hashes in `assets/README.md`.
-The five submission screenshots are intentionally pending until the final
-packages have been loaded under their real Store identities with the exact
-public Setup candidate. Local fixture or development-ID captures must not be
-labeled as final Store evidence.
+Three privacy-sanitized 1280 x 800 Store-candidate drafts are prepared under
+`assets/screenshots-draft/`. They satisfy the common Chrome/Edge size and count
+contract. Compare them once against the current 1.0 UI before upload; do not
+label AI-adjusted drafts as live Store-ID acceptance evidence.
 
-Capture all screenshots from the final Store-ID build on a clean Windows 11
-test user with synthetic data. Do not show account email addresses, browser
-profiles, API keys, private paths, real conversation content, publisher UI, or
-payment information. Keep the extension and host-page UI legible and use full-
-bleed browser captures without decorative Store badges.
+Capture any replacement or optional screenshot from the final Store-ID build
+on a clean Windows 11 test user with synthetic data. Do not show account email
+addresses, browser profiles, API keys, private paths, real conversation content,
+publisher UI, or payment information. Keep the extension and host-page UI
+legible and use full-bleed browser captures without decorative Store badges.
 
-Use five 1280 x 800 PNG screenshots so the same source set satisfies Chrome
-and Edge:
+The three prepared Store-candidate screenshots cover status/result composition,
+the eight-tool overview and policy/runtime status. If a stronger five-image
+evidence set is wanted later, add fresh Store-ID captures for:
 
 1. **Local status and exact tool contract** — panel open on Status; valid common
    build identity, loopback endpoint, and `8/8` tools visible.

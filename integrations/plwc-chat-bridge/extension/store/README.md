@@ -39,7 +39,7 @@ website deployment, draft-item creation, certification, and publication.
 - Privacy: `https://plwc.de/chat-bridge/privacy/`
 - Support: `https://plwc.de/chat-bridge/support/`
 - Exact unsigned Setup reviewer artifact:
-  `https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r23/PLwC-Setup-1.0.0-installer-r23.exe`
+  `https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r24/PLwC-Setup-1.0.0-installer-r24.exe`
 
 Both URLs and the shared branded stylesheet were externally reverified over
 HTTPS on 2026-08-15. The non-`www` targets redirect once to the canonical
@@ -47,8 +47,8 @@ HTTPS on 2026-08-15. The non-`www` targets redirect once to the canonical
 successful status. Their Store-contract status is therefore `verified`.
 
 The Setup URL is a non-final GitHub prerelease reviewer asset. An anonymous
-download on 2026-08-15 reproduced the accepted 5,216,209-byte EXE, SHA-256
-`08e21dc0d92aa125f340a99ed0fc00e4e6c05cef764e60a2f6a0a37050523a10`,
+download on 2026-08-29 reproduced the accepted 5,218,213-byte EXE, SHA-256
+`b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0`,
 and Authenticode status `NotSigned`. Windows may show an unknown-publisher
 warning. Publishing this artifact does not authorize Store review or release.
 
@@ -115,10 +115,10 @@ Chrome Store ID, Edge Store ID, and exactly their three Native Messaging and
 WebSocket origins. Arbitrary additional IDs and wildcards are rejected.
 
 Building a package is not authority to upload, submit, certify, or publish it.
-The final browser/native acceptance must use the real Store identities. Five
-final 1280 x 800 screenshots and a versioned public Setup artifact URL remain
-external completion evidence and must not be replaced with fixture screenshots
-or an unpublished local EXE.
+The final browser/native acceptance must use the real Store identities. Three
+privacy-sanitized 1280 x 800 Store-candidate screenshots are prepared under
+`assets/screenshots-draft/`; verify them once against the current 1.0 UI before
+upload. They are not a substitute for live browser/native acceptance.
 
 Only the two ZIP files are browser-dashboard upload candidates. Their adjacent
 identity JSON files and everything under `assets/` are evidence or listing
