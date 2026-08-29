@@ -80,17 +80,27 @@ the order has no release or priority meaning.
 - Completed on 2026-08-15: publish the exact versioned, explicitly unsigned
   PLwC Windows Setup candidate and bind its stable public HTTPS URL in
   `store-contract.json`.
-- Install the saved packages under their real Chrome and Edge Store identities
-  and complete live Native Messaging, loopback, tool-contract, confirmation,
-  restart, and missing-native-host acceptance.
+- Completed on 2026-08-29: re-run the reproducible Store-package identity and
+  secret scan; verify the installed Chrome, Edge and Brave Native Messaging
+  registrations; and pass live Bridge health checks with both assigned Store
+  origins, common build `plwc-chat-bridge@1.0.0` and exactly eight tools.
+- Complete the separate comprehensive PLwC 1.0 software-documentation update.
+
+## HOLD conditions before public publication
+
+- Obtain an installable, review-approved Store channel under a separate,
+  explicit Product Owner decision. A saved Chrome or Edge draft alone is not
+  installable: Chrome trusted-tester/private distribution still uses Store
+  review, and Microsoft documents `In draft` as unavailable to users.
+- Install the review-approved packages under their real Chrome and Edge Store
+  identities and complete live Native Messaging, loopback, tool-contract,
+  confirmation, restart, and missing-native-host acceptance.
 - Verify the three prepared 1280 x 800 screenshots against that accepted
   Store-ID build using synthetic data; replace any image that no longer matches
   the live 1.0 UI.
 - Renew the H2 handoff and bind the Setup hash, public URL, Gateway identity,
   Bridge identity, and both Store package identities.
-- Complete the separate comprehensive PLwC 1.0 software-documentation update.
 
-After all HOLD conditions pass, review submission and any publication remain
-separate Product Owner decisions. Chrome's deferred-publishing option may be
-selected at submission, but a reviewed submission must not be treated as
-authorization to publish.
+Review submission and public publication remain separate Product Owner
+decisions. Chrome's deferred-publishing option may be selected at submission,
+but a reviewed submission must not be treated as authorization to publish.

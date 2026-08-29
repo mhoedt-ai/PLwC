@@ -65,11 +65,32 @@ directories.
 | Existing-install preflight | `PASS` | German UI smoke against the installed r23 state logged `Existing PLwC installation detected=1; complete_settings=1`, displayed `installer-r24`, skipped the six repeated path/profile/runtime pages, reached the Update ready page, and stopped before installation |
 | Installed r23-to-r24 shortcut acceptance | `PASS` | Explicit full update recorded final Setup SHA-256 `b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0` and `InstallAction=update`; exactly one `PLwC-Konfiguration.lnk` remains, targets Python 3.12 `pythonw.exe`, uses the installed `plwc.ico`, and carries workspace `F:\USER\PLWC_Arbeitsbereich`, profile `Sororitas`, thresholds `2/3/2`, Qdrant enabled and persona layer enabled. The preserved legacy `app\chat-bridge` installation root was reused rather than renamed. Live Bridge health returned build `plwc-chat-bridge@1.0.0` and eight public tools; the Native Launcher returned the same 1.0 component identity. |
 | Public versioned reviewer URL | `PASS` | Public GitHub prerelease `plwc-setup-1.0.0-installer-r24`; anonymous HTTPS download reproduced 5,218,213 bytes and SHA-256 `b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0` exactly |
-| Live Store identity acceptance | `PENDING (external)` | Chrome/Brave and Edge tests under the assigned Store identities |
+| Store-ID local readiness | `PASS` | The reproducible Store-package identity and secret scan passed. Chrome, Edge and Brave Native Messaging registrations resolve to the installed manifest, which allows the development, Chrome Store and Edge Store origins without a wildcard. Live health checks using each Store WebSocket origin returned build `plwc-chat-bridge@1.0.0` and exactly eight tools. |
+| Live Store identity acceptance | `PENDING (external)` | The assigned Chrome URL returned `Element not available`; the assigned Edge URL returned `The requested page could not be found`. Both items remain unsubmitted drafts, so neither Store-signed extension can currently be installed. No review, certification or publication action was used. |
+
+## Store-ID readiness probe - 2026-08-29
+
+The local side of the serial Store gate is ready. The exact Chrome and Edge
+origins both completed a live loopback health check against the installed r24
+Bridge and returned the common 1.0.0 build identity with eight public tools.
+The installed Native Launcher also reported both browser registrations and all
+three approved extension origins correctly.
+
+The external live acceptance cannot be executed while the items remain only
+saved drafts. [Google documents](https://developer.chrome.com/docs/webstore/cws-dashboard-distribution)
+that even private trusted-tester distribution uses the review flow, and
+[Microsoft documents](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/submission-states)
+that an `In draft` extension is not available to users. The concrete public
+Store URLs confirmed that state on this date. Therefore this is a sequencing
+block, not a product test failure:
+an explicitly authorized review/certification step and an installable Store
+channel are required before the real-ID Native Messaging, restart,
+confirmation and missing-native-host matrix can run.
 
 ## Release decision
 
-The local r24 artifact, installed-update and public-reviewer-URL gates are
-`PASS`; the Store gates remain `HOLD`. Do not relabel an older EXE as r24, do
-not overwrite historical evidence, and do not submit or publish either Store
-draft without a separate explicit Product Owner decision.
+The local r24 artifact, installed-update, public-reviewer-URL and Store-ID local
+readiness gates are `PASS`; the external Store gates remain `HOLD`. Do not
+relabel an older EXE as r24, do not overwrite historical evidence, and do not
+submit or publish either Store draft without a separate explicit Product Owner
+decision.
