@@ -87,13 +87,14 @@ an explicitly authorized review/certification step and an installable Store
 channel are required before the real-ID Native Messaging, restart,
 confirmation and missing-native-host matrix can run.
 
-A read-only distribution check also found both drafts configured for public
-visibility across all regions or markets. This has no effect while they remain
-drafts, but it is not an appropriate controlled test channel. Before any review
-submission, Chrome should be deliberately switched to a private trusted-tester
-track and Edge to hidden link-only availability, or the Product Owner must
-explicitly approve the current public distribution. No visibility setting was
-changed during this probe.
+A read-only distribution check initially found both drafts configured for
+public visibility across all regions or markets. This had no effect while they
+remained drafts, but it was not an appropriate controlled test channel. After
+an explicit Product Owner decision, Chrome was saved as private and Edge as
+hidden/link-only. Both selections persisted after navigation or reload and both
+items remained drafts. No review, certification or publication action was
+used. Chrome still requires an approved trusted tester or tester group before
+its private test track can be useful.
 
 ## Release decision
 
