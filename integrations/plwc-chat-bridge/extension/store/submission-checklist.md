@@ -84,6 +84,10 @@ the order has no release or priority meaning.
   secret scan; verify the installed Chrome, Edge and Brave Native Messaging
   registrations; and pass live Bridge health checks with both assigned Store
   origins, common build `plwc-chat-bridge@1.0.0` and exactly eight tools.
+- Resolve the current public/all-regions draft visibility before review. For a
+  controlled Store-ID acceptance, explicitly authorize and save Chrome as
+  private for approved trusted testers and Edge as hidden/link-only. Do not
+  treat a visibility change as authorization to submit.
 - Complete the separate comprehensive PLwC 1.0 software-documentation update.
 
 ## HOLD conditions before public publication
