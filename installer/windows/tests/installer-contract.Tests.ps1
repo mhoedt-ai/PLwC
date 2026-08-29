@@ -38,7 +38,7 @@ $componentsManifestPath = Join-Path $installerRoot "manifests\components.json"
 $workspaceStructurePath = Join-Path $assetsRoot "workspace-structure.iss"
 $workspaceFixturePath = Join-Path $testsRoot "workspace-structure-fixture.iss"
 $testGeneratedOutputRoot = Join-Path $installerRoot ".test-build"
-$unsignedGeneratedOutputRoot = Join-Path $installerRoot ".unsigned-build"
+$unsignedGeneratedOutputRoot = Join-Path $installerRoot ".unsigned-build-r24"
 $stageRoot = Join-Path $testGeneratedOutputRoot "stage"
 $distRoot = Join-Path $testGeneratedOutputRoot "dist"
 $testScriptPath = [IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
@@ -945,7 +945,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
     }
 
     It "uses an unmistakable installer revision in the UI and artifact name" {
-        $source | Should Match '(?im)^\s*#define\s+InstallerRevision\s+"installer-r23"\s*$'
+        $source | Should Match '(?im)^\s*#define\s+InstallerRevision\s+"installer-r24"\s*$'
         $setupSection | Should Match '(?im)^\s*AppVerName=.*\{#InstallerRevision\}\)\s*$'
         $setupSection | Should Match '(?im)^\s*OutputBaseFilename=PLwC-Setup-\{#AppVersion\}-\{#InstallerRevision\}\s*$'
     }
@@ -955,12 +955,19 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
             (Test-Path -LiteralPath (Join-Path $configurationRoot $file) -PathType Leaf) | Should Be $true
         }
         $iconSection = Get-InnoSection -Source $source -Name "Icons"
+        $installDeleteSection = Get-InnoSection -Source $source -Name "InstallDelete"
         $runSection = Get-InnoSection -Source $source -Name "Run"
         $codeSection = Get-InnoSection -Source $source -Name "Code"
-        $iconSection | Should Match '(?im)^Name:.*IconConfig.*Filename:\s*"\{code:GetConfigurationPythonPath\}".*GetConfigurationArguments'
-        $iconSection | Should Match '(?im)^Name:\s*"\{userdesktop\}\\\{cm:IconConfig\}";.*GetConfigurationPythonPath.*GetConfigurationArguments'
+        $iconSection | Should Match '(?im)^Name:.*IconConfig.*Filename:\s*"\{code:GetConfigurationPythonPath\}".*GetConfigurationArguments.*IconFilename:\s*"\{app\}\\configuration\\plwc\.ico"'
+        $iconSection | Should Match '(?im)^Name:\s*"\{userdesktop\}\\\{cm:IconDesktopConfig\}";.*GetConfigurationPythonPath.*GetConfigurationArguments.*IconFilename:\s*"\{app\}\\configuration\\plwc\.ico"'
         $iconSection | Should Match '(?im)^Name:.*IconConfigFolder.*explorer\.exe.*GetConfigPath'
+        $installDeleteSection | Should Match '(?im)^Type:\s*files;\s*Name:\s*"\{userdesktop\}\\PLwC Konfiguration\.lnk"\s*$'
+        $installDeleteSection | Should Match '(?im)^Type:\s*files;\s*Name:\s*"\{userdesktop\}\\PLwC configuration\.lnk"\s*$'
+        $installDeleteSection | Should Match '(?im)^Type:\s*files;\s*Name:\s*"\{userdesktop\}\\PLwC-Konfiguration\.lnk"\s*$'
         $runSection | Should Match '(?im)^Filename:\s*"\{code:GetConfigurationPythonPath\}".*RunOpenConfiguration.*unchecked'
+        $customMessageSection | Should Match '(?im)^english\.IconDesktopConfig=PLwC-Konfiguration$'
+        $customMessageSection | Should Match '(?im)^german\.IconDesktopConfig=PLwC-Konfiguration$'
+        $codeSection | Should Match '(?is)function\s+GetConfigurationPythonPath.*?pythonw\.exe.*?FileExists\(WindowedPythonPath\).*?Result\s*:=\s*WindowedPythonPath.*?else.*?Result\s*:=\s*PythonPath'
         $codeSection | Should Match '(?is)function\s+GetConfigurationArguments.*?--project-root.*?--installer-config-root.*?--gateway-root.*?--workspace.*?--profiles.*?--active-profile.*?--memory-threshold.*?--persona-threshold.*?--temperament-threshold.*?--qdrant-enabled.*?--persona-layer-disabled.*?--language'
         $codeSection | Should Match '(?is)function\s+ConfigurationUiExists.*?plwc-config\.js.*?plwc-config\.css'
 
@@ -1010,6 +1017,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
     It "detects an existing installation and skips repeated directory questions during update" {
         $codeSection | Should Match '(?is)function\s+DetectExistingInstall.*?selection\.ini.*?DirExists'
         $codeSection | Should Match '(?is)function\s+HasCompleteExistingSettings.*?WorkspacePath.*?BackupsPath'
+        $codeSection | Should Match '(?is)function\s+ReadStoredPath.*?GetIniString\(''PLwC'',\s*ValueName.*?Result\s*:=\s*StoredValue.*?else if RegQueryStringValue\(HKCU,\s*InstallerSettingsKey,\s*ValueName'
         $codeSection | Should Match '(?is)function\s+ShouldSkipPage.*?ExistingSettingsComplete.*?RuntimeDirsPage.*?DataDirsPage.*?OperatingDirsPage.*?ProfilePage.*?RuntimeSettingsPage.*?RuntimeOptionsPage'
         $codeSection | Should Match '(?is)procedure\s+InitializeWizard.*?ReadStoredPath\(''AppPath''.*?ReadStoredPath\(''GatewayPath''.*?ReadStoredPath\(''BridgePath''.*?ReadStoredPath\(''WorkspacePath'''
         $customMessageSection | Should Match '(?im)^german\.ReadyUpdateMode=Vorhandene PLwC-Installation erkannt\.'
@@ -1026,6 +1034,8 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $python | Should Match 'installer_config_root'
         $python | Should Match 'WorkspacePath'
         $python | Should Match 'PLWC_WORKSPACE_ROOT'
+        $python | Should Match 'def\s+_read_generated_text'
+        $python | Should Match 'cp1252'
         $javascript | Should Match 'workspace_path:\s*elements\["workspace-input"\]'
         $german | Should Match 'id="workspace-input"'
     }
@@ -1077,7 +1087,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $buildSource | Should Match '(?is)function\s+Get-InstallerRevision.*?PLwCSetup\.iss'
         $buildSource | Should Match '(?is)function\s+Write-InstallerBuildIdentity.*?Get-FileHash.*?InstallerPath.*?Get-FileHash.*?PayloadManifestPath'
         $buildSource | Should Match 'CHAT-BRIDGE-1\.0'
-        $buildSource | Should Match 'docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R23_ACCEPTANCE_EN\.md'
+        $buildSource | Should Match 'docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R24_ACCEPTANCE_EN\.md'
         foreach ($define in @(
             "InstallerRevision",
             "GatewayVersion",
@@ -1452,15 +1462,15 @@ Describe "PLwC Windows payload build gate" {
     It "binds staged payload metadata to the installer revision and component versions" {
         $manifest = Get-Content -LiteralPath (Join-Path $stageRoot "payload-manifest.json") -Raw | ConvertFrom-Json
         $expectedBuildIdentity = Get-Content -LiteralPath $bridgeBuildIdentityPath -Raw | ConvertFrom-Json
-        $manifest.installer.revision | Should Be "installer-r23"
+        $manifest.installer.revision | Should Be "installer-r24"
         $manifest.installer.artifactName | Should Be (
-            "PLwC-Setup-{0}-installer-r23.exe" -f $manifest.version
+            "PLwC-Setup-{0}-installer-r24.exe" -f $manifest.version
         )
         $manifest.installer.buildIdentityArtifact | Should Be (
-            "PLwC-{0}-installer-r23-build-identity.json" -f $manifest.version
+            "PLwC-{0}-installer-r24-build-identity.json" -f $manifest.version
         )
         $manifest.installer.evidencePackage | Should Be "CHAT-BRIDGE-1.0"
-        $manifest.installer.evidencePath | Should Be "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R23_ACCEPTANCE_EN.md"
+        $manifest.installer.evidencePath | Should Be "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R24_ACCEPTANCE_EN.md"
         $componentManifest = Get-Content -LiteralPath $componentsManifestPath -Raw | ConvertFrom-Json
         $manifest.version | Should Be $componentManifest.product.releaseVersion
         $manifest.installer.components.gateway | Should Be $componentManifest.product.gatewayVersion

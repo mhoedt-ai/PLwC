@@ -13,7 +13,7 @@
 #define AppVersion "1.0.0"
 #endif
 #ifndef InstallerRevision
-#define InstallerRevision "installer-r23"
+#define InstallerRevision "installer-r24"
 #endif
 #ifndef GatewayVersion
 #define GatewayVersion "1.0.0"
@@ -100,7 +100,9 @@ german.IconSummary=PLwC-Installationsübersicht
 english.IconGettingStarted=PLwC Getting Started
 german.IconGettingStarted=Erste Schritte mit PLwC
 english.IconConfig=PLwC configuration
-german.IconConfig=PLwC Konfiguration
+german.IconConfig=PLwC-Konfiguration
+english.IconDesktopConfig=PLwC-Konfiguration
+german.IconDesktopConfig=PLwC-Konfiguration
 english.IconConfigFolder=Open PLwC configuration folder
 german.IconConfigFolder=PLwC-Konfigurationsordner öffnen
 english.IconUninstall=Uninstall PLwC
@@ -690,11 +692,16 @@ Name: "{code:GetStatePath}"; Flags: uninsneveruninstall
 Name: "{code:GetLogsPath}"; Flags: uninsneveruninstall
 Name: "{code:GetBackupsPath}"; Flags: uninsneveruninstall
 
+[InstallDelete]
+Type: files; Name: "{userdesktop}\PLwC Konfiguration.lnk"
+Type: files; Name: "{userdesktop}\PLwC configuration.lnk"
+Type: files; Name: "{userdesktop}\PLwC-Konfiguration.lnk"
+
 [Icons]
-Name: "{group}\{cm:IconGettingStarted}"; Filename: "{code:GetConfigurationPythonPath}"; Parameters: "{code:GetGettingStartedArguments}"; WorkingDir: "{app}\configuration"; Check: GettingStartedUiExists
+Name: "{group}\{cm:IconGettingStarted}"; Filename: "{code:GetConfigurationPythonPath}"; Parameters: "{code:GetGettingStartedArguments}"; WorkingDir: "{app}\configuration"; IconFilename: "{app}\configuration\plwc.ico"; Check: GettingStartedUiExists
 Name: "{group}\{cm:IconSummary}"; Filename: "{sys}\notepad.exe"; Parameters: """{code:GetInstallSummaryPath}"""
-Name: "{group}\{cm:IconConfig}"; Filename: "{code:GetConfigurationPythonPath}"; Parameters: "{code:GetConfigurationArguments}"; WorkingDir: "{app}\configuration"
-Name: "{userdesktop}\{cm:IconConfig}"; Filename: "{code:GetConfigurationPythonPath}"; Parameters: "{code:GetConfigurationArguments}"; WorkingDir: "{app}\configuration"; Check: ConfigurationUiExists
+Name: "{group}\{cm:IconConfig}"; Filename: "{code:GetConfigurationPythonPath}"; Parameters: "{code:GetConfigurationArguments}"; WorkingDir: "{app}\configuration"; IconFilename: "{app}\configuration\plwc.ico"
+Name: "{userdesktop}\{cm:IconDesktopConfig}"; Filename: "{code:GetConfigurationPythonPath}"; Parameters: "{code:GetConfigurationArguments}"; WorkingDir: "{app}\configuration"; IconFilename: "{app}\configuration\plwc.ico"; Check: ConfigurationUiExists
 Name: "{group}\{cm:IconConfigFolder}"; Filename: "{sys}\explorer.exe"; Parameters: """{code:GetConfigPath}"""
 Name: "{group}\{cm:IconUninstall}"; Filename: "{uninstallexe}"
 
@@ -852,20 +859,26 @@ end;
 function ReadStoredPath(ValueName, DefaultValue: String): String;
 var
   StoredValue: String;
+  StoredConfigPath: String;
   SelectionPath: String;
 begin
-  if RegQueryStringValue(HKCU, InstallerSettingsKey, ValueName, StoredValue) and
-     (Trim(StoredValue) <> '') then
+  StoredConfigPath := '';
+  RegQueryStringValue(HKCU, InstallerSettingsKey, 'ConfigPath', StoredConfigPath);
+  if Trim(StoredConfigPath) <> '' then
+    SelectionPath := RemoveBackslashUnlessRoot(StoredConfigPath) + '\installer\selection.ini'
+  else
+    SelectionPath := GetDataRoot + '\config\installer\selection.ini';
+  if not FileExists(SelectionPath) then
+    SelectionPath := GetDataRoot + '\config\installer\selection.ini';
+
+  StoredValue := GetIniString('PLwC', ValueName, '', SelectionPath);
+  if Trim(StoredValue) <> '' then
+    Result := StoredValue
+  else if RegQueryStringValue(HKCU, InstallerSettingsKey, ValueName, StoredValue) and
+          (Trim(StoredValue) <> '') then
     Result := StoredValue
   else
-  begin
-    SelectionPath := GetDataRoot + '\config\installer\selection.ini';
-    StoredValue := GetIniString('PLwC', ValueName, '', SelectionPath);
-    if Trim(StoredValue) <> '' then
-      Result := StoredValue
-    else
-      Result := DefaultValue;
-  end;
+    Result := DefaultValue;
 end;
 
 function GetStoredSelectionPath: String;
@@ -2004,8 +2017,16 @@ begin
 end;
 
 function GetConfigurationPythonPath(Param: String): String;
+var
+  PythonPath: String;
+  WindowedPythonPath: String;
 begin
-  Result := ResolvePythonPath;
+  PythonPath := ResolvePythonPath;
+  WindowedPythonPath := AddBackslash(ExtractFileDir(PythonPath)) + 'pythonw.exe';
+  if FileExists(WindowedPythonPath) then
+    Result := WindowedPythonPath
+  else
+    Result := PythonPath;
 end;
 
 function GetConfigurationLanguage: String;

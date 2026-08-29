@@ -15,6 +15,7 @@ integrations/plwc-chat-bridge/extension/store/out/
 installer/windows/stage/
 installer/windows/.test-build/
 installer/windows/.unsigned-build/
+installer/windows/.unsigned-build-r24/
 logs/
 workspace/
 private_evidence/

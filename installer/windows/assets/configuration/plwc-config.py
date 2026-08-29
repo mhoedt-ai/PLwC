@@ -142,6 +142,16 @@ def _atomic_write_text(path: Path, content: str, *, root: Path) -> None:
             pass
 
 
+def _read_generated_text(path: Path) -> str:
+    data = path.read_bytes()
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return data.decode("utf-16")
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return data.decode("cp1252")
+
+
 def _normalize_workspace_path(value: Any) -> Path:
     if not isinstance(value, str) or not value.strip():
         raise ConfigurationError("Choose an absolute workspace path.")
@@ -362,7 +372,7 @@ class PlwcConfigurationService:
                 },
                 root=self.project_root / "config",
             )
-            self._synchronize_workspace_references(workspace)
+            self._synchronize_workspace_references(workspace, settings=current)
         return self.snapshot()
 
     @staticmethod
@@ -400,7 +410,7 @@ class PlwcConfigurationService:
     def _update_json_workspace(path: Path, keys: tuple[str, ...], workspace: Path) -> None:
         if not path.is_file():
             return
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        payload = json.loads(_read_generated_text(path))
         target: Any = payload
         for key in keys[:-1]:
             if not isinstance(target, dict) or not isinstance(target.get(key), dict):
@@ -420,9 +430,33 @@ class PlwcConfigurationService:
         with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, r"Software\PLwC\Installer", 0, winreg.KEY_SET_VALUE) as key:
             winreg.SetValueEx(key, "WorkspacePath", 0, winreg.REG_SZ, str(workspace))
 
-    def _synchronize_workspace_references(self, workspace: Path) -> None:
+    def _synchronize_workspace_references(
+        self,
+        workspace: Path,
+        *,
+        settings: dict[str, Any] | None = None,
+    ) -> None:
         selection = self._read_installer_selection()
         selection.set("PLwC", "WorkspacePath", str(workspace))
+        if settings is not None:
+            selection_values = {
+                "ProfilesPath": settings.get("profiles_path"),
+                "ActiveProfile": settings.get("active_profile_name"),
+                "SecurityConfig": settings.get("security_config") or "",
+                "MemoryWriteThreshold": settings.get("memory_write_threshold"),
+                "PersonaWriteThreshold": settings.get("persona_write_threshold"),
+                "TemperamentWriteThreshold": settings.get("temperament_write_threshold"),
+                "QdrantEnabled": settings.get("qdrant_enabled"),
+                "PersonaLayerDisabled": settings.get("persona_layer_disabled"),
+            }
+            for key, value in selection_values.items():
+                if value is None and key != "SecurityConfig":
+                    continue
+                if isinstance(value, bool):
+                    stored_value = str(value).lower()
+                else:
+                    stored_value = str(value)
+                selection.set("PLwC", key, stored_value)
         app_path = selection.get("PLwC", "AppPath", fallback="").strip()
         bridge_path = selection.get("PLwC", "BridgePath", fallback="").strip()
         self._write_installer_selection(selection)
@@ -430,7 +464,7 @@ class PlwcConfigurationService:
 
         codex = self.installer_config_root / "clients" / "codex" / "plwc-gateway.generated.toml"
         if codex.is_file():
-            updated = self._replace_workspace_in_toml(codex.read_text(encoding="utf-8-sig"), workspace)
+            updated = self._replace_workspace_in_toml(_read_generated_text(codex), workspace)
             _atomic_write_text(codex, updated, root=self.installer_config_root)
         self._update_json_workspace(
             self.installer_config_root / "clients" / "odysseus" / "plwc-gateway.generated.json",
@@ -441,11 +475,12 @@ class PlwcConfigurationService:
             app_root = Path(app_path).resolve(strict=False)
             bridge_root = Path(bridge_path).resolve(strict=False)
             if _is_inside(bridge_root, app_root):
-                self._update_json_workspace(
-                    bridge_root / "config" / "plwc.json",
-                    ("gateway", "env", "PLWC_WORKSPACE_ROOT"),
-                    workspace,
-                )
+                for filename in ("plwc.example.json", "plwc.json"):
+                    self._update_json_workspace(
+                        bridge_root / "config" / filename,
+                        ("gateway", "env", "PLWC_WORKSPACE_ROOT"),
+                        workspace,
+                    )
 
     def sync_installation(self, value: Any) -> None:
         if not isinstance(value, dict):
@@ -482,7 +517,7 @@ class PlwcConfigurationService:
                 },
                 root=self.project_root / "config",
             )
-            self._synchronize_workspace_references(workspace)
+            self._synchronize_workspace_references(workspace, settings=current)
 
     def plan_profile_activation(self, profile_name: Any) -> dict[str, Any]:
         if not isinstance(profile_name, str) or not profile_name.strip():

@@ -32,8 +32,14 @@ def _load_configuration_module() -> ModuleType:
 
 
 @pytest.fixture()
-def configuration_module() -> ModuleType:
-    return _load_configuration_module()
+def configuration_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    module = _load_configuration_module()
+    monkeypatch.setattr(
+        module.PlwcConfigurationService,
+        "_store_workspace_registry",
+        staticmethod(lambda workspace: None),
+    )
+    return module
 
 
 def _write_profile(root: Path, name: str) -> None:
@@ -150,6 +156,11 @@ def test_snapshot_and_atomic_settings_update_are_shared_across_clients(
     assert payload["settings"]["workspace_path"] == str(configured_root / "workspace-new")
     assert payload["settings"]["active_profile_name"] == "default"
     assert payload["settings"]["persona_layer_disabled"] is True
+    selection = (configured_root / "config" / "installer" / "selection.ini").read_text(encoding="utf-8")
+    assert "ActiveProfile=default" in selection
+    assert "MemoryWriteThreshold=4" in selection
+    assert "QdrantEnabled=true" in selection
+    assert "PersonaLayerDisabled=true" in selection
     assert not list((configured_root / "config").glob("*.tmp"))
     assert all(
         (configured_root / "workspace-new" / name).is_dir()
@@ -207,16 +218,23 @@ def test_workspace_update_synchronizes_installer_and_generated_client_files(
     codex = configured_root / "config" / "clients" / "codex" / "plwc-gateway.generated.toml"
     codex.parent.mkdir(parents=True)
     codex.write_text(
+        '# Vom Setup geändert\n'
         'env = { "PLWC_WORKSPACE_ROOT" = "old", "PLWC_PROFILE_ROOT" = "profiles" }\n',
-        encoding="utf-8",
+        encoding="cp1252",
     )
     odysseus = configured_root / "config" / "clients" / "odysseus" / "plwc-gateway.generated.json"
     odysseus.parent.mkdir(parents=True)
     odysseus.write_text(
-        json.dumps({"mcpServers": {"plwc-gateway": {"env": {"PLWC_WORKSPACE_ROOT": "old"}}}}),
-        encoding="utf-8",
+        json.dumps(
+            {
+                "_comment": "Vom Setup geändert",
+                "mcpServers": {"plwc-gateway": {"env": {"PLWC_WORKSPACE_ROOT": "old"}}},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="cp1252",
     )
-    bridge = bridge_root / "config" / "plwc.json"
+    bridge = bridge_root / "config" / "plwc.example.json"
     bridge.parent.mkdir(parents=True)
     bridge.write_text(
         json.dumps({"gateway": {"env": {"PLWC_WORKSPACE_ROOT": "old"}}}),
@@ -237,6 +255,8 @@ def test_workspace_update_synchronizes_installer_and_generated_client_files(
     )
 
     assert f"WorkspacePath={new_workspace}" in selection.read_text(encoding="utf-8")
+    assert "ActiveProfile=default" in selection.read_text(encoding="utf-8")
+    assert "MemoryWriteThreshold=2" in selection.read_text(encoding="utf-8")
     assert str(new_workspace).replace("\\", "\\\\") in codex.read_text(encoding="utf-8")
     assert json.loads(odysseus.read_text(encoding="utf-8"))["mcpServers"]["plwc-gateway"]["env"][
         "PLWC_WORKSPACE_ROOT"
@@ -279,6 +299,14 @@ def test_installer_sync_updates_paths_without_replacing_existing_runtime_choices
     assert updated["settings"]["active_profile_name"] == "Writer"
     assert updated["settings"]["memory_write_threshold"] == 9
     assert updated["settings"]["qdrant_enabled"] is True
+    selection = (configured_root / "config" / "installer" / "selection.ini").read_text(encoding="utf-8")
+    assert f"WorkspacePath={new_workspace}" in selection
+    assert f"ProfilesPath={configured_root / 'profiles'}" in selection
+    assert "ActiveProfile=Writer" in selection
+    assert "MemoryWriteThreshold=9" in selection
+    assert "PersonaWriteThreshold=3" in selection
+    assert "QdrantEnabled=true" in selection
+    assert "PersonaLayerDisabled=false" in selection
 
 
 def test_workspace_update_uses_a_custom_installer_configuration_root(
