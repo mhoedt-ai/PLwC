@@ -68,8 +68,9 @@ Brave. Do not run maintainer scripts from a repository as an end-user repair.
 
 ## Browser Store Page Is Unavailable
 
-The Chrome and Edge 1.0 items are controlled drafts. Chrome is private and Edge
-is hidden; neither Store-signed package is installable until its review or
+The Chrome and Edge 1.0 items were submitted for review on 2026-08-30. Chrome
+remains private with automatic publication disabled; Edge remains hidden and
+link-only. Neither Store-signed package is installable until its review or
 certification gate provides the configured test channel. An unavailable public
 listing is therefore expected before that gate.
 

@@ -3,7 +3,7 @@
 - Document status: current public technical description
 - Product version: `1.0.0`
 - Windows Setup revision: `installer-r24`
-- Last verified: 2026-08-29
+- Last verified: 2026-08-30
 
 ## 1. Release position
 
@@ -26,11 +26,11 @@ unsigned pre-release candidate, not a production-certified release.
 | Browser Extension | `1.0.0` |
 | Native Launcher | `1.0.0` |
 
-Chrome and Edge contain saved 1.0.0 Store drafts. Chrome is private with one
-approved publisher-level trusted tester; Edge is hidden and link-only. Neither
-item has been submitted for review, certification or publication. A saved
-draft is not an installable Store release, so live Store-signed identity
-acceptance remains pending.
+Chrome and Edge contain submitted 1.0.0 Store candidates. On 2026-08-30, Chrome
+entered pending review as a private trusted-tester item with automatic
+publication disabled. Edge entered review as hidden and link-only. Neither item
+is an installable Store release until its review path succeeds, so live
+Store-signed identity acceptance remains pending.
 
 ## 2. Product purpose
 
@@ -282,16 +282,17 @@ signing route. Windows may therefore show an unknown-publisher warning. The
 exact public URL and SHA-256 are the external integrity anchors for this
 candidate.
 
-The Chrome and Edge drafts contain the 1.0 packages, public-safe listing text,
-privacy declarations, support/privacy URLs and three sanitized 1280 x 800
-screenshots. Chrome is private with a trusted tester; Edge is hidden. Review,
-certification and publication remain separate Product Owner decisions.
+The submitted Chrome and Edge candidates contain the 1.0 packages, public-safe
+listing text, privacy declarations, support/privacy URLs and three sanitized
+1280 x 800 screenshots. Chrome is private with a trusted tester and deferred
+publication; Edge is hidden/link-only. Both are under review. Approval,
+controlled availability and public publication remain separate gates.
 
 ## 16. Remaining release gates
 
 Before any public Store publication:
 
-1. submit each controlled Store track only after a separate explicit decision;
+1. wait for both submitted controlled tracks to complete review;
 2. install the review-approved Store-signed package under its real ID;
 3. repeat Native Messaging, loopback, tool-contract, confirmation, restart and
    missing-native-host acceptance;

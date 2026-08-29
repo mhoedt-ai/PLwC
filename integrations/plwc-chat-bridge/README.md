@@ -1,9 +1,10 @@
 # PLwC Chat Bridge
 
 Status: 1.0.0 implementation and local Store-origin readiness pass. The current
-Windows r24 artifact is explicitly unsigned. Chrome is a private draft with an
-approved trusted tester and Edge is a hidden draft; external Store-signed
-identity acceptance remains on hold until their separate review gates pass.
+Windows r24 artifact is explicitly unsigned. On 2026-08-30, the private Chrome
+track entered pending review with automatic publication disabled and the hidden
+Edge track entered review. External Store-signed identity acceptance remains on
+hold until those separate review gates pass.
 
 PLwC Chat Bridge is the PLwC-owned local browser client integration
 for using the signed-in ChatGPT web UI with the local `plwc-gateway` MCP

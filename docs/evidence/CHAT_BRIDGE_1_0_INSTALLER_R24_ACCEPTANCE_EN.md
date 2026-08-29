@@ -1,9 +1,11 @@
 # PLwC Chat Bridge 1.0 — Installer r24 Acceptance Record
 
 Date: 2026-08-29
+Last updated: 2026-08-30
 Status: **HOLD — shortcut/update contracts, source validation, unsigned r24
-artifact, pre-install update detection, installed update acceptance and the
-public reviewer URL pass; live Store acceptance is pending**
+artifact, pre-install update detection, installed update acceptance, public
+reviewer URL and controlled Store review submissions pass; Store approval and
+live Store-signed acceptance are pending**
 
 This record is an addendum for `installer-r24`. The historical r22 and r23
 acceptance records and their published artifacts remain unchanged.
@@ -66,8 +68,9 @@ directories.
 | Installed r23-to-r24 shortcut acceptance | `PASS` | Explicit full update recorded final Setup SHA-256 `b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0` and `InstallAction=update`; exactly one `PLwC-Konfiguration.lnk` remains, targets Python 3.12 `pythonw.exe`, uses the installed `plwc.ico`, and carries workspace `F:\USER\PLWC_Arbeitsbereich`, profile `Sororitas`, thresholds `2/3/2`, Qdrant enabled and persona layer enabled. The preserved legacy `app\chat-bridge` installation root was reused rather than renamed. Live Bridge health returned build `plwc-chat-bridge@1.0.0` and eight public tools; the Native Launcher returned the same 1.0 component identity. |
 | Public versioned reviewer URL | `PASS` | Public GitHub prerelease `plwc-setup-1.0.0-installer-r24`; anonymous HTTPS download reproduced 5,218,213 bytes and SHA-256 `b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0` exactly |
 | Store-ID local readiness | `PASS` | The reproducible Store-package identity and secret scan passed. Chrome, Edge and Brave Native Messaging registrations resolve to the installed manifest, which allows the development, Chrome Store and Edge Store origins without a wildcard. Live health checks using each Store WebSocket origin returned build `plwc-chat-bridge@1.0.0` and exactly eight tools. |
-| PLwC 1.0 software documentation | `PASS` | The current program description and the installation, configuration, security, troubleshooting, tester and component documentation identify the exact unsigned r24 candidate, stable fresh-install runtime paths, update-preservation behavior and saved Store-draft state. Historical rc and installer records remain unchanged. |
-| Live Store identity acceptance | `PENDING (external)` | The assigned Chrome URL returned `Element not available`; the assigned Edge URL returned `The requested page could not be found`. Both items remain unsubmitted drafts, so neither Store-signed extension can currently be installed. No review, certification or publication action was used. |
+| PLwC 1.0 software documentation | `PASS` | The current program description and the installation, configuration, security, troubleshooting, tester and component documentation identify the exact unsigned r24 candidate, stable fresh-install runtime paths, update-preservation behavior and controlled Store-review state. Historical rc and installer records remain unchanged. |
+| Controlled Store review submission | `PASS` | On 2026-08-30, the Chrome 1.0.0 candidate was submitted as private with automatic publication disabled and entered `Überprüfung ausstehend`. The Edge 1.0.0 candidate was submitted as hidden/link-only with the approved public certification notes and entered `In review`. |
+| Live Store identity acceptance | `PENDING (external)` | Both candidates are under external review and neither Store-signed extension can currently be installed. The real-ID Native Messaging and browser acceptance matrix therefore remains pending. |
 
 ## Store-ID readiness probe - 2026-08-29
 
@@ -98,10 +101,31 @@ used. After a separate explicit decision, one approved individual Chrome
 trusted tester was saved at publisher-account level and persisted after reload.
 No tester address or private account identifier is recorded in this evidence.
 
+## Controlled Store review submission - 2026-08-30
+
+After an explicit Product Owner confirmation, both prepared 1.0.0 candidates
+were submitted through their bound existing Store identities:
+
+- Chrome accepted the private trusted-tester candidate for review and reported
+  `Überprüfung ausstehend`. Automatic publication after approval was explicitly
+  disabled, so approval will not by itself authorize publication. The dashboard
+  states that a deferred-publication item expires 30 days after it passes
+  review; the controlled availability decision and real-ID test must therefore
+  be scheduled inside that window.
+- Microsoft Edge accepted the hidden/link-only candidate and reported
+  `In review`. The required certification note used only the public r24 Setup
+  URL, exact Setup SHA-256, synthetic reviewer steps and the documented local
+  dependency/network boundary; it contained no credentials or private account
+  data. Partner Center stated an expected response within seven business days.
+
+Neither submission is currently an installable Store-signed channel. The next
+acceptance step begins only after the applicable Store makes the real-ID package
+available to the controlled tester.
+
 ## Release decision
 
-The local r24 artifact, installed-update, public-reviewer-URL and Store-ID local
-readiness gates are `PASS`; the external Store gates remain `HOLD`. Do not
-relabel an older EXE as r24, do not overwrite historical evidence, and do not
-submit or publish either Store draft without a separate explicit Product Owner
-decision.
+The local r24 artifact, installed-update, public-reviewer-URL, Store-ID local
+readiness and controlled review-submission gates are `PASS`; Store approval and
+live real-ID acceptance remain `HOLD`. Do not relabel an older EXE as r24, do
+not overwrite historical evidence, and do not treat review approval as
+authorization for public publication.

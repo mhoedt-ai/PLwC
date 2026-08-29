@@ -1,9 +1,10 @@
 # PLwC Chat Bridge Store Submission Checklist
 
-Status: `DRAFTS SAVED / HOLD`
+Status: `SUBMITTED FOR CONTROLLED REVIEW / HOLD`
 
-This record binds the completed draft-only dashboard session. It is not
-authorization to submit for review, certify, or publish either extension.
+This record binds the completed draft preparation and controlled review
+submission. It is not authorization for a later Chrome publication, a change
+to public visibility, or any broader distribution of either extension.
 
 ## Bound identities and packages
 
@@ -47,6 +48,23 @@ draft. Do not create another item, and do not upload the adjacent
 - No developer-account, Partner Center, payment, recovery, or other private
   identifiers are part of this record.
 
+## Controlled review submission - 2026-08-30
+
+- After explicit Product Owner confirmation, Chrome was submitted as private
+  for the configured trusted tester. The dashboard reported
+  `Überprüfung ausstehend`. Automatic publication after approval was disabled.
+  Chrome states that a deferred-publication item expires 30 days after it
+  passes review; plan the controlled availability decision inside that window.
+- After a second action-time confirmation of the exact public certification
+  text, Edge was submitted as hidden/link-only. Partner Center reported
+  `In review` and an expected response within seven business days.
+- The Edge certification note contained the exact public unsigned r24 Setup
+  URL and SHA-256, synthetic test steps, local dependency information and the
+  loopback/publisher-network boundary. It contained no credential or private
+  account data.
+- Neither submitted package is currently an installable Store-signed channel.
+  Review approval and real-ID live acceptance remain open gates.
+
 ## Preflight before any dashboard change
 
 - Re-run `npm run test:store:windows` from the extension directory.
@@ -75,7 +93,7 @@ draft. Do not create another item, and do not upload the adjacent
 Chrome is first only to make the package/listing review easy to repeat in Edge;
 the order has no release or priority meaning.
 
-## HOLD conditions before review submission
+## Completed gates before review submission
 
 - Completed on 2026-08-15: publish the exact versioned, explicitly unsigned
   PLwC Windows Setup candidate and bind its stable public HTTPS URL in
@@ -99,10 +117,12 @@ the order has no release or priority meaning.
 
 ## HOLD conditions before public publication
 
-- Obtain an installable, review-approved Store channel under a separate,
-  explicit Product Owner decision. A saved Chrome or Edge draft alone is not
-  installable: Chrome trusted-tester/private distribution still uses Store
-  review, and Microsoft documents `In draft` as unavailable to users.
+- Wait for an installable, review-approved Store channel. Chrome is pending
+  private review with automatic publication disabled; Edge is in review as
+  hidden/link-only. Submission alone does not make either real-ID package
+  installable.
+- After Chrome approval, complete the controlled availability decision and
+  real-ID acceptance before the 30-day deferred-publication window expires.
 - Install the review-approved packages under their real Chrome and Edge Store
   identities and complete live Native Messaging, loopback, tool-contract,
   confirmation, restart, and missing-native-host acceptance.
@@ -112,6 +132,7 @@ the order has no release or priority meaning.
 - Renew the H2 handoff and bind the Setup hash, public URL, Gateway identity,
   Bridge identity, and both Store package identities.
 
-Review submission and public publication remain separate Product Owner
-decisions. Chrome's deferred-publishing option may be selected at submission,
-but a reviewed submission must not be treated as authorization to publish.
+Review approval, controlled private/hidden availability and any later public
+publication remain separate gates. Chrome's deferred-publishing option is
+active, and a reviewed submission must not be treated as authorization to
+publish.

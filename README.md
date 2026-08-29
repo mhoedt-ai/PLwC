@@ -42,9 +42,10 @@ or agent features.
   It is available from the versioned
   [GitHub pre-release](https://github.com/mhoedt-ai/PLwC/releases/tag/plwc-setup-1.0.0-installer-r24).
 - Internal source, installed-update, Bridge, extension and installer gates
-  pass. Chrome is configured as a private draft with an approved trusted
-  tester; Edge is a hidden/link-only draft. Store review, publication and
-  Store-signed live-browser acceptance remain separate gates.
+  pass. On 2026-08-30, the private Chrome submission entered pending review
+  with automatic publication disabled, and the hidden/link-only Edge submission
+  entered review. Store approval, controlled availability and Store-signed
+  live-browser acceptance remain separate gates.
 - The current Windows Setup and packaged MCPB are **not signed**.
 
 PLwC is not production-certified. It is local infrastructure under

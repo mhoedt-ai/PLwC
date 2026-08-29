@@ -72,8 +72,9 @@ and no HTML/CSS rendering pipeline.
 
 The MCPB and r24 Setup are unsigned. Integrity is currently established by
 exact external SHA-256 verification plus the recorded package, installed
-update, Bridge and client evidence. Chrome and Edge Store packages remain
-controlled drafts and are not public downloads.
+update, Bridge and client evidence. The private Chrome and hidden Edge Store
+packages were submitted for review on 2026-08-30; they are not yet installable
+Store releases.
 
 ## Feedback
 

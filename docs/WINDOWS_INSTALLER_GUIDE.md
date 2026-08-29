@@ -115,10 +115,11 @@ PLwC-Kerninstallation nicht, schränkt aber Sandbox- und Dokumentfunktionen ein.
 ### Browser-Erweiterung einrichten
 
 Der normale Veröffentlichungsweg ist die zum Browser passende Store-Version.
-Der Chrome-Entwurf ist derzeit privat und für einen genehmigten Trusted Tester
-vorbereitet; der Edge-Entwurf ist verborgen und nur über den späteren Link
-auffindbar. Beide enthalten Version 1.0.0, sind aber noch nicht zur Prüfung
-eingereicht und daher noch nicht als Store-signierte Erweiterung installierbar.
+Chrome wurde am 30.08.2026 privat für den genehmigten Trusted Tester zur
+Prüfung eingereicht; die automatische Veröffentlichung ist deaktiviert. Edge
+wurde am selben Tag verborgen und nur über den späteren Link auffindbar zur
+Zertifizierung eingereicht. Beide enthalten Version 1.0.0 und sind während der
+Prüfung noch nicht als Store-signierte Erweiterung installierbar.
 
 Eine entpackt geladene Erweiterung verwendet die getrennte
 Entwicklungsidentität. Sie darf nicht als Nachweis für die Chrome- oder
@@ -388,10 +389,11 @@ if it still displays the previous path.
 
 ### Chat Bridge browser extension
 
-The normal release path is the matching browser Store package. The Chrome draft
-is currently private and prepared for an approved trusted tester; the Edge
-draft is hidden and link-only. Both contain version 1.0.0, but neither has been
-submitted for review, so neither Store-signed package is installable yet.
+The normal release path is the matching browser Store package. On 2026-08-30,
+Chrome was submitted as private for the approved trusted tester with automatic
+publication disabled, and Edge was submitted as hidden/link-only. Both contain
+version 1.0.0 and remain under review, so neither Store-signed package is
+installable yet.
 
 An unpacked extension uses the separate development identity. It must not be
 reported as Chrome or Edge Store-ID acceptance evidence.

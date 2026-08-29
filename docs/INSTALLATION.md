@@ -47,10 +47,12 @@ Claude Desktop MCPB.
 
 **PLwC Chat Bridge 1.0** connects ChatGPT web to a loopback-only bridge and then
 to the PLwC stdio gateway without a public tunnel. Its Chrome/Brave and Edge
-Store packages use fixed public identities. Chrome currently remains a private
-draft with an approved trusted tester and Edge a hidden draft; neither has been
-submitted. Loading the development extension does not prove a Store identity.
-This local route does not replace the future hosted remote-facade plan.
+Store packages use fixed public identities. On 2026-08-30, Chrome was submitted
+as private for its approved trusted tester with automatic publication disabled,
+and Edge was submitted as hidden/link-only. Both are under review and are not
+yet installable Store releases. Loading the development extension does not
+prove a Store identity. This local route does not replace the future hosted
+remote-facade plan.
 
 ## Requirements
 
