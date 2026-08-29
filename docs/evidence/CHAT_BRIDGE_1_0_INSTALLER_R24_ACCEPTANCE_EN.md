@@ -93,8 +93,9 @@ remained drafts, but it was not an appropriate controlled test channel. After
 an explicit Product Owner decision, Chrome was saved as private and Edge as
 hidden/link-only. Both selections persisted after navigation or reload and both
 items remained drafts. No review, certification or publication action was
-used. Chrome still requires an approved trusted tester or tester group before
-its private test track can be useful.
+used. After a separate explicit decision, one approved individual Chrome
+trusted tester was saved at publisher-account level and persisted after reload.
+No tester address or private account identifier is recorded in this evidence.
 
 ## Release decision
 

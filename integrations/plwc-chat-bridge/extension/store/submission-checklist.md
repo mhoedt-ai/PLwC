@@ -86,9 +86,11 @@ the order has no release or priority meaning.
   origins, common build `plwc-chat-bridge@1.0.0` and exactly eight tools.
 - Completed on 2026-08-29 after an explicit Product Owner decision: save Chrome
   as private and Edge as hidden/link-only. Both settings persisted and both
-  items remained drafts. No review or publication action was used. Add an
-  approved Chrome trusted tester or tester group before using the private test
-  track; do not treat that tester configuration as authorization to submit.
+  items remained drafts. No review or publication action was used.
+- Completed on 2026-08-29 after a separate explicit Product Owner decision:
+  save one approved individual Chrome trusted tester at publisher-account
+  level and verify persistence after reload. Keep the tester address out of the
+  repository; do not treat tester configuration as authorization to submit.
 - Complete the separate comprehensive PLwC 1.0 software-documentation update.
 
 ## HOLD conditions before public publication
