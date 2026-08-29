@@ -91,7 +91,11 @@ the order has no release or priority meaning.
   save one approved individual Chrome trusted tester at publisher-account
   level and verify persistence after reload. Keep the tester address out of the
   repository; do not treat tester configuration as authorization to submit.
-- Complete the separate comprehensive PLwC 1.0 software-documentation update.
+- Completed on 2026-08-29: publish the comprehensive PLwC 1.0 software
+  description and align the installation, configuration, security,
+  troubleshooting, tester and component documentation with the exact unsigned
+  r24 candidate, stable fresh-install runtime paths, update behavior and saved
+  Store-draft state. Historical rc and installer evidence remains unchanged.
 
 ## HOLD conditions before public publication
 

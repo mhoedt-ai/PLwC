@@ -1,5 +1,10 @@
 # V1-LOCAL-CHATGPT-ADAPTER-001: PLwC Chat Bridge
 
+> **Historical design record.** The prototype and rc18/rc19 statements below
+> are preserved for traceability. The implemented 1.0 component is documented
+> in [`PROGRAM_AND_SOFTWARE_DESCRIPTION_1_0.md`](PROGRAM_AND_SOFTWARE_DESCRIPTION_1_0.md)
+> and [`../integrations/plwc-chat-bridge/README.md`](../integrations/plwc-chat-bridge/README.md).
+
 Status: **DESIGN / LOCAL PROTOTYPE**
 Owner: **PLwC project**
 Created: **2026-07-17**

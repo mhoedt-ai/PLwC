@@ -29,15 +29,23 @@ or agent features.
 
 ## Status
 
-- Current release: **PLwC 1.0.0**.
+- Current product version: **PLwC 1.0.0**; distribution remains a pre-release
+  until the external browser Store gates pass.
 - This repository retains a privacy-filtered public release boundary. Private
   development history, local evidence, real profiles and workspace data are
   intentionally not included.
 - Version `1.0.0` contains the complete eight-tool governed Gateway and the
   PLwC Chat Bridge 1.0 integration for Chrome, Brave and Edge.
-- Internal source, Bridge, extension and installer contract gates pass; Store
-  publication and exact external live-browser acceptance remain separate gates.
-- The packaged MCPB is **not signed**.
+- The explicit unsigned Windows candidate is
+  `PLwC-Setup-1.0.0-installer-r24.exe`, SHA-256
+  `b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0`.
+  It is available from the versioned
+  [GitHub pre-release](https://github.com/mhoedt-ai/PLwC/releases/tag/plwc-setup-1.0.0-installer-r24).
+- Internal source, installed-update, Bridge, extension and installer gates
+  pass. Chrome is configured as a private draft with an approved trusted
+  tester; Edge is a hidden/link-only draft. Store review, publication and
+  Store-signed live-browser acceptance remain separate gates.
+- The current Windows Setup and packaged MCPB are **not signed**.
 
 PLwC is not production-certified. It is local infrastructure under
 active development.
@@ -161,12 +169,14 @@ For full installation context, prerequisites and configuration
 options, including local GPT and Odysseus stdio setup plus hosted ChatGPT
 web/custom-app status, see [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
 
-The selectable Windows EXE installer is being developed in this same
-repository under [`installer/windows`](installer/windows/README.md). It can
-package the Gateway, Claude MCPB, Codex and Odysseus STDIO preparation, and the
-local PLwC Chat Bridge. Its gated build and validation status is documented in
-[`installer/windows/V_MODEL.md`](installer/windows/V_MODEL.md); a development
-EXE is not yet a final-release claim.
+The selectable Windows EXE installer is maintained under
+[`installer/windows`](installer/windows/README.md). The current r24 candidate
+packages the Gateway, Claude MCPB, Codex and Odysseus STDIO preparation, and the
+local PLwC Chat Bridge. It detects complete existing installations, preserves
+their paths and settings, and uses stable `gateway` and `bridge` directory
+names for new installs. Its gated build and validation status is documented in
+[`installer/windows/V_MODEL.md`](installer/windows/V_MODEL.md). The public r24
+artifact is explicitly unsigned and remains a pre-release candidate.
 
 The bilingual end-user flow, including language selection, administrator
 approval, download/storage estimates and Chrome/Edge Bridge setup, is described
@@ -174,7 +184,9 @@ in [`docs/WINDOWS_INSTALLER_GUIDE.md`](docs/WINDOWS_INSTALLER_GUIDE.md).
 
 ## Documentation
 
-- Historical Open Beta program and software description:
+- Current 1.0 program and software description:
+  [`docs/PROGRAM_AND_SOFTWARE_DESCRIPTION_1_0.md`](docs/PROGRAM_AND_SOFTWARE_DESCRIPTION_1_0.md)
+- Historical rc18 Open Beta program and software description:
   [`docs/PROGRAM_AND_SOFTWARE_DESCRIPTION_OPEN_BETA.md`](docs/PROGRAM_AND_SOFTWARE_DESCRIPTION_OPEN_BETA.md)
 - Install / quickstart: [`docs/INSTALLATION.md`](docs/INSTALLATION.md),
   [`docs/QUICKSTART_CLAUDE_DESKTOP.md`](docs/QUICKSTART_CLAUDE_DESKTOP.md),

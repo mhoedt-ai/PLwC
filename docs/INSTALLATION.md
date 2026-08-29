@@ -5,13 +5,21 @@ maintainer-confirmed local GPT clients, local Odysseus, and ChatGPT web through
 the local PLwC Chat Bridge. Hosted custom apps remain a separate deployment
 class.
 
-The current 1.0 release artifact is unsigned. Verify the exact SHA256 before
-installation:
+The current 1.0 Windows candidate and Gateway MCPB are unsigned. Verify the
+exact SHA-256 before installation:
 
 ```text
-Package: plwc-gateway-1.0.0.mcpb
-SHA256: use the value published alongside the exact 1.0.0 artifact
+Windows Setup: PLwC-Setup-1.0.0-installer-r24.exe
+Setup SHA256: b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0
+Setup URL: https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r24/PLwC-Setup-1.0.0-installer-r24.exe
+
+Gateway package: plwc-gateway-1.0.0.mcpb
+Repository package SHA256: 5e870f40b9b3faea79d3997af9c657ef62c11295e85635a049214f7b63678fe7
 ```
+
+Windows may display an unknown-publisher warning for r24. The exact URL and
+hash identify the accepted reviewer candidate; do not substitute an older EXE
+or a generic release-page download.
 
 PLwC exposes exactly one public MCP server:
 
@@ -29,7 +37,7 @@ Commander MCP servers as part of PLwC.
 | Claude Desktop | Supported and smoke-tested | Local MCPB / stdio | Install the 1.0.0 MCPB extension. |
 | Local GPT client | Supported in the maintainer setup | Local stdio | Extract the 1.0.0 package and register its bundled `server.py` as one MCP server. |
 | Odysseus | Supported as an external local PoC and smoke-tested | Local stdio | Extract the 1.0.0 package and configure its bundled `server.py` as one external MCP server. |
-| ChatGPT web in Chrome, Brave or Edge | Supported through PLwC Chat Bridge 1.0 | Loopback WebSocket, Native Messaging and local stdio | Install the PLwC Windows Setup and the matching browser Store extension. |
+| ChatGPT web in Chrome, Brave or Edge | 1.0 implementation and local Store-origin readiness pass; Store-signed acceptance pending | Loopback WebSocket, Native Messaging and local stdio | Install Windows Setup r24. The Chrome private and Edge hidden Store packages become installable only after their separate review/certification gate. |
 | Hosted ChatGPT custom app | Planned, not directly installable from the local package | Remote MCP over HTTPS or Secure MCP Tunnel | Requires the future authenticated PLwC remote facade from `V1-REMOTE-MCP-FACADE-001`. Do not upload the MCPB or expose the raw local gateway. |
 
 Claude Desktop, the maintainer's local GPT client and Odysseus use the existing
@@ -39,8 +47,10 @@ Claude Desktop MCPB.
 
 **PLwC Chat Bridge 1.0** connects ChatGPT web to a loopback-only bridge and then
 to the PLwC stdio gateway without a public tunnel. Its Chrome/Brave and Edge
-Store packages use fixed public identities. This supported local route does not
-replace the future hosted remote-facade plan.
+Store packages use fixed public identities. Chrome currently remains a private
+draft with an approved trusted tester and Edge a hidden draft; neither has been
+submitted. Loading the development extension does not prove a Store identity.
+This local route does not replace the future hosted remote-facade plan.
 
 ## Requirements
 
@@ -82,8 +92,9 @@ On Windows PowerShell:
 Get-FileHash .\plwc-gateway-1.0.0.mcpb -Algorithm SHA256
 ```
 
-Compare the result with the SHA256 published alongside the exact artifact.
-Stop if it differs. The package is unsigned, so external exact-hash
+Compare the result with the SHA-256 shown at the start of this guide or with a
+newer value published alongside a deliberately selected exact artifact. Stop
+if it differs. The package is unsigned, so external exact-hash
 verification is the current integrity check; a hash embedded inside the package
 being verified would not be an independent trust source.
 

@@ -32,6 +32,43 @@ thresholds.
 
 Client configuration generation must expose only `plwc-gateway`.
 
+## Shared Windows configuration and UI
+
+Windows Setup and PLwC Configuration share the user-scoped state below:
+
+```text
+%APPDATA%\PLwC\config\gateway-settings.json
+%APPDATA%\PLwC\config\active_profile.json
+%APPDATA%\PLwC\config\installer\selection.ini
+```
+
+The configuration page displays the effective workspace, profile, thresholds,
+Qdrant state and Persona Layer state. **Save settings** updates the shared
+Gateway configuration, the installed Bridge example configuration and the
+persisted installer selection. Legacy `plwc.json` Bridge configuration and
+UTF-16, UTF-8 or CP1252 installer selection files are migrated without silently
+discarding current values.
+
+The effective profile name resolves in this order:
+
+1. governed `active_profile.json` state;
+2. shared Gateway settings;
+3. host or extension configuration;
+4. product defaults.
+
+Ordinary settings save, reset and rollback do not activate another governed
+profile. Profile activation remains a dedicated confirmed governance flow.
+
+### Change the workspace after installation
+
+Use the workspace-change control in **PLwC Configuration** and provide an
+absolute path. Saving creates missing `Tagebuch`, `Temp` and `Trashcan`
+directories only. It does not move, overwrite or delete existing files. The
+new value is shared by Gateway, Chat Bridge and generated Codex/Odysseus
+configuration and is reused by later Setup updates.
+
+Restart only clients that still display the previous workspace after the save.
+
 ## Workspace search scope guards (RC12-FS-003)
 
 `plwc_workspace_operation(operation="search")` bounds its walk so a single large

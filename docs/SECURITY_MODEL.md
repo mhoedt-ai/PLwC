@@ -219,9 +219,13 @@ containment layer.
 
 The MCPB artifact and the explicitly unsigned Windows Setup are **not signed**.
 Artifact signing is not part of the accepted v1.0 release pipeline. The
-authoritative integrity check is the SHA256 of the released MCPB,
-which is recorded in the corresponding `docs/RELEASE_NOTES_*.md` and
-in the GitHub Draft pre-release entry.
+authoritative integrity check is an external SHA-256 bound to the exact
+artifact. For Windows Setup r24 this is
+`b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0`
+at the versioned public GitHub pre-release URL recorded in
+[`PROGRAM_AND_SOFTWARE_DESCRIPTION_1_0.md`](PROGRAM_AND_SOFTWARE_DESCRIPTION_1_0.md).
+Do not use a hash contained only inside the artifact being verified as an
+independent trust anchor.
 
 ## 12. Risk acceptance
 
@@ -229,6 +233,6 @@ Remaining risks are known, documented and accepted for v1.0. The unsigned
 publisher status is recorded explicitly in the external build identity and is
 not hidden by filenames or release notes.
 
-This file is the standing reference. Per-RC residual risks and any
-deltas from this baseline are recorded in the corresponding
-`docs/RELEASE_NOTES_*.md`.
+This file is the standing reference. Artifact-specific residual risks and
+deltas are recorded in their immutable acceptance evidence; historical records
+are not rewritten when a newer installer revision is produced.

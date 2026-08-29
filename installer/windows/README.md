@@ -3,6 +3,13 @@
 This directory builds the selectable Windows installer for the PLwC Gateway,
 Claude Desktop MCPB, Codex STDIO, Odysseus STDIO and PLwC Chat Bridge.
 
+Current accepted pre-release candidate: `PLwC-Setup-1.0.0-installer-r24.exe`,
+5,218,213 bytes, SHA-256
+`b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0`.
+It is an explicit unsigned build with Authenticode status `NotSigned`; Windows
+may display an unknown-publisher warning. Its public reviewer copy is bound to
+the versioned GitHub pre-release and must not be replaced by an older EXE.
+
 The end-user artifact is an Inno Setup executable:
 
 ```text
@@ -43,6 +50,19 @@ Required Python/Node choices disable Next until the user selects a resolution;
 the Next button keeps its short localized caption while a separate status line
 explains the required action or retry.
 
+New installations use stable runtime directory names:
+
+```text
+%APPDATA%\PLwC\app\gateway
+%APPDATA%\PLwC\app\bridge
+```
+
+When Setup detects a complete installation, it switches to update mode before
+the directory and runtime pages, reuses all persisted paths and settings, and
+skips repeated questions. Existing legacy or versioned directories remain in
+place; update and repair do not rename them or recreate user data. Persisted
+`selection.ini` state takes precedence over stale duplicate registry values.
+
 Setup disables prerequisite choices and Back/Next navigation while installed
 components are being detected. After Next is clicked, it snapshots the selected
 automatic setup plan and keeps one progress page visible across downloads,
@@ -72,13 +92,15 @@ After `pip`, Setup imports every required Python module through the same
 absolute interpreter and logs its path or full traceback. A remaining import
 failure triggers one repair attempt for the pinned Visual C++ runtime.
 
-The Chat Bridge uses the stable unpacked-extension ID
-`nlogfcafjdfdoknpkbehjgihpafpipdb`. When Chat Bridge is selected, Setup writes
-one Native Messaging manifest for that ID, registers it automatically under
-the current user's Chrome, Edge and Brave registry keys, and creates a limited
-per-user scheduled task that starts and verifies the Bridge after Windows
-sign-in. The wizard no longer asks the user to copy an extension ID or run a
-PowerShell registration script.
+The Chat Bridge keeps the stable unpacked development ID
+`nlogfcafjdfdoknpkbehjgihpafpipdb` separate from the assigned Chrome Store ID
+`feceodobnhefdbfgmbinkndhogpfkicb` and Edge Store ID
+`nncomjknhhlgcmkmlaljhkiojcnpmflb`. When Chat Bridge is selected, Setup writes
+one Native Messaging manifest allowing exactly those three origins and no
+wildcard, registers it automatically under the current user's Chrome, Edge and
+Brave registry keys, and creates a limited per-user scheduled task that starts
+and verifies the Bridge after Windows sign-in. The wizard no longer asks the
+user to copy an extension ID or run a PowerShell registration script.
 `bridge/scripts/healthcheck.mjs` and `bridge/scripts/launch-bridge.mjs` are
 required staged payloads because the native launcher uses both in the installed
 layout. Registration, startup and uninstall use the staged scripts internally;

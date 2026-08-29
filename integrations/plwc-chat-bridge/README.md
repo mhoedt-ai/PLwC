@@ -1,9 +1,11 @@
 # PLwC Chat Bridge
 
-Status: 1.0.0 implementation candidate. Distribution remains on hold until the
-signed Windows artifact and the external Store-identity acceptance gates pass.
+Status: 1.0.0 implementation and local Store-origin readiness pass. The current
+Windows r24 artifact is explicitly unsigned. Chrome is a private draft with an
+approved trusted tester and Edge is a hidden draft; external Store-signed
+identity acceptance remains on hold until their separate review gates pass.
 
-PLwC Chat Bridge is the proposed PLwC-owned local browser client integration
+PLwC Chat Bridge is the PLwC-owned local browser client integration
 for using the signed-in ChatGPT web UI with the local `plwc-gateway` MCP
 server. It is a client-side bridge in front of the governed PLwC gateway, not a
 new backend adapter and not an OpenAI API replacement.
@@ -127,9 +129,12 @@ Recorded test execution:
 - [rc19.dev9 workspace evidence and sequencing evidence, 2026-07-18](tests/RC19_DEV9_WORKSPACE_EVIDENCE_AND_SEQUENCING_2026-07-18.md)
 - [rc19.dev10 sandbox automation and confirmation evidence, 2026-07-18](tests/RC19_DEV10_SANDBOX_AUTOMATION_AND_CONFIRMATION_EVIDENCE_2026-07-18.md)
 
-This is still an rc19 development prototype. It has not yet completed a fresh
-unpacked-extension smoke on the live ChatGPT DOM or a confirmed write/read
-round trip.
+The rc19.dev0 through rc19.dev10 records above remain historical implementation
+evidence. The current component identity is 1.0.0. Automated extension tests,
+installed r24 Bridge health, the eight-tool contract, Native Launcher status,
+and live loopback health using both assigned Store origins pass. The remaining
+external gate is installation and acceptance of the review-approved,
+Store-signed Chrome and Edge packages under their real IDs.
 
 ## Build And Run
 
@@ -141,8 +146,9 @@ npm run check
 .\scripts\start-windows.ps1
 ```
 
-Load `extension/dist/` as an unpacked Chrome, Edge or Brave extension after the
-build. Its manifest key fixes the unpacked beta ID to
+For development and local pre-release acceptance only, load `extension/dist/`
+as an unpacked Chrome, Edge or Brave extension after the build. Its manifest key
+fixes the separate development ID to
 `nlogfcafjdfdoknpkbehjgihpafpipdb`. PLwC Setup registers the native host
 and Windows autostart automatically. For a developer repair build, invoke the
 compiled helper directly:
@@ -154,7 +160,8 @@ native\bin\plwc-chat-bridge-launcher.exe --register --browser all --lang de
 Use `--browser chrome`, `edge`, `brave`, `both` or `all`. The canonical identity
 contract already includes the retained development ID and the assigned Chrome
 and Edge Store IDs. A repeated `--extension-id` argument may add an explicitly
-approved identity without removing the canonical origins.
+approved identity without removing the canonical origins. An unpacked build
+must never be reported as Store-ID acceptance evidence.
 
 On Windows, the launcher initially imports the enabled PLwC configuration at
 `%APPDATA%\Claude\Claude Extensions Settings\local.mcpb.plwc.plwc-gateway.json`.

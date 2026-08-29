@@ -5,8 +5,9 @@ normal Claude Desktop user, not for developers. Follow the steps in
 order. If a step does not behave as described under "Expected result",
 read the "If you do not see this..." line right under it.
 
-> PLwC `1.0.0` is the current release. The MCPB is **not signed**; verify the
-> documented SHA256. No production-certification claim is made.
+> PLwC `1.0.0` is the current product version and pre-release baseline. The
+> MCPB is **not signed**; verify the documented SHA-256. No
+> production-certification claim is made.
 
 > This quickstart is Claude Desktop-specific. For the maintainer-confirmed
 > local GPT stdio route, the Odysseus stdio route and the hosted ChatGPT
@@ -128,13 +129,16 @@ Developer Mode, and restart Claude Desktop.
 4. Open **Advanced settings**.
 5. Find **Extension Developer**.
 6. Click **Install Extension**.
-7. In the file picker, select the PLwC MCPB file. The current
-   1.0 release artifact is:
+7. In the file picker, select the PLwC MCPB file. The current 1.0 package is:
    ```
    plwc-gateway-1.0.0.mcpb
    ```
-   Compare its SHA256 with the value published alongside the exact 1.0.0
-   artifact before installing it.
+   Its current repository artifact SHA-256 is:
+   ```text
+   5e870f40b9b3faea79d3997af9c657ef62c11295e85635a049214f7b63678fe7
+   ```
+   Compare this with the value published alongside the exact selected artifact
+   and stop if it differs.
 8. Confirm the installation in any Claude Desktop dialog that appears.
 9. If Claude Desktop asks you to restart, restart it.
 

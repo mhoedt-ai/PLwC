@@ -114,8 +114,19 @@ PLwC-Kerninstallation nicht, schränkt aber Sandbox- und Dokumentfunktionen ein.
 
 ### Browser-Erweiterung einrichten
 
-Wenn die PLwC Chat Bridge ausgewählt wurde, öffnet das Setup nach der
-Installation den vorbereiteten Erweiterungsordner.
+Der normale Veröffentlichungsweg ist die zum Browser passende Store-Version.
+Der Chrome-Entwurf ist derzeit privat und für einen genehmigten Trusted Tester
+vorbereitet; der Edge-Entwurf ist verborgen und nur über den späteren Link
+auffindbar. Beide enthalten Version 1.0.0, sind aber noch nicht zur Prüfung
+eingereicht und daher noch nicht als Store-signierte Erweiterung installierbar.
+
+Eine entpackt geladene Erweiterung verwendet die getrennte
+Entwicklungsidentität. Sie darf nicht als Nachweis für die Chrome- oder
+Edge-Store-ID bezeichnet werden.
+
+Nur für Entwicklung und lokale Vorabnahme öffnet das Setup nach der
+Installation den vorbereiteten Erweiterungsordner. Verwenden Sie dabei genau
+den installierten `extension`-Ordner und keine Repository-Kopie.
 
 Für Chrome:
 
@@ -143,8 +154,9 @@ Für Brave:
 4. Wählen Sie den vom PLwC-Setup geöffneten Erweiterungsordner.
 5. Laden Sie die Erweiterung nach Reparaturen oder Updates neu.
 
-Die Native-Messaging-Registrierung und die benutzerbezogene Windows-
-Autostart-Aufgabe werden vom PLwC-Setup beziehungsweise dessen Reparaturfunktion
+Die Native-Messaging-Registrierung erlaubt getrennt die Entwicklungs-, Chrome-
+Store- und Edge-Store-ID, aber keine Wildcard. Die benutzerbezogene Windows-
+Autostart-Aufgabe wird vom PLwC-Setup beziehungsweise dessen Reparaturfunktion
 übernommen. Im normalen Ablauf ist kein Terminalbefehl erforderlich.
 
 ### Bridge prüfen
@@ -374,11 +386,19 @@ The new path is stored as the shared workspace for Gateway, Chat Bridge, Codex
 and Odysseus and is reused by later Setup updates. Restart a running client only
 if it still displays the previous path.
 
-### Manual Chat Bridge extension installation for Chrome and Brave
+### Chat Bridge browser extension
 
-When PLwC Chat Bridge is selected, setup opens the installed extension folder
-after installation. Use that folder directly. For a default installation, the
-folder is:
+The normal release path is the matching browser Store package. The Chrome draft
+is currently private and prepared for an approved trusted tester; the Edge
+draft is hidden and link-only. Both contain version 1.0.0, but neither has been
+submitted for review, so neither Store-signed package is installable yet.
+
+An unpacked extension uses the separate development identity. It must not be
+reported as Chrome or Edge Store-ID acceptance evidence.
+
+For development and local pre-release acceptance only, Setup opens the
+installed extension folder. Use that exact folder. For a default installation,
+the folder is:
 
 ```text
 %APPDATA%\PLwC\app\bridge\extension
@@ -412,10 +432,19 @@ For Brave:
 5. After a PLwC repair or update, return to `brave://extensions` and select
    **Reload** on the PLwC Chat Bridge extension card.
 
+For Edge development acceptance:
+
+1. Open `edge://extensions`.
+2. Enable **Developer mode**.
+3. Select **Load unpacked**.
+4. Select the installed `extension` folder shown above.
+5. After a PLwC repair or update, select **Reload** on the extension card.
+
 PLwC setup and repair register the Native Launcher for Chrome, Edge and Brave
-under the signed-in Windows user. The expected registration points are the
-browser Native Messaging host entries for `plwc.chat_bridge.launcher`, pointing
-to the PLwC-generated manifest in:
+under the signed-in Windows user. The generated manifest allows the distinct
+development, Chrome Store and Edge Store origins and no wildcard. The expected
+registration points are the browser Native Messaging host entries for
+`plwc.chat_bridge.launcher`, pointing to the PLwC-generated manifest in:
 
 ```text
 %APPDATA%\PLwC\config\native-messaging\plwc.chat_bridge.launcher.json
