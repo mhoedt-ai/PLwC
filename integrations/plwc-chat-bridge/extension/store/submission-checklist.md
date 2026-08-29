@@ -38,9 +38,12 @@ draft. Do not create another item, and do not upload the adjacent
   download reproduced SHA-256
   `b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0`
   and Authenticode status `NotSigned`. Chrome saved the matching 445-character
-  reviewer test instruction without credentials. Three privacy-sanitized
-  1280 x 800 Store-candidate drafts are prepared but have not yet been uploaded
-  to either saved Store draft.
+  reviewer test instruction without credentials.
+- On 2026-08-29, the three privacy-sanitized 1280 x 800 Store-candidate
+  screenshots were uploaded to and saved in both existing Store drafts. Chrome
+  continued to show `Status: Entwurf`; Edge contained the same three named
+  files and confirmed the saved draft. Neither `Prüfen lassen` nor `Publish`
+  was used.
 - No developer-account, Partner Center, payment, recovery, or other private
   identifiers are part of this record.
 
