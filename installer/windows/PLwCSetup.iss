@@ -13,7 +13,7 @@
 #define AppVersion "1.0.0"
 #endif
 #ifndef InstallerRevision
-#define InstallerRevision "installer-r24"
+#define InstallerRevision "installer-r25"
 #endif
 #ifndef GatewayVersion
 #define GatewayVersion "1.0.0"
@@ -537,8 +537,8 @@ english.LogNativeHostMissing=Native Messaging was not registered because the hos
 german.LogNativeHostMissing=Native Messaging wurde nicht registriert, weil die Host-EXE fehlt: 
 english.BridgeIntegrationStatus=Registering Native Messaging and starting the Chat Bridge...
 german.BridgeIntegrationStatus=Native Messaging wird registriert und die Chat Bridge wird gestartet...
-english.ErrorBridgeIntegration=Chat Bridge integration could not be completed. Run Setup again and review %APPDATA%\PLwC\logs\chat-bridge\windows-integration.log. Exit code: 
-german.ErrorBridgeIntegration=Die Chat-Bridge-Integration konnte nicht abgeschlossen werden. Führen Sie Setup erneut aus und prüfen Sie %APPDATA%\PLwC\logs\chat-bridge\windows-integration.log. Exitcode: 
+english.ErrorBridgeIntegration=Chat Bridge postflight did not confirm the native launcher, startup shortcut, exact build identity and 8 of 8 tools. Setup was not completed. Review %LOCALAPPDATA%\PLwC\logs\setup\installer-diagnostic.log and %APPDATA%\PLwC\logs\chat-bridge\native-launcher.log. Exit code:
+german.ErrorBridgeIntegration=Der Chat-Bridge-Abschlusstest hat Native Launcher, Autostart-Verknüpfung, exakte Buildidentität und 8 von 8 Werkzeugen nicht bestätigt. Setup wurde nicht abgeschlossen. Prüfen Sie %LOCALAPPDATA%\PLwC\logs\setup\installer-diagnostic.log und %APPDATA%\PLwC\logs\chat-bridge\native-launcher.log. Exitcode:
 english.ReadyBridgeAutostart=Chat Bridge: start automatically at every Windows sign-in
 german.ReadyBridgeAutostart=Chat Bridge: automatischer Start bei jeder Windows-Anmeldung
 english.ReadyRuntime=PLwC runtime:
@@ -696,6 +696,7 @@ Name: "{code:GetBackupsPath}"; Flags: uninsneveruninstall
 Type: files; Name: "{userdesktop}\PLwC Konfiguration.lnk"
 Type: files; Name: "{userdesktop}\PLwC configuration.lnk"
 Type: files; Name: "{userdesktop}\PLwC-Konfiguration.lnk"
+Type: files; Name: "{userstartup}\PLwC Chat Bridge.lnk"
 
 [Icons]
 Name: "{group}\{cm:IconGettingStarted}"; Filename: "{code:GetConfigurationPythonPath}"; Parameters: "{code:GetGettingStartedArguments}"; WorkingDir: "{app}\configuration"; IconFilename: "{app}\configuration\plwc.ico"; Check: GettingStartedUiExists
@@ -704,6 +705,7 @@ Name: "{group}\{cm:IconConfig}"; Filename: "{code:GetConfigurationPythonPath}"; 
 Name: "{userdesktop}\{cm:IconDesktopConfig}"; Filename: "{code:GetConfigurationPythonPath}"; Parameters: "{code:GetConfigurationArguments}"; WorkingDir: "{app}\configuration"; IconFilename: "{app}\configuration\plwc.ico"; Check: ConfigurationUiExists
 Name: "{group}\{cm:IconConfigFolder}"; Filename: "{sys}\explorer.exe"; Parameters: """{code:GetConfigPath}"""
 Name: "{group}\{cm:IconUninstall}"; Filename: "{uninstallexe}"
+Name: "{userstartup}\PLwC Chat Bridge"; Filename: "{code:GetNativeHostExePathConstant}"; Parameters: "{code:GetBridgeAutostartArguments}"; WorkingDir: "{code:GetBridgePath}"; IconFilename: "{app}\configuration\plwc.ico"; Flags: runminimized; Components: chatbridge
 
 [Run]
 Filename: "{code:GetConfigurationPythonPath}"; Parameters: "{code:GetGettingStartedArguments}"; WorkingDir: "{app}\configuration"; Description: "{cm:RunOpenGettingStarted}"; Flags: postinstall nowait skipifsilent; Check: GettingStartedUiExists
@@ -1089,14 +1091,14 @@ begin
   Result := GetBridgePath('') + '\native\bin\plwc-chat-bridge-launcher.exe';
 end;
 
-function GetNativeInstallScriptPath: String;
+function GetNativeHostExePathConstant(Param: String): String;
 begin
-  Result := GetBridgePath('') + '\scripts\install-native-launcher-windows.ps1';
+  Result := GetNativeHostExePath;
 end;
 
-function GetBridgeAutostartScriptPath: String;
+function GetBridgeAutostartShortcutPath: String;
 begin
-  Result := GetBridgePath('') + '\scripts\install-autostart-windows.ps1';
+  Result := ExpandConstant('{userstartup}\PLwC Chat Bridge.lnk');
 end;
 
 function GetBridgeConfigPath: String;
@@ -2561,11 +2563,6 @@ begin
     RaiseException(CustomMessage('ErrorSummary'));
 end;
 
-function QuoteProcessArgument(Value: String): String;
-begin
-  Result := '"' + Value + '"';
-end;
-
 procedure SynchronizeSharedSettings;
 var
   ResultCode: Integer;
@@ -2599,79 +2596,72 @@ begin
     Result := 'en';
 end;
 
-function ExecuteBridgePowerShellScript(
-  ScriptPath, ScriptArguments: String;
-  FailOnError, PreferOriginalUser: Boolean): Boolean;
+function GetBridgeAutostartArguments(Param: String): String;
+begin
+  Result := '--start --delay-seconds 20 --lang ' + GetBridgeScriptLanguage;
+end;
+
+function VerifyBridgeAutostartShortcut: Boolean;
 var
-  PowerShellPath: String;
-  Parameters: String;
-  ResultCode: Integer;
+  ShellObject: Variant;
+  ShortcutObject: Variant;
+  ShortcutTarget: String;
+  ShortcutArguments: String;
+begin
+  Result := False;
+  if not FileExists(GetBridgeAutostartShortcutPath) then
+  begin
+    Log('PLwC Chat Bridge Startup shortcut is missing.');
+    Exit;
+  end;
+  try
+    ShellObject := CreateOleObject('WScript.Shell');
+    ShortcutObject := ShellObject.CreateShortcut(GetBridgeAutostartShortcutPath);
+    ShortcutTarget := ShortcutObject.TargetPath;
+    ShortcutArguments := ShortcutObject.Arguments;
+    Result :=
+      (CompareText(
+        NormalizePath(ShortcutTarget),
+        NormalizePath(GetNativeHostExePath)) = 0) and
+      (CompareText(
+        Trim(ShortcutArguments),
+        GetBridgeAutostartArguments('')) = 0);
+    if not Result then
+      Log(
+        'PLwC Chat Bridge Startup shortcut target or arguments do not ' +
+        'match the installed native launcher.');
+  except
+    Log(
+      'PLwC Chat Bridge Startup shortcut verification failed: ' +
+      GetExceptionMessage);
+    Result := False;
+  end;
+end;
+
+function ExecuteNativeLauncher(
+  Arguments: String; var ResultCode: Integer): Boolean;
+var
   Started: Boolean;
 begin
   Result := False;
   ResultCode := -1;
-  if not FileExists(ScriptPath) then
+  if not FileExists(GetNativeHostExePath) then
   begin
-    Log('PLwC Chat Bridge PowerShell script is missing: ' + ScriptPath);
-    if FailOnError then
-      RaiseException(CustomMessage('ErrorBridgeIntegration') + IntToStr(ResultCode));
+    Log('PLwC Chat Bridge native launcher is missing: ' + GetNativeHostExePath);
     Exit;
   end;
-
-  PowerShellPath :=
-    ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-  Parameters :=
-    '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' +
-    QuoteProcessArgument(ScriptPath);
-  if Trim(ScriptArguments) <> '' then
-    Parameters := Parameters + ' ' + ScriptArguments;
-
-  if PreferOriginalUser then
-  begin
-    Log(
-      'Executing PLwC Chat Bridge integration script as original user: ' +
-      ScriptPath + ' ' + ScriptArguments);
-    Started := ExecAsOriginalUser(
-      PowerShellPath,
-      Parameters,
-      ExtractFileDir(ScriptPath),
-      SW_HIDE,
-      ewWaitUntilTerminated,
-      ResultCode);
-    if not Started then
-    begin
-      Log(
-        'ExecAsOriginalUser could not start the bridge script; retrying in ' +
-        'the current per-user setup context.');
-      Started := Exec(
-        PowerShellPath,
-        Parameters,
-        ExtractFileDir(ScriptPath),
-        SW_HIDE,
-        ewWaitUntilTerminated,
-        ResultCode);
-    end;
-  end
-  else
-  begin
-    Log(
-      'Executing PLwC Chat Bridge integration script in the current ' +
-      'per-user uninstall context: ' + ScriptPath + ' ' + ScriptArguments);
-    Started := Exec(
-      PowerShellPath,
-      Parameters,
-      ExtractFileDir(ScriptPath),
-      SW_HIDE,
-      ewWaitUntilTerminated,
-      ResultCode);
-  end;
-
+  Log('Executing PLwC Chat Bridge native launcher: ' + Arguments);
+  Started := Exec(
+    GetNativeHostExePath,
+    Arguments,
+    GetBridgePath(''),
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode);
   Result := Started and (ResultCode = 0);
   Log(
-    'PLwC Chat Bridge integration script result: started=' +
+    'PLwC Chat Bridge native launcher result: started=' +
     IntToStr(Ord(Started)) + '; exit=' + IntToStr(ResultCode));
-  if (not Result) and FailOnError then
-    RaiseException(CustomMessage('ErrorBridgeIntegration') + IntToStr(ResultCode));
 end;
 
 function FindDockerDesktopExecutable: String;
@@ -2720,8 +2710,9 @@ end;
 
 procedure ConfigureChatBridgeWindowsIntegration;
 var
-  NativeArguments: String;
-  AutostartArguments: String;
+  ResultCode: Integer;
+  RollbackCode: Integer;
+  FailurePhase: String;
 begin
   if not WizardIsComponentSelected('chatbridge') then
     Exit;
@@ -2733,44 +2724,66 @@ begin
   end;
 
   WizardForm.StatusLabel.Caption := CustomMessage('BridgeIntegrationStatus');
-  NativeArguments :=
-    '-SkipBuild -Browser All -Language ' + GetBridgeScriptLanguage +
-    ' -ExtensionId ' + ChatBridgeExtensionId;
-  ExecuteBridgePowerShellScript(
-    GetNativeInstallScriptPath, NativeArguments, True, True);
-
-  AutostartArguments :=
-    '-ConfigPath ' + QuoteProcessArgument(GetBridgeConfigPath) +
-    ' -Language ' + GetBridgeScriptLanguage + ' -StartNow';
-  if DetectedNodePath <> '' then
-    AutostartArguments :=
-      AutostartArguments + ' -NodePath ' +
-      QuoteProcessArgument(DetectedNodePath);
-  if not ExecuteBridgePowerShellScript(
-    GetBridgeAutostartScriptPath, AutostartArguments, False, True) then
+  FailurePhase := 'legacy_autostart_migration';
+  if ExecuteNativeLauncher('--remove-legacy-autostart', ResultCode) then
   begin
-    ExecuteBridgePowerShellScript(
-      GetNativeInstallScriptPath,
-      '-SkipBuild -Uninstall -Browser All -Language ' +
-      GetBridgeScriptLanguage,
-      False,
-      True);
-    RaiseException(CustomMessage('ErrorBridgeIntegration') + '-1');
+    FailurePhase := 'native_messaging_registration';
+    if ExecuteNativeLauncher(
+      '--register --browser all --lang ' + GetBridgeScriptLanguage +
+      ' --extension-id ' + ChatBridgeExtensionId,
+      ResultCode) then
+    begin
+      FailurePhase := 'native_messaging_status';
+      if ExecuteNativeLauncher('--status --browser all', ResultCode) then
+      begin
+        FailurePhase := 'startup_shortcut';
+        if VerifyBridgeAutostartShortcut then
+        begin
+          FailurePhase := 'bridge_identity_and_tools';
+          if ExecuteNativeLauncher(
+            '--start --lang ' + GetBridgeScriptLanguage,
+            ResultCode) then
+          begin
+            AppendInstallerDiagnosticRecord(
+              'chat_bridge_postflight',
+              'status=success' + #13#10 +
+              'native_launcher=verified' + #13#10 +
+              'startup_shortcut=verified' + #13#10 +
+              'build_identity=verified' + #13#10 +
+              'tool_count=8' + #13#10);
+            Exit;
+          end;
+        end
+        else
+          ResultCode := -2;
+      end;
+    end;
   end;
+
+  AppendInstallerDiagnosticRecord(
+    'chat_bridge_postflight',
+    'status=failure' + #13#10 +
+    'phase=' + FailurePhase + #13#10 +
+    'exit_code=' + IntToStr(ResultCode) + #13#10);
+  DeleteFile(GetBridgeAutostartShortcutPath);
+  if FileExists(GetNativeHostExePath) then
+  begin
+    RollbackCode := -1;
+    ExecuteNativeLauncher('--unregister --browser all', RollbackCode);
+  end;
+  RaiseException(CustomMessage('ErrorBridgeIntegration') + ' ' + IntToStr(ResultCode));
 end;
 
 procedure RemoveChatBridgeWindowsIntegration;
+var
+  ResultCode: Integer;
 begin
-  if FileExists(GetBridgeAutostartScriptPath) then
-    ExecuteBridgePowerShellScript(
-      GetBridgeAutostartScriptPath, '-Remove', False, False);
-  if FileExists(GetNativeInstallScriptPath) then
-    ExecuteBridgePowerShellScript(
-      GetNativeInstallScriptPath,
-      '-SkipBuild -Uninstall -Browser All -Language ' +
-      GetBridgeScriptLanguage,
-      False,
-      False);
+  DeleteFile(GetBridgeAutostartShortcutPath);
+  if FileExists(GetNativeHostExePath) then
+  begin
+    ExecuteNativeLauncher('--remove-legacy-autostart', ResultCode);
+    ExecuteNativeLauncher('--unregister --browser all', ResultCode);
+  end;
 end;
 
 procedure RemoveGeneratedFiles;

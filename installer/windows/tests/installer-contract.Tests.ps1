@@ -38,7 +38,7 @@ $componentsManifestPath = Join-Path $installerRoot "manifests\components.json"
 $workspaceStructurePath = Join-Path $assetsRoot "workspace-structure.iss"
 $workspaceFixturePath = Join-Path $testsRoot "workspace-structure-fixture.iss"
 $testGeneratedOutputRoot = Join-Path $installerRoot ".test-build"
-$unsignedGeneratedOutputRoot = Join-Path $installerRoot ".unsigned-build-r24"
+$unsignedGeneratedOutputRoot = Join-Path $installerRoot ".unsigned-build-r25"
 $stageRoot = Join-Path $testGeneratedOutputRoot "stage"
 $distRoot = Join-Path $testGeneratedOutputRoot "dist"
 $testScriptPath = [IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
@@ -945,7 +945,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
     }
 
     It "uses an unmistakable installer revision in the UI and artifact name" {
-        $source | Should Match '(?im)^\s*#define\s+InstallerRevision\s+"installer-r24"\s*$'
+        $source | Should Match '(?im)^\s*#define\s+InstallerRevision\s+"installer-r25"\s*$'
         $setupSection | Should Match '(?im)^\s*AppVerName=.*\{#InstallerRevision\}\)\s*$'
         $setupSection | Should Match '(?im)^\s*OutputBaseFilename=PLwC-Setup-\{#AppVersion\}-\{#InstallerRevision\}\s*$'
     }
@@ -1087,7 +1087,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $buildSource | Should Match '(?is)function\s+Get-InstallerRevision.*?PLwCSetup\.iss'
         $buildSource | Should Match '(?is)function\s+Write-InstallerBuildIdentity.*?Get-FileHash.*?InstallerPath.*?Get-FileHash.*?PayloadManifestPath'
         $buildSource | Should Match 'CHAT-BRIDGE-1\.0'
-        $buildSource | Should Match 'docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R24_ACCEPTANCE_EN\.md'
+        $buildSource | Should Match 'docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R25_ACCEPTANCE_EN\.md'
         foreach ($define in @(
             "InstallerRevision",
             "GatewayVersion",
@@ -1138,7 +1138,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $codeSection | Should Match "(?is)PrerequisiteExitCodeHint.*?ResultCode\s*=\s*3.*?PrereqFailurePath"
     }
 
-    It "uses one stable Chat Bridge identity and executes the installed integration scripts" {
+    It "uses one stable Chat Bridge identity and executes the installed native launcher directly" {
         (Test-Path -LiteralPath $bridgeIdentityPath -PathType Leaf) | Should Be $true
         $identity = Get-Content -LiteralPath $bridgeIdentityPath -Raw | ConvertFrom-Json
         $identity.extensionId | Should Be "nlogfcafjdfdoknpkbehjgihpafpipdb"
@@ -1153,23 +1153,34 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
             $codeSection,
             '(?is)procedure\s+ConfigureChatBridgeWindowsIntegration.*?(?=procedure\s+RemoveChatBridgeWindowsIntegration)'
         ).Value
-        $registration | Should Match '(?i)GetNativeInstallScriptPath'
-        $registration | Should Match '(?i)-SkipBuild\s+-Browser\s+All'
-        $registration | Should Match '(?i)-ExtensionId.*ChatBridgeExtensionId'
-        $registration | Should Match '(?i)GetBridgeAutostartScriptPath'
-        $registration | Should Match '(?i)-ConfigPath'
-        $registration | Should Match '(?i)-StartNow'
+        $registration | Should Match '(?i)ExecuteNativeLauncher'
+        $registration | Should Match '(?i)--register\s+--browser\s+all'
+        $registration | Should Match '(?i)--extension-id.*ChatBridgeExtensionId'
+        $registration | Should Match '(?i)--remove-legacy-autostart'
+        $registration | Should Match '(?i)--status\s+--browser\s+all'
+        $registration | Should Match '(?i)VerifyBridgeAutostartShortcut'
+        $registration | Should Match '(?i)--start\s+--lang'
+        $registration | Should Match '(?i)tool_count=8'
+        $registration | Should Match '(?i)build_identity=verified'
+        $registration | Should Match '(?i)status=failure'
+        $registration | Should Match '(?i)RaiseException'
         $codeSection | Should Match '(?is)procedure\s+CurStepChanged.*?SaveGeneratedFiles\s*;.*?ConfigureChatBridgeWindowsIntegration\s*;'
-        $codeSection | Should Match '(?is)function\s+ExecuteBridgePowerShellScript.*?ExecAsOriginalUser.*?ewWaitUntilTerminated'
-        $registration | Should Match '(?is)if\s+not\s+ExecuteBridgePowerShellScript.*?GetBridgeAutostartScriptPath.*?begin.*?GetNativeInstallScriptPath.*?-Uninstall.*?RaiseException'
-        $codeSection | Should Match '(?is)procedure\s+RemoveChatBridgeWindowsIntegration.*?-Remove.*?-Uninstall.*?-Browser\s+All'
-        $codeSection | Should Match '(?is)procedure\s+RemoveChatBridgeWindowsIntegration.*?False,\s*False'
+        $codeSection | Should Match '(?is)function\s+ExecuteNativeLauncher.*?GetNativeHostExePath.*?SW_HIDE.*?ewWaitUntilTerminated'
+        $codeSection | Should Not Match '(?is)procedure\s+ConfigureChatBridgeWindowsIntegration.*?ExecuteBridgePowerShellScript'
+        $codeSection | Should Match '(?is)procedure\s+RemoveChatBridgeWindowsIntegration.*?DeleteFile\(GetBridgeAutostartShortcutPath\).*?--remove-legacy-autostart.*?--unregister\s+--browser\s+all'
         $codeSection | Should Match '(?is)BuildInstallSummary.*?SummaryNativeStable.*?ChatBridgeExtensionId'
         $codeSection | Should Match '(?is)BuildInstallSummary.*?SummaryBridgeAutostart'
+
+        $iconSection = Get-InnoSection -Source $source -Name "Icons"
+        $installDeleteSection = Get-InnoSection -Source $source -Name "InstallDelete"
+        $iconSection | Should Match '(?im)^Name:\s*"\{userstartup\}\\PLwC Chat Bridge";.*GetNativeHostExePathConstant.*GetBridgeAutostartArguments.*runminimized.*Components:\s*chatbridge'
+        $installDeleteSection | Should Match '(?im)^Type:\s*files;\s*Name:\s*"\{userstartup\}\\PLwC Chat Bridge\.lnk"\s*$'
+        $codeSection | Should Match '(?is)function\s+GetBridgeAutostartArguments.*?--start\s+--delay-seconds\s+20\s+--lang'
+        $codeSection | Should Match '(?is)function\s+VerifyBridgeAutostartShortcut.*?CreateOleObject\(''WScript\.Shell''\).*?TargetPath.*?GetNativeHostExePath.*?Arguments.*?GetBridgeAutostartArguments'
     }
 
-    It "keeps Native Messaging registration and Bridge autostart scripts idempotent and removable" {
-        foreach ($scriptPath in @($nativeInstallScriptPath, $autostartInstallScriptPath, $bridgeStartScriptPath)) {
+    It "keeps Native Messaging helpers compatible while the launcher owns startup and migration" {
+        foreach ($scriptPath in @($nativeInstallScriptPath, $bridgeStartScriptPath)) {
             (Test-Path -LiteralPath $scriptPath -PathType Leaf) | Should Be $true
             $scriptSource = Get-Content -LiteralPath $scriptPath -Raw -Encoding UTF8
             { [scriptblock]::Create($scriptSource) | Out-Null } | Should Not Throw
@@ -1183,23 +1194,6 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $nativeSource | Should Match '(?i)native-messaging\\plwc\.chat_bridge\.launcher\.json'
         $nativeSource | Should Match '(?i)BraveSoftware\\Brave-Browser\\NativeMessagingHosts'
         $nativeSource | Should Match '(?is)\$Uninstall\s+-and\s+-not.*?\$registryRoots.*?Remove-Item'
-
-        $autostartSource = Get-Content -LiteralPath $autostartInstallScriptPath -Raw -Encoding UTF8
-        $autostartSource | Should Match '(?i)New-ScheduledTaskTrigger\s+-AtLogOn'
-        $autostartSource | Should Match '(?i)Delay\s*=\s*"PT20S"'
-        $autostartSource | Should Match '(?is)New-ScheduledTaskPrincipal.*?-LogonType\s+Interactive.*?-RunLevel\s+Limited'
-        $autostartSource | Should Match '(?i)-MultipleInstances\s+IgnoreNew'
-        $autostartSource | Should Match '(?i)-RestartCount\s+3'
-        $autostartSource | Should Match '(?i)Unregister-ScheduledTask'
-        $autostartSource | Should Match '(?i)Stop-OwnedBridgeProcess'
-        $autostartSource | Should Match '(?is)function\s+Get-PLwCOwnedBridgeProcesses.*?\$previousBridgeEntry.*?Get-CimInstance\s+Win32_Process'
-        $autostartSource | Should Match '(?is)function\s+Stop-OwnedBridgeProcess.*?Get-PLwCOwnedBridgeProcesses.*?Stop-Process'
-        $autostartSource | Should Match '(?i)Test-PLwCOwnedScheduledTask'
-        $autostartSource | Should Match '(?i)exists but is not owned by PLwC'
-        $autostartSource | Should Match '(?i)Export-ScheduledTask'
-        $autostartSource | Should Match '(?i)\$previousSettingsBytes'
-        $autostartSource | Should Match '(?is)catch\s*\{.*?Register-ScheduledTask.*?-Xml\s+\$previousTaskXml.*?WriteAllBytes'
-        $autostartSource | Should Match '(?i)\$StartNow'
 
         $startSource = Get-Content -LiteralPath $bridgeStartScriptPath -Raw -Encoding UTF8
         $startSource | Should Match '(?i)\$Detached'
@@ -1229,6 +1223,19 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $launcherSource | Should Match '(?i)QuoteArgument\(layout\.Endpoint\)'
         $launcherSource | Should Match '(?i)IsLoopbackPortOpen\(layout\.Port\)'
         $launcherSource | Should Match '(?is)health_timeout.*?StopLaunchedBridge\(launchOutput\)'
+        $launcherSource | Should Match '(?is)StartFromCommandLine.*?--delay-seconds.*?StartWithMutex.*?LastResponseSucceeded\s*\?\s*0\s*:\s*1'
+        $legacyMigration = [regex]::Match(
+            $launcherSource,
+            '(?is)private\s+static\s+int\s+RemoveLegacyAutostart.*?(?=private\s+static\s+void\s+RemoveLegacyAutostartSettings)'
+        ).Value
+        $legacyMigration | Should Match '(?i)schtasks\.exe'
+        $legacyMigration | Should Match '(?i)/Query\s+/TN'
+        $legacyMigration | Should Match '(?i)/XML'
+        $legacyMigration | Should Match '(?i)start-windows'
+        $legacyMigration | Should Match '(?i)/Delete\s+/TN'
+        $legacyMigration | Should Match '(?i)/F'
+        $launcherSource | Should Match '(?i)legacy_autostart_foreign'
+        $launcherSource | Should Match '(?is)WriteResponse.*?LastResponseSucceeded\s*=\s*ok.*?PlainResponseMode.*?Console\.WriteLine'
     }
 
     It "documents manual Chrome and Brave extension installation for end users" {
@@ -1417,6 +1424,41 @@ Describe "PLwC Windows payload build gate" {
         $launcherBuildIdentity.components.nativeLauncher | Should Be $expectedBuildIdentity.components.nativeLauncher
     }
 
+    It "fails closed when the native launcher cannot verify the installed Bridge" {
+        $fixtureRoot = Join-Path $testGeneratedOutputRoot "broken-launcher-fixture"
+        $fixtureBin = Join-Path $fixtureRoot "native\bin"
+        if (Test-Path -LiteralPath $fixtureRoot) {
+            Remove-Item -LiteralPath $fixtureRoot -Recurse -Force
+        }
+        New-Item -ItemType Directory -Force -Path $fixtureBin | Out-Null
+        $fixtureLauncher = Join-Path $fixtureBin "plwc-chat-bridge-launcher.exe"
+        Copy-Item -LiteralPath (
+            Join-Path $stageRoot "chat-bridge\native\bin\plwc-chat-bridge-launcher.exe"
+        ) -Destination $fixtureLauncher
+
+        $failureOutput = @(& $fixtureLauncher --start --lang en 2>&1)
+        $failureExitCode = $LASTEXITCODE
+        $failureExitCode | Should Not Be 0
+        $failureJson = @($failureOutput | Where-Object {
+            $_.ToString().TrimStart().StartsWith("{")
+        })[-1].ToString() | ConvertFrom-Json
+        $failureJson.ok | Should Be $false
+        $failureJson.state | Should Be "failed"
+        $failureJson.code | Should Be "bridge_files_missing"
+        $failureJson.toolCount | Should Be 0
+
+        $setupSource = Get-NormalizedText -Path $setupScript
+        $setupCode = Get-InnoSection -Source $setupSource -Name "Code"
+        $postInstall = [regex]::Match(
+            $setupCode,
+            '(?is)procedure\s+CurStepChanged.*?(?=procedure\s+CurUninstallStepChanged)'
+        ).Value
+        $postInstall.IndexOf("ConfigureChatBridgeWindowsIntegration", [StringComparison]::Ordinal) |
+            Should BeLessThan $postInstall.IndexOf("'installation_completed'", [StringComparison]::Ordinal)
+        $postInstall | Should Match '(?is)ConfigureChatBridgeWindowsIntegration\s*;.*?installation_completed.*?status=success'
+        $setupCode | Should Match '(?is)status=failure.*?RaiseException\(CustomMessage\(''ErrorBridgeIntegration''\)'
+    }
+
     It "stages the localized Getting Started pages as hashed common payload" {
         $manifest = Get-Content -LiteralPath (Join-Path $stageRoot "payload-manifest.json") -Raw | ConvertFrom-Json
         foreach ($file in @("getting-started-en.html", "getting-started-de.html", "getting-started.css")) {
@@ -1462,15 +1504,15 @@ Describe "PLwC Windows payload build gate" {
     It "binds staged payload metadata to the installer revision and component versions" {
         $manifest = Get-Content -LiteralPath (Join-Path $stageRoot "payload-manifest.json") -Raw | ConvertFrom-Json
         $expectedBuildIdentity = Get-Content -LiteralPath $bridgeBuildIdentityPath -Raw | ConvertFrom-Json
-        $manifest.installer.revision | Should Be "installer-r24"
+        $manifest.installer.revision | Should Be "installer-r25"
         $manifest.installer.artifactName | Should Be (
-            "PLwC-Setup-{0}-installer-r24.exe" -f $manifest.version
+            "PLwC-Setup-{0}-installer-r25.exe" -f $manifest.version
         )
         $manifest.installer.buildIdentityArtifact | Should Be (
-            "PLwC-{0}-installer-r24-build-identity.json" -f $manifest.version
+            "PLwC-{0}-installer-r25-build-identity.json" -f $manifest.version
         )
         $manifest.installer.evidencePackage | Should Be "CHAT-BRIDGE-1.0"
-        $manifest.installer.evidencePath | Should Be "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R24_ACCEPTANCE_EN.md"
+        $manifest.installer.evidencePath | Should Be "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R25_ACCEPTANCE_EN.md"
         $componentManifest = Get-Content -LiteralPath $componentsManifestPath -Raw | ConvertFrom-Json
         $manifest.version | Should Be $componentManifest.product.releaseVersion
         $manifest.installer.components.gateway | Should Be $componentManifest.product.gatewayVersion

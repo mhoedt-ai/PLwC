@@ -10,6 +10,13 @@ It is an explicit unsigned build with Authenticode status `NotSigned`; Windows
 may display an unknown-publisher warning. Its public reviewer copy is bound to
 the versioned GitHub pre-release and must not be replaced by an older EXE.
 
+Current development successor: `PLwC-Setup-1.0.0-installer-r25.exe`,
+5,221,208 bytes, SHA-256
+`e0fdcc548769588ccf23bd7de9e05ce32b3f220be047c63b0ebc46ff5071fa7c`.
+It is also explicitly unsigned. Its source contracts and isolated build gates
+pass, but it does not replace the accepted r24 record until the exact r25 EXE
+has passed the clean-Windows acceptance gate.
+
 The end-user artifact is an Inno Setup executable:
 
 ```text
@@ -41,8 +48,8 @@ images are unavailable.
 Missing Python and its Microsoft Visual C++ runtime, Node.js (for a selected
 Chat Bridge) and Docker Desktop each have an initially unchecked automatic
 setup option plus buttons to the official vendor pages. Start Setup normally
-so Native Messaging, the scheduled
-Chat Bridge task and `%APPDATA%` belong to the signed-in user. Node.js and
+so Native Messaging, the Startup-folder Chat Bridge shortcut and `%APPDATA%`
+belong to the signed-in user. Node.js and
 Docker/WSL request Windows administrator approval through UAC only when their
 installation needs it. Claude Desktop and Chrome, Edge or Brave remain manual
 prerequisites.
@@ -70,7 +77,7 @@ elevated vendor installers and the final detection pass. The selection is not
 cleared between child installers; it is updated only after postflight detection
 has established the resulting component state. The main setup remains
 non-elevated because its application data, Native Messaging registration and
-scheduled task are per-user. The verified system-wide child installers receive
+Startup-folder shortcut are per-user. The verified system-wide child installers receive
 UAC elevation when required.
 
 The same page separates the build-derived PLwC payload size from additional
@@ -98,13 +105,23 @@ The Chat Bridge keeps the stable unpacked development ID
 `nncomjknhhlgcmkmlaljhkiojcnpmflb`. When Chat Bridge is selected, Setup writes
 one Native Messaging manifest allowing exactly those three origins and no
 wildcard, registers it automatically under the current user's Chrome, Edge and
-Brave registry keys, and creates a limited per-user scheduled task that starts
-and verifies the Bridge after Windows sign-in. The wizard no longer asks the
+Brave registry keys, and creates a per-user Startup-folder shortcut targeting
+the native launcher directly. The launcher waits 20 seconds after sign-in and
+then verifies the Bridge. The wizard no longer asks the
 user to copy an extension ID or run a PowerShell registration script.
 `bridge/scripts/healthcheck.mjs` and `bridge/scripts/launch-bridge.mjs` are
 required staged payloads because the native launcher uses both in the installed
-layout. Registration, startup and uninstall use the staged scripts internally;
-failed repair or upgrade restores the previous task and launcher settings.
+layout. Registration, migration, startup and uninstall call the native launcher
+directly; the normal integration path does not invoke PowerShell or
+`ExecutionPolicy Bypass`. An owned legacy PLwC scheduled task is removed during
+update, while a foreign same-name task is preserved.
+
+Setup is fail-closed for a selected Chat Bridge. Before it can record
+`installation_completed/status=success`, it verifies Native Messaging status,
+the Startup shortcut, the exact embedded/runtime build identity and exactly
+eight public tools. Any failed phase records `chat_bridge_postflight` with
+`status=failure`, rolls back the new Native Messaging registration and aborts
+instead of showing a successful completion.
 
 The directory and runtime forms are split into compact pages for `1366x768`.
 Qdrant and Persona Layer settings use checkboxes. The PLwC logo is embedded in
@@ -148,7 +165,7 @@ as a distributable build. The second command explicitly compiles an unsigned
 installer and marks the launcher, setup EXE and external build identity as
 `NotSigned` / `explicit_unsigned`. Windows may identify its publisher as
 unknown. Its isolated output is written below
-`installer/windows/.unsigned-build/`, preserving the normal `stage/` and
+`installer/windows/.unsigned-build-r25/`, preserving the normal `stage/` and
 `dist/` evidence trees. The third command repeats validation, compiles the setup EXE, signs
 both the Native Messaging launcher and the setup EXE with SHA-256, applies
 SHA-256 RFC 3161 timestamps, and verifies both signatures before writing the

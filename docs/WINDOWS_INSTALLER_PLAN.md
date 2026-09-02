@@ -310,13 +310,16 @@ The installer should:
 - register Chrome, Edge and Brave Native Messaging for the stable unpacked extension
   ID without asking the user to copy it;
 - keep loopback fixed to `127.0.0.1:3007`;
-- create a limited per-user scheduled task that starts and verifies the Bridge
-  after Windows sign-in;
+- create a per-user Startup-folder shortcut targeting the native launcher
+  directly; after a 20-second sign-in delay it starts and verifies the Bridge
+  without PowerShell or `ExecutionPolicy Bypass`;
 - open the extension folder for loading as an unpacked extension;
 - verify that Status -> Reconnect can start the WebSocket bridge after the
   native launcher is registered;
-- restore previous task/settings after a failed repair or upgrade and remove
-  all owned integration state during uninstall.
+- remove only an owned legacy PLwC scheduled task, preserve a foreign
+  same-name task, and remove all owned integration state during uninstall;
+- fail before successful completion unless Native Messaging, the Startup
+  shortcut, exact build identity and exactly eight tools pass postflight.
 
 Later release packaging may replace the unpacked extension flow with a signed
 browser-store extension while retaining a controlled stable identity.

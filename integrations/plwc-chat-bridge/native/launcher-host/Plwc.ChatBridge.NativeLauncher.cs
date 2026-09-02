@@ -20,6 +20,10 @@ internal static class Program
     private const int ExpectedToolCount = 8;
     private const int MaxMessageBytes = 4096;
     private const int StartupTimeoutMilliseconds = 30000;
+    private const string LegacyAutostartTaskName = "PLwC Chat Bridge";
+
+    private static bool PlainResponseMode;
+    private static bool LastResponseSucceeded;
 
     private static readonly string AppDataRoot = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -89,6 +93,14 @@ internal static class Program
                 Console.WriteLine(SerializeBuildIdentity(LoadBuildIdentity()));
                 return 0;
             }
+            if (HasArgument(args, "--remove-legacy-autostart"))
+            {
+                return RemoveLegacyAutostart();
+            }
+            if (HasArgument(args, "--start"))
+            {
+                return StartFromCommandLine(args);
+            }
 
             return RunNativeHost();
         }
@@ -135,6 +147,39 @@ internal static class Program
             return 0;
         }
 
+        return StartWithMutex(german, buildIdentity);
+    }
+
+    private static int StartFromCommandLine(string[] args)
+    {
+        bool german = IsGermanCommandLine(args);
+        int delaySeconds = 0;
+        string delayValue = ArgumentValue(args, "--delay-seconds");
+        if (!String.IsNullOrWhiteSpace(delayValue) &&
+            (!Int32.TryParse(delayValue, out delaySeconds) || delaySeconds < 0 || delaySeconds > 300))
+        {
+            throw new InvalidOperationException("--delay-seconds must be an integer from 0 through 300.");
+        }
+        if (delaySeconds > 0)
+        {
+            Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
+        }
+
+        PlainResponseMode = true;
+        LastResponseSucceeded = false;
+        try
+        {
+            StartWithMutex(german, LoadBuildIdentity());
+            return LastResponseSucceeded ? 0 : 1;
+        }
+        finally
+        {
+            PlainResponseMode = false;
+        }
+    }
+
+    private static int StartWithMutex(bool german, BuildIdentity buildIdentity)
+    {
         bool ownsMutex = false;
         using (Mutex startupMutex = new Mutex(false, "Local\\PLwC.ChatBridge.Startup"))
         {
@@ -714,6 +759,80 @@ internal static class Program
         return 0;
     }
 
+    private static int RemoveLegacyAutostart()
+    {
+        string taskTool = Path.Combine(Environment.SystemDirectory, "schtasks.exe");
+        string queryOutput;
+        string queryError;
+        int queryExitCode = RunProcess(
+            taskTool,
+            "/Query /TN " + QuoteArgument(LegacyAutostartTaskName) + " /XML",
+            Environment.SystemDirectory,
+            15000,
+            out queryOutput,
+            out queryError);
+        if (queryExitCode != 0)
+        {
+            AppendLog(
+                "legacy_autostart_absent",
+                "No readable legacy task was found; exit=" + queryExitCode + "; error=" + queryError);
+            RemoveLegacyAutostartSettings();
+            return 0;
+        }
+
+        string taskXml = queryOutput ?? String.Empty;
+        bool invokesPowerShell = Regex.IsMatch(
+            taskXml,
+            "<Command>[^<]*powershell(?:\\.exe)?</Command>",
+            RegexOptions.IgnoreCase);
+        bool invokesPlwcStartScript = Regex.IsMatch(
+            taskXml,
+            "[\\\\/]PLwC[\\\\/].*?[\\\\/]scripts[\\\\/]start-windows\\.ps1",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (!invokesPowerShell || !invokesPlwcStartScript)
+        {
+            AppendLog(
+                "legacy_autostart_foreign",
+                "A same-name scheduled task was preserved because its action is not owned by PLwC.");
+            return 0;
+        }
+
+        string deleteOutput;
+        string deleteError;
+        int deleteExitCode = RunProcess(
+            taskTool,
+            "/Delete /TN " + QuoteArgument(LegacyAutostartTaskName) + " /F",
+            Environment.SystemDirectory,
+            15000,
+            out deleteOutput,
+            out deleteError);
+        if (deleteExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                "The owned legacy PLwC autostart task could not be removed: " + deleteError);
+        }
+
+        RemoveLegacyAutostartSettings();
+        AppendLog("legacy_autostart_removed", "Removed the owned PLwC scheduled task.");
+        return 0;
+    }
+
+    private static void RemoveLegacyAutostartSettings()
+    {
+        string settingsPath = Path.Combine(AppDataRoot, "config", "chat-bridge-launcher.json");
+        try
+        {
+            if (File.Exists(settingsPath))
+            {
+                File.Delete(settingsPath);
+            }
+        }
+        catch (Exception error)
+        {
+            AppendLog("legacy_settings_cleanup_failed", error.Message);
+        }
+    }
+
     private static int PrintRegistrationStatus(string[] args)
     {
         string browser = ArgumentValue(args, "--browser") ?? "all";
@@ -852,7 +971,9 @@ internal static class Program
         return HasArgument(args, "--register") ||
             HasArgument(args, "--unregister") ||
             HasArgument(args, "--status") ||
-            HasArgument(args, "--build-identity");
+            HasArgument(args, "--build-identity") ||
+            HasArgument(args, "--remove-legacy-autostart") ||
+            HasArgument(args, "--start");
     }
 
     private static string ArgumentValue(string[] args, string name)
@@ -1001,6 +1122,7 @@ internal static class Program
         string message,
         int toolCount)
     {
+        LastResponseSucceeded = ok;
         string json = "{\"ok\":" + (ok ? "true" : "false") +
             ",\"state\":\"" + EscapeJson(state) +
             "\",\"code\":\"" + EscapeJson(code) +
@@ -1009,6 +1131,11 @@ internal static class Program
             "\",\"toolCount\":" + toolCount +
             ",\"buildIdentity\":" + SerializeBuildIdentity(LoadBuildIdentity()) +
             "}";
+        if (PlainResponseMode)
+        {
+            Console.WriteLine(json);
+            return;
+        }
         byte[] payload = Encoding.UTF8.GetBytes(json);
         byte[] length = BitConverter.GetBytes(payload.Length);
         Stream output = Console.OpenStandardOutput();

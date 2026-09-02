@@ -1,10 +1,9 @@
 # PLwC Chat Bridge
 
-Status: 1.0.0 implementation and local Store-origin readiness pass. The current
-Windows r24 artifact is explicitly unsigned. On 2026-08-30, the private Chrome
-track entered pending review with automatic publication disabled and the hidden
-Edge track entered review. External Store-signed identity acceptance remains on
-hold until those separate review gates pass.
+Status: 1.0.0 implementation and local Store-origin readiness pass. The accepted
+Windows r24 artifact and development r25 successor are explicitly unsigned.
+The hidden Edge package is live; the Chrome track remains a separate external
+review/publication gate. r25 does not change either Store package.
 
 PLwC Chat Bridge is the PLwC-owned local browser client integration
 for using the signed-in ChatGPT web UI with the local `plwc-gateway` MCP
@@ -107,9 +106,11 @@ integrations/plwc-chat-bridge/
   Bridge, browser extension and native launcher. The common build and all three
   component versions advance together; all three runtimes report the same
   identity and reject a mismatched peer before tool execution;
-- PLwC Setup creates a limited per-user scheduled task that starts the Bridge
-  after every Windows sign-in, verifies the configured loopback endpoint and
-  rolls back the prior task/settings if repair or upgrade fails;
+- PLwC Setup creates a per-user Startup-folder shortcut that calls the native
+  launcher directly after a 20-second sign-in delay. The normal path uses no
+  PowerShell, removes only an owned legacy PLwC task, and fails installation
+  unless launcher registration, shortcut, exact build identity and all eight
+  tools pass postflight;
 - the live smoke starts the current repository gateway, lists eight tools and
   calls `plwc_status(scope="runtime")` once;
 - the browser fixture verifies desktop, 768 px and 390 px panel geometry;
@@ -134,8 +135,8 @@ The rc19.dev0 through rc19.dev10 records above remain historical implementation
 evidence. The current component identity is 1.0.0. Automated extension tests,
 installed r24 Bridge health, the eight-tool contract, Native Launcher status,
 and live loopback health using both assigned Store origins pass. The remaining
-external gate is installation and acceptance of the review-approved,
-Store-signed Chrome and Edge packages under their real IDs.
+local gate for r25 is installation and acceptance of the exact EXE on clean
+Windows 11. Chrome Store review/publication remains a separate external gate.
 
 ## Build And Run
 

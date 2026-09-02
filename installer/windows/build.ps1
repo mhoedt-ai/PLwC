@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 $installerRoot = [IO.Path]::GetFullPath($PSScriptRoot)
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot "..\.."))
 $testOutputRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot ".test-build"))
-$unsignedOutputRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot ".unsigned-build-r24"))
+$unsignedOutputRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot ".unsigned-build-r25"))
 $buildOutputRoot = if ([string]::IsNullOrWhiteSpace($GeneratedOutputRoot)) {
     if ($Unsigned) { $unsignedOutputRoot } else { $installerRoot }
 }
@@ -122,7 +122,7 @@ function Copy-BuildFile {
     }
     $parent = Split-Path -Parent $Destination
     [IO.Directory]::CreateDirectory($parent) | Out-Null
-    [IO.File]::Copy((Resolve-Path -LiteralPath $Source).Path, $Destination, $true)
+    [IO.File]::Copy((Resolve-Path -LiteralPath $Source).ProviderPath, $Destination, $true)
 }
 
 function Copy-FilteredTree {
@@ -132,7 +132,7 @@ function Copy-FilteredTree {
         [Parameter(Mandatory = $true)][scriptblock] $Include
     )
 
-    $resolvedSource = (Resolve-Path -LiteralPath $Source).Path.TrimEnd('\', '/')
+    $resolvedSource = (Resolve-Path -LiteralPath $Source).ProviderPath.TrimEnd('\', '/')
     $reparsePoints = @(Get-ChildItem -LiteralPath $resolvedSource -Recurse -Force | Where-Object {
         ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
     })
@@ -155,15 +155,41 @@ function Invoke-CheckedCommand {
         [Parameter(Mandatory = $true)][string] $WorkingDirectory
     )
 
-    Push-Location -LiteralPath $WorkingDirectory
-    try {
-        & $FilePath @ArgumentList
-        if ($LASTEXITCODE -ne 0) {
-            throw "Command failed with exit code $LASTEXITCODE`: $FilePath $($ArgumentList -join ' ')"
+    $exitCode = 0
+    if ($WorkingDirectory.StartsWith("\\", [StringComparison]::Ordinal)) {
+        $quoteForCmd = {
+            param([string] $Value)
+            return '"' + $Value.Replace('"', '\"') + '"'
+        }
+        $command = "pushd $(& $quoteForCmd $WorkingDirectory) && call $(& $quoteForCmd $FilePath)"
+        foreach ($argument in $ArgumentList) {
+            $command += " $(& $quoteForCmd $argument)"
+        }
+        $command += ' & set "plwc_exit=!errorlevel!" & popd & exit /b !plwc_exit!'
+        $previousProcessDirectory = [Environment]::CurrentDirectory
+        Push-Location -LiteralPath $env:SystemRoot
+        try {
+            [Environment]::CurrentDirectory = $env:SystemRoot
+            & $env:ComSpec /d /v:on /c $command
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            [Environment]::CurrentDirectory = $previousProcessDirectory
+            Pop-Location
         }
     }
-    finally {
-        Pop-Location
+    else {
+        Push-Location -LiteralPath $WorkingDirectory
+        try {
+            & $FilePath @ArgumentList
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            Pop-Location
+        }
+    }
+    if ($exitCode -ne 0) {
+        throw "Command failed with exit code $exitCode`: $FilePath $($ArgumentList -join ' ')"
     }
 }
 
@@ -226,7 +252,7 @@ function Resolve-McpbArtifact {
         if (-not (Test-Path -LiteralPath $McpbPath -PathType Leaf)) {
             throw "Explicit MCPB artifact not found: $McpbPath"
         }
-        $resolved = (Resolve-Path -LiteralPath $McpbPath).Path
+        $resolved = (Resolve-Path -LiteralPath $McpbPath).ProviderPath
         if ([IO.Path]::GetExtension($resolved) -ne ".mcpb") {
             throw "Explicit MCPB artifact must use the .mcpb extension: $resolved"
         }
@@ -249,7 +275,7 @@ function Resolve-McpbArtifact {
             throw "Multiple different MCPB artifacts match version $Version. Select one with -McpbPath."
         }
     }
-    return (Resolve-Path -LiteralPath $candidates[0]).Path
+    return (Resolve-Path -LiteralPath $candidates[0]).ProviderPath
 }
 
 function Assert-McpbArtifact {
@@ -306,7 +332,7 @@ function Find-CSharpCompiler {
         (Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe")
     )) {
         if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            return (Resolve-Path -LiteralPath $candidate).Path
+            return (Resolve-Path -LiteralPath $candidate).ProviderPath
         }
     }
     throw "A C# compiler is required to build the Chat Bridge native launcher."
@@ -383,7 +409,7 @@ function Resolve-SignToolPath {
         if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
             continue
         }
-        $resolved = (Resolve-Path -LiteralPath $candidate).Path
+        $resolved = (Resolve-Path -LiteralPath $candidate).ProviderPath
         $signature = Get-AuthenticodeSignature -LiteralPath $resolved
         if ($signature.Status -eq [System.Management.Automation.SignatureStatus]::Valid -and
             $null -ne $signature.SignerCertificate -and
@@ -678,7 +704,7 @@ function Write-PayloadManifest {
             artifactName = "PLwC-Setup-$ProductVersion-$InstallerRevision.exe"
             buildIdentityArtifact = "PLwC-$ProductVersion-$InstallerRevision-build-identity.json"
             evidencePackage = "CHAT-BRIDGE-1.0"
-            evidencePath = "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R24_ACCEPTANCE_EN.md"
+            evidencePath = "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R25_ACCEPTANCE_EN.md"
             components = [ordered]@{
                 gateway = $GatewayVersion
                 nodeBridge = [string] $BuildIdentity.components.nodeBridge
@@ -698,7 +724,7 @@ function Resolve-Iscc {
         if (-not (Test-Path -LiteralPath $IsccPath -PathType Leaf)) {
             throw "ISCC not found at explicit path: $IsccPath"
         }
-        return (Resolve-Path -LiteralPath $IsccPath).Path
+        return (Resolve-Path -LiteralPath $IsccPath).ProviderPath
     }
 
     $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -711,7 +737,7 @@ function Resolve-Iscc {
         (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe")
     )) {
         if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
-            return (Resolve-Path -LiteralPath $candidate).Path
+            return (Resolve-Path -LiteralPath $candidate).ProviderPath
         }
     }
     throw "Inno Setup 6 compiler (ISCC.exe) was not found. Use -IsccPath or install Inno Setup 6."
@@ -779,7 +805,7 @@ function Write-InstallerBuildIdentity {
         })
         evidence = [ordered]@{
             package = "CHAT-BRIDGE-1.0"
-            acceptanceRecord = "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R24_ACCEPTANCE_EN.md"
+            acceptanceRecord = "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R25_ACCEPTANCE_EN.md"
         }
     }
     Write-Utf8File -Path $identityPath -Content (($identity | ConvertTo-Json -Depth 8) + "`n")

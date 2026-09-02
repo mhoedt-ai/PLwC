@@ -157,8 +157,11 @@ Für Brave:
 
 Die Native-Messaging-Registrierung erlaubt getrennt die Entwicklungs-, Chrome-
 Store- und Edge-Store-ID, aber keine Wildcard. Die benutzerbezogene Windows-
-Autostart-Aufgabe wird vom PLwC-Setup beziehungsweise dessen Reparaturfunktion
-übernommen. Im normalen Ablauf ist kein Terminalbefehl erforderlich.
+Autostart-Verknüpfung liegt im Autostart-Ordner des angemeldeten Benutzers und
+zeigt direkt auf den nativen PLwC-Launcher. Sie verwendet weder PowerShell noch
+`ExecutionPolicy Bypass`. Eine alte, eindeutig PLwC-eigene geplante Aufgabe
+wird beim Update entfernt; eine fremde gleichnamige Aufgabe bleibt erhalten.
+Im normalen Ablauf ist kein Terminalbefehl erforderlich.
 
 ### Bridge prüfen
 
@@ -175,6 +178,12 @@ Nach jeder Windows-Anmeldung startet das Setup die lokale Bridge automatisch
 und prüft den Zustand `8 / 8`. Danach genügt es, den Browser zu öffnen und bei
 Bedarf **Reconnect** zu wählen. Der Native Launcher darf nicht noch einmal
 installiert werden müssen.
+
+Das Setup zeigt den erfolgreichen Abschluss nur an, wenn Native Launcher,
+Autostart-Verknüpfung, exakte Buildidentität und `8 / 8` Werkzeuge im
+Abschlusstest bestätigt wurden. Andernfalls bricht es mit einem Fehler ab und
+schreibt die Phase nach
+`%LOCALAPPDATA%\PLwC\logs\setup\installer-diagnostic.log`.
 
 Falls die Verbindung nicht hergestellt wird, verwenden Sie die
 PLwC-Reparaturfunktion. Die Fehlermeldung und der Installationsbericht nennen
@@ -461,7 +470,9 @@ Chat Bridge directory:
 
 If Chrome or Brave reports that the native host is missing, run PLwC setup
 again and choose **Repair**. Repair re-registers the Native Launcher and the
-per-user Bridge autostart task. Do not run repository scripts manually.
+per-user Startup-folder shortcut. The shortcut targets the native launcher
+directly and does not use PowerShell or `ExecutionPolicy Bypass`. Do not run
+repository scripts manually.
 
 ### Verify the Bridge
 
@@ -478,6 +489,11 @@ After every Windows sign-in, the local Bridge starts automatically and verifies
 the `8 / 8` state. Open Chrome or Brave, open the PLwC Chat Bridge panel and
 select **Reconnect** if the panel does not connect immediately. The Native
 Launcher must not require another installation.
+
+Setup reports successful completion only after its postflight confirms the
+Native Launcher, Startup shortcut, exact build identity and `8 / 8` tools. A
+failed phase aborts Setup and is recorded in
+`%LOCALAPPDATA%\PLwC\logs\setup\installer-diagnostic.log`.
 
 If the launcher is missing, use PLwC **Repair** and then reload the extension
 on `chrome://extensions` or `brave://extensions`.

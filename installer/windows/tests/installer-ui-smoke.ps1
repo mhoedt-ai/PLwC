@@ -2,7 +2,7 @@
 param(
     [string] $SetupPath = (
         Join-Path $PSScriptRoot (
-            "..\.unsigned-build-r24\dist\PLwC-Setup-1.0.0-installer-r24.exe"
+            "..\.unsigned-build-r25\dist\PLwC-Setup-1.0.0-installer-r25.exe"
         )
     ),
 
@@ -680,7 +680,7 @@ try {
         ) -join "`n"
         if ($ExpectSetupP003BuildIdentity -and
             -not $setupP003BuildIdentityVisible -and
-            $visibleText -match 'installer-r24') {
+            $visibleText -match 'installer-r25') {
             $setupP003BuildIdentityVisible = $true
             Write-Host "SETUP_P0_03_BUILD_IDENTITY_VISIBLE"
         }
