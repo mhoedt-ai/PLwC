@@ -2,6 +2,16 @@
 
 Stand: 2026-09-04
 
+Freigegebener, ausdrücklich unsignierter r26-Releasekandidat:
+
+- Datei: `PLwC-Setup-1.0.0-installer-r26.exe`
+- Größe: `5.494.996` Bytes
+- SHA-256: `d604e7714ab4838337ac036a91335292c7315fd9b0be7d16c54c08b39797dc65`
+- Authenticode: `NotSigned`
+- Build-ID:
+  `plwc-windows-setup@1.0.0/installer-r26#sha256:d604e7714ab4838337ac036a91335292c7315fd9b0be7d16c54c08b39797dc65`
+- Abnahmehost: Windows 11 Pro 64 Bit, Build 22631
+
 Zuletzt in der sauberen VM ausgeführter Vorgängerkandidat (durch die
 nachfolgenden Korrekturen nicht mehr freigabefähig):
 
@@ -34,7 +44,7 @@ Statuslegende:
 | # | Pflichtfall | Automatisierter Nachweis | Kandidatengebundener Systemstatus |
 |---:|---|---|---|
 | 1 | Saubere Windows-11-Installation ohne Setup als Administrator | Clean-Fixture, Preflight und gemeinsamer harter Postflight PASS | **SYSTEM PASS** für `f30a2795…9dfa8` – Setup auf sauberem Windows 11 abgeschlossen; Gateway `1.0.0`, vollständiger Arbeitsbereich und exakt 8 öffentliche Tools anschließend im Browser belegt. Der Vorgänger `55e10b61…feab6` bleibt wegen der dokumentierten Timeout-/Snapshotfehler verworfen. |
-| 2 | Direkte Aktualisierung r25 auf r26 | r25-Fixture nutzt eine unveränderliche Migration und denselben Postflight | **SYSTEM PASS (Funktion)** – die reale r25→r26-/Dirty-Migration auf dem Abnahmehost bestand einschließlich 12/12 Postflight. Der damals verwendete Kandidat wurde später wegen eines getrennten Doctor-Pfadfehlers verworfen; nur die abschließende Hash-Bindung wird einmal mit dem später freigegebenen Produktionskandidaten wiederholt. |
+| 2 | Direkte Aktualisierung r25 auf r26 | r25-Fixture nutzt eine unveränderliche Migration und denselben Postflight | **SYSTEM PASS** für `d604e771…97dc65` – der unveränderte r25-Kandidat `e0fdcc54…1fa7c` wurde mit Gateway, Codex und Chat Bridge installiert und anschließend direkt auf den freigegebenen r26-Kandidaten aktualisiert. Setup endete mit Code 0, Transaktion `postflight_succeeded`, 12/12 Checks und regulär geschlossenem Log. |
 | 3 | Gespeicherter alter Pfad `chat-bridge` | Legacy-Pfad-Fixture und Migration auf `app\bridge` PASS | **SYSTEM PENDING** – muss mit exaktem Kandidaten aus r25 wiederholt werden |
 | 4 | Parallele alte und neue PLwC-Pfade | Mixed-Install-Klassifizierung und Dirty-Fixture PASS | **SYSTEM PENDING** – isolierte Dirty-Windows-Instanz erforderlich |
 | 5 | Alte geplante Aufgabe plus alter Autostart-Link | Backup-, Allowlist- und Rollback-Fixture PASS | **SYSTEM PENDING** – isolierte Altinstallation erforderlich |
@@ -48,10 +58,10 @@ Statuslegende:
 | 13 | Extension 1.0.0 mit r26 | Kompatibilitätsmatrix und Bridge-Buildidentität PASS | **SYSTEM PARTIAL** – Live-Health für die 1.0.0-Bridge-Identität PASS, kein Browser-Panel-Lauf |
 | 14 | Extension 1.0.1 mit r26 | Extension-1.0.1-Build, Identität und Vertrag PASS | **SYSTEM PASS** für `f30a2795…9dfa8` – installierte Entwicklungserweiterung `1.0.1`, stabile ID `nlogfcafjdfdoknpkbehjgihpafpipdb`, passender gemeinsamer Build und 8/8 im Chrome-Panel. Eine Store-Veröffentlichung ist davon ausdrücklich nicht abgeleitet. |
 | 15 | Browser-Neustart, Disconnect, Reconnect | Generation-Invalidierung, No-Resend, lokales Cache-Recovery und deterministische Panel-Inhaberschaft PASS | **SYSTEM PASS** – auf der sauberen VM blieb PLwC nach vollständigem Chrome-Neustart installiert und meldete wieder Extension `1.0.1`, passende Buildidentität und 8/8. Zusätzlich bestand auf dem Abnahmehost der vollständige Brave-Neustart nach einmaligem Wechsel vom Repository-Netzpfad auf `%APPDATA%\PLwC\app\bridge\extension`. |
-| 16 | Bridge 8/8, während Panel noch nicht geladen ist | Atomare Readiness-State-Tests PASS | **SYSTEM PARTIAL** – Live-Health liefert ohne Panel exakt 8/8 für Development-, Chrome- und Edge-Origin |
+| 16 | Bridge 8/8, während Panel noch nicht geladen ist | Atomare Readiness-State-Tests PASS | **SYSTEM PASS** für `d604e771…97dc65` – Live-Health liefert ohne Panel exakt 8/8 für Development-, Chrome- und Edge-Origin. |
 | 17 | Inkompatible Buildidentität | Fail-closed-Buildidentitätstests PASS | **SYSTEM PENDING** – Defektinjektion nur isoliert |
-| 18 | Docker, Qdrant und Document Worker: vorhanden, fehlend oder nicht prüfbar | Echte CLI-/Daemon-, Python-Distributions- und Docker-Image-Probes samt Positiv-, Fehlend- und Nicht-erreichbar-Regressionen PASS | **SYSTEM PARTIAL** – positiver Hostnachweis: Docker `29.3.1`, Qdrant-Client `1.18.0`, Document Worker `0.1.0` mit Image-ID `sha256:c81b8c2…9470344`; isolierter Negativlauf bleibt ausstehend |
-| 19 | Doctor-Diagnose verändert nichts | Dateisystem-/Registry-/Prozess-Snapshot-Test PASS | **SYSTEM PASS** – installierter Doctor read-only, 0 Fehler; Profile und Arbeitsbereich bytegleich, Bridge blieb aktiv |
+| 18 | Docker, Qdrant und Document Worker: vorhanden, fehlend oder nicht prüfbar | Echte CLI-/Daemon-, Python-Distributions- und Docker-Image-Probes samt Positiv-, Fehlend- und Nicht-erreichbar-Regressionen PASS | **SYSTEM PASS (positiver Pfad)** für `d604e771…97dc65` – Docker `29.3.1`, Qdrant-Client `1.18.0` und Document Worker `0.1.0` mit Image-ID `sha256:c81b8c2…9470344`; `blocking=none`, `unknown=none`. Der isolierte Negativpfad bleibt automatisiert belegt. |
+| 19 | Doctor-Diagnose verändert nichts | Dateisystem-/Registry-/Prozess-Snapshot-Test PASS | **SYSTEM PASS** für `d604e771…97dc65` – installierter Doctor read-only, 7 PASS, 1 Hinweis, 0 Fehler; Profile und Arbeitsbereich bytegleich, Bridge blieb aktiv, Reparaturplan leer. |
 | 20 | Doctor-Reparatur erfolgreich und zweiter Lauf idempotent | Plan/Apply/Postflight/Idempotenz-Tests PASS | **SYSTEM PARTIAL** – zwei installierte Diagnosen erzeugten jeweils einen leeren Plan; kein Apply ohne planspezifische Bestätigung |
 | 21 | Doctor-Reparaturfehler rollt zurück | Injizierter Fehler und Rollback-Test PASS | **SYSTEM PENDING** – Defektinjektion nur isoliert |
 | 22 | Updateprüfung offline | Intervall-, Cache- und Offline-Test PASS | **SYSTEM PENDING** – kein externer Releasekanal konfiguriert |
@@ -63,32 +73,46 @@ Statuslegende:
 
 ## Aktuelle automatisierte Gesamtstände
 
-- Python: **112 bestanden, 6 übersprungen** in 64,77 s. Die Skips sind
+- Python: **112 bestanden, 6 übersprungen** in 44,28 s. Die Skips sind
   optionale Docker-/Symlink-Capability-Gates und keine umgedeuteten Erfolge.
 - Chat-Bridge-Extension: **190/190 bestanden**, Typecheck und Build PASS. Darin
   enthalten sind sechs neue Regressionstests für Cache-Recovery und
   konkurrierende alte/neue Panel-Instanzen.
-- Windows-Installer-Pester: **72/72 bestanden**, 0 übersprungen, 0 ausstehend;
-  NUnit-SHA-256
+- Windows-Installer-Pester: **72/72 bestanden**, 0 übersprungen, 0 ausstehend,
+  Laufzeit 620,12 s. Der bereits archivierte NUnit-Nachweis desselben
+  Vertragsstands hat SHA-256
   `22bc69dc445050eb627e34915b30f57365fde363f84044d33f323fbef35d8068`.
 - Isoliertes `ValidateOnly`: PASS ohne ISCC; geschützte kanonische Ausgaben
   blieben bytegleich.
 
-## Zusätzlicher realer Kandidatenlauf
+## Finaler direkter r25→r26-Systemlauf
 
-Die exakte EXE wurde als r26→r26-Aktualisierung ohne permanent erhöhte
-Setup-Ausführung gestartet. Die Transaktion endete mit
-`postflight_succeeded`; alle 12 harten Checks bestanden. Das Setup-Log wurde
-regulär geschlossen. Der anschließende Live-Healthcheck bestand für alle drei
-erlaubten WebSocket-Origins mit exakt acht Werkzeugen.
+Der unveränderte r25-Kandidat mit SHA-256 `e0fdcc54…1fa7c` wurde ohne dauerhaft
+erhöhten Setup-Prozess mit `gateway,codex,chatbridge` installiert. Die
+gesicherte r25-Auswahl bindet Revision `installer-r25`, den vollständigen
+r25-Setuphash, Browser-Extension `1.0.0` und genau diese Komponenten. Direkt
+danach wurde der freigegebene Kandidat `d604e771…97dc65` mit derselben Auswahl
+installiert. Beide Setups endeten mit Code 0 und regulär geschlossenem Log.
+
+Die r26-Transaktion endete mit `postflight_succeeded`; alle 12 harten Checks
+bestanden. `selection.ini` bindet danach Revision, vollständigen Setuphash und
+Extension `1.0.1`. Genau ein Node-Prozess unter
+`%APPDATA%\PLwC\app\bridge\bridge\dist\src\index.js` besitzt Port 3007. Der
+Live-Healthcheck bestand für Development-, Chrome- und Edge-Store-Origin mit
+exakt acht Werkzeugen.
 
 Vorher/Nachher blieben unverändert:
 
-- Profile: 83 Dateien, 22 Verzeichnisse, 0 fehlend, 0 hinzugefügt, 0 geändert;
-- Arbeitsbereich: 953 Dateien, 196 Verzeichnisse, 0 fehlend, 0 hinzugefügt,
-  0 geändert;
+- Profile: 83 Dateien; Baumhash vor/nachher
+  `8d57e1f4af69e8d2cdd21314786279ae7d9b7f75ebd5c564c339d5c6f7cd7544`;
+- Arbeitsbereich: 955 Dateien; Baumhash vor/nachher
+  `b4280ed5437576620030525714a0a8ec89905615059adb7da01e64e235ef2736`;
 - `active_profile.json`: SHA-256 weiterhin
   `24ee97780a92a4e67eefa9bd2982e89dc3b832c9f79d8998d39df61b036c39ec`.
+
+`gateway-settings.json` änderte ausschließlich das installerverwaltete Feld
+`updated_at`; Profil, Pfade, Schwellen und Aktivierungsschalter blieben
+inhaltlich gleich.
 
 ## Reales Brave-Neustartproblem
 
@@ -198,14 +222,13 @@ Version `1.0.1`, die stabile Entwicklungs-ID, passenden Build und erneut 8/8.
 
 ## Gate-Ergebnis
 
-Die automatisierte Matrix auf dem aktuellen Quellstand ist nach dem erneuten
-Öffnen und Schließen des Komponenten-Inventargates grün. Der vorhandene
-Windows-Hostlauf belegt weiterhin nur die ältere EXE `55e10b61…feab6`; der
-nachträgliche Browser-Lifecycle- und Komponenten-Inventar-Fix hat diesen
-Kandidaten für eine endgültige Freigabe überholt. Das vollständige
-Phase-8-Gate bleibt **HOLD**, bis die bereits funktional bestandene direkte
-r25→r26-/Dirty-Migration einmal gegen den später ausdrücklich freigegebenen
-Produktionskandidaten hashgebunden bestätigt ist. Ein endgültiger
-Produktionsbuild ist weiterhin nicht freigegeben. Auf diesem
-Host sind weder Windows Sandbox noch VirtualBox, VMware oder QEMU verfügbar;
-der vorhandene Docker-Daemon ist Linux-basiert.
+Die automatisierte Matrix, der saubere VM-Lauf des aktuellen
+Implementierungsstands und die direkte hashgebundene r25→r26-Aktualisierung
+sind grün. Der Product Owner hat den endgültigen, ausdrücklich unsignierten
+r26-Build freigegeben. Phase 8 ist für den Windows-Installer deshalb **PASS**.
+
+Diese Entscheidung veröffentlicht nichts. Chrome `1.0.1` bleibt in Prüfung
+mit Sichtbarkeit **Nicht gelistet** und deaktivierter automatischer
+Veröffentlichung. Edge `1.0.1` bleibt **In draft**. Eine Store- oder
+GitHub-Release-Veröffentlichung benötigt weiterhin eine getrennte ausdrückliche
+Freigabe.

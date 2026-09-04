@@ -2,26 +2,32 @@
 
 Stand: 2026-09-04
 
-Status: **VORGÄNGERKANDIDAT VERWORFEN / VM-TESTKANDIDAT SYSTEM PASS / PHASE 8 HOLD**
+Status: **FINALER R26-RELEASEKANDIDAT PASS / PHASE 8 PASS / NICHT VERÖFFENTLICHT**
 
-## Nicht mehr freigabefähiger Vorgängerkandidat
+## Freigegebener r26-Releasekandidat
 
 `PLwC-Setup-1.0.0-installer-r26.exe`
 
-- Bytes: `5.493.306`
-- SHA-256: `55e10b6193ddf0bb88efc2e02e5ad5d587f3c54b48b48b2f58795e4a6b6feab6`
+- Bytes: `5.494.996`
+- SHA-256: `d604e7714ab4838337ac036a91335292c7315fd9b0be7d16c54c08b39797dc65`
 - Authenticode: `NotSigned`
 - Buildmodus: `explicit_unsigned`
 - Build-ID:
-  `plwc-windows-setup@1.0.0/installer-r26#sha256:55e10b6193ddf0bb88efc2e02e5ad5d587f3c54b48b48b2f58795e4a6b6feab6`
+  `plwc-windows-setup@1.0.0/installer-r26#sha256:d604e7714ab4838337ac036a91335292c7315fd9b0be7d16c54c08b39797dc65`
 
 Begleitartefakte:
 
 | Datei | SHA-256 |
 | --- | --- |
-| Buildidentität | `b6f7f3f37e7605ce254b208792c4d23cba57ca0bdaf87232d0a518ed6738adf5` |
-| Payload-Manifest | `e2fbb20578422b989607f8bbe7a8ac5aaee8ba0e5e15f6d40e79dd6870cd0827` |
-| `SHA256SUMS.txt` | `b0e51d0ead7aafaf3251ada4d9a88d14f6bc524cd4136c12f0c659eabcc74cd4` |
+| Buildidentität | `5747fdb7733b8c25ef87b0c13bedf83a09bd8524241b50ef2c94ff60b7afd3cd` |
+| Payload-Manifest | `571319b097172418cad69b89b30debd83ad70975c5095d89bef7fdd789bba76b` |
+| `SHA256SUMS.txt` | `7ff4a0458775381878bf9e5fb5155f10fba3c2c494079a78ea3ad6101a5cf145` |
+
+Der Product Owner gab diesen endgültigen r26-Build am 2026-09-04 ausdrücklich
+frei. Mangels Authenticode-Zertifikat erfolgte der Build bewusst mit
+`-Unsigned`; Windows darf deshalb `Unbekannter Herausgeber` anzeigen. Die vier
+Artefakte liegen unveränderlich unter
+`private_evidence/r26-final-candidate/sha256-d604e7714ab4838337ac036a91335292c7315fd9b0be7d16c54c08b39797dc65/`.
 
 ## Verwerfungen vor diesem Kandidaten
 
@@ -37,18 +43,20 @@ Regressionsevidenz erhalten. Keine davon ist der auszuliefernde Kandidat.
 
 ## Testnachweise des aktuellen Quellstands
 
-- Python: `112 passed, 6 skipped`;
+- Python: `112 passed, 6 skipped` in 44,28 s;
 - Extension: `190/190 passed`, Typecheck und Build PASS;
-- Installer-Pester: `72 passed, 0 failed, 0 skipped`;
+- Store-Paket-Reproduzierbarkeit, Inventar, Identität und Secret-Scan: PASS;
+- Installer-Pester: `72 passed, 0 failed, 0 skipped` in 620,12 s;
 - Pester-NUnit SHA-256:
   `22bc69dc445050eb627e34915b30f57365fde363f84044d33f323fbef35d8068`.
 
-## Isolierter VM-Testkandidat
+## Isolierter VM-Vorlauf
 
-Der aktuelle Quellstand wurde ausschließlich als ausdrücklich unsignierter,
-isolierter VM-Testbuild erzeugt. Er ist kein endgültiger Produktionsbuild und
-noch nicht als Releasekandidat gebunden. Seine saubere Windows-11-Installation
-und der anschließende vollständige Chrome-Neustart sind inzwischen bestanden.
+Vor der endgültigen Buildfreigabe wurde derselbe Implementierungsstand als
+ausdrücklich unsignierter, isolierter VM-Testbuild erzeugt. Seine saubere
+Windows-11-Installation und der anschließende vollständige Chrome-Neustart
+bestanden. Dieses Artefakt bleibt Testevidenz und ist nicht der
+Releasekandidat.
 
 | Datei | Bytes | SHA-256 |
 | --- | ---: | --- |
@@ -68,44 +76,51 @@ verfügbar. Nach vollständigem Chrome-Neustart blieb PLwC installiert; das Pane
 meldete Extension `1.0.1`, die stabile Entwicklungs-ID
 `nlogfcafjdfdoknpkbehjgihpafpipdb`, passenden Build und erneut 8/8.
 
-## Reale Windows-11-Abnahme
+## Direkte r25→r26-Abnahme auf Windows 11
 
-Auf Windows 11 Pro 64 Bit, Build 22631, bestand der exakte Kandidat eine
-r26→r26-Aktualisierung:
+Auf Windows 11 Pro 64 Bit, Build 22631, wurde zuerst der unveränderte
+r25-Kandidat `e0fdcc54…1fa7c` mit Gateway, Codex und Chat Bridge installiert.
+Die danach gesicherte Auswahl bindet `installer-r25`, den vollständigen
+r25-Setuphash und Browser-Extension `1.0.0`. Unmittelbar anschließend bestand
+der exakte r26-Kandidat `d604e771…97dc65` die direkte Aktualisierung:
 
+- beide Setups Exitcode 0 und regulär geschlossene Inno-Logs;
 - Transaktion und gemeinsamer Postflight: PASS, 12/12 Checks;
 - Gateway und Bridge unter versionlosen Pfaden aktiv;
 - Native Messaging für Chrome, Edge und Brave registriert;
 - drei fest erlaubte Origins, kein Wildcard-Origin;
 - Live-Health für Development-, Chrome- und Edge-Origin: 8/8;
-- installierter Doctor: 0 Fehler, Runtime-Dateien vollständig, leerer Plan;
-- Profile, aktives Profil und Arbeitsbereich bytegleich erhalten.
+- installierter Doctor: 7 PASS, 1 Hinweis, 0 Fehler, Runtime-Dateien
+  vollständig, Kompatibilität `blocking=none`/`unknown=none`, leerer Plan;
+- Docker `29.3.1`, Qdrant `1.18.0`, Document Worker `0.1.0` und Extension
+  `1.0.1` tatsächlich erkannt;
+- Profile, aktives Profil und Arbeitsbereich bytegleich erhalten; in
+  `gateway-settings.json` änderte sich ausschließlich `updated_at`.
 
 Referenzhashes der lokalen Systemnachweise:
 
 | Nachweis | SHA-256 |
 | --- | --- |
-| Setup-Log | `a505f9a9ab27edd4959e8bac4ef15f3bc50523e0a10253131a0a943feb14c3b7` |
-| r26-Transaktion | `f82ff1d6c6361ccc6895fa00f463699afa42fe69bc0dd688e47b8d536c8afa50` |
-| Postflight-Report | `974175dde40c37399eaea7b16e40e33b3eb72109e06de224d5ff2da67a3d8c18` |
-| `selection.ini` | `34ceb4f6a7262947f03966f679fbc71f1c59f14bd282af6de7337bf9b8df7898` |
-| Vorher-Benutzerdatensnapshot | `0f1baa35bcf09b244b63ba169de0c38f043dfd4fe9e317740d103f31268115d7` |
+| r25-Setup-Log | `7d3f56afbb1af228dafd3590fc0f05dcf12069c91f42486630334660ad088cd9` |
+| gesicherte r25-`selection.ini` | `9919ad4897468f3bf5be22236199aa04017882b0fbc7d6f488dd8d7875906934` |
+| r26-Setup-Log | `a89a6eb053740c6b7f74e5527bec11d474d4c0c8287d14d6a873545ad16686fc` |
+| r26-Transaktion | `97a5ce5bced6d84be67f7719d719df90e206ebdbe210f956c199bbd6529878bf` |
+| Postflight-Report | `56569ea9f524d6f83c34fc8701c6c7c459aa9cac50aa3211f5a35c1eda77cd5e` |
+| finale `selection.ini` | `37bf330dd37b4440827ee231ff14873db0a052fca725dd9b4dbd5034ebd69788` |
+| Profilbaum vor/nachher | `8d57e1f4af69e8d2cdd21314786279ae7d9b7f75ebd5c564c339d5c6f7cd7544` |
+| Workspacebaum vor/nachher | `b4280ed5437576620030525714a0a8ec89905615059adb7da01e64e235ef2736` |
 
 ## Gate-Entscheidung
 
-Der Kandidat hat den vorhandenen Windows-Hostlauf bestanden. Nach diesem Lauf
-wurden jedoch ein reales Brave-Neustartproblem mit `Bereit 8/8` bei gleichzeitig
-verriegeltem Toolvertrag sowie eine fest eingetragene `unknown`-Beobachtung für
-den lokal vorhandenen Document Worker nachgewiesen und im Quellstand korrigiert.
-Damit ist die hier gebundene EXE nicht mehr der freigabefähige Quellstand. Der
-vollständige Brave-Neustart bestand nach dem einmaligen Wechsel der entpackten
-Entwicklungsinstanz vom Repository-Netzpfad auf
-`%APPDATA%\PLwC\app\bridge\extension`. Die direkte r25→r26-/Dirty-Migration ist
-funktional bereits einschließlich 12/12 Postflight bestanden. Zum
-Releaseabschluss fehlen nur ihre einmalige Hash-Bindung an den späteren
-Produktionskandidaten und die ausdrückliche Freigabe für diesen endgültigen
-Build. Die Einzelheiten stehen in
-`docs/R26_WINDOWS_TEST_MATRIX.md`.
+Der endgültige r26-Kandidat bindet den korrigierten Quellstand, bestand die
+vollständigen automatisierten Gates und die direkte r25→r26-Aktualisierung.
+Die zuvor offenen Browser-Lifecycle- und Komponenten-Inventarpunkte sind im
+installierten Ergebnis geschlossen. Der Product Owner hat den ausdrücklich
+unsignierten Build freigegeben. **Phase 8 ist PASS.**
+
+Diese Freigabe veröffentlicht nichts. Insbesondere wurden weder ein
+GitHub-Release noch eine Store-Veröffentlichung ausgeführt. Solche Schritte
+bleiben eigenständige, ausdrücklich zu bestätigende Gates.
 
 Der aktuelle Store-Zustand wurde live gelesen. Chrome `1.0.0` war akzeptiert,
 aber privat ohne Trusted-Tester-Gruppe und keine Linkveröffentlichung.

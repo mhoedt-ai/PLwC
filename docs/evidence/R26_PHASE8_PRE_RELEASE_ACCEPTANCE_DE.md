@@ -2,8 +2,14 @@
 
 Stand: 2026-09-04
 
-Status: **HOLD – vorhandener Kandidat durch nachträgliche Quellfixes überholt;
-saubere Windows-Systemmatrix noch unvollständig**
+Status: **ABGESCHLOSSENER ZWISCHENSTAND – durch finale Phase-8-Abnahme ersetzt**
+
+Der verbindliche Abschluss steht in
+`docs/evidence/R26_PHASE8_RELEASE_ACCEPTANCE_DE.md`. Der dort gebundene
+Releasekandidat hat SHA-256
+`d604e7714ab4838337ac036a91335292c7315fd9b0be7d16c54c08b39797dc65`;
+Phase 8 ist PASS. Die folgenden Abschnitte bewahren den historischen
+Zwischenstand und seine damals offenen Befunde.
 
 ## Freigabegrenzen
 
@@ -14,13 +20,17 @@ anschließend zunächst privat zur Prüfung ein, ließ diese Prüfung wieder
 abbrechen, stellte die Sichtbarkeit auf **Nicht gelistet** um und reichte
 Version `1.0.1` erneut zur Prüfung ein. Die automatische Veröffentlichung nach
 bestandener Prüfung blieb deaktiviert. Diese Handlungen umfassten keine
-Store-Veröffentlichung und keine Freigabe eines neuen endgültigen
-Produktionsbuilds. Der damalige Build wurde mangels Authenticode-Zertifikat
+Store-Veröffentlichung und zu diesem Zeitpunkt keine Freigabe eines neuen
+endgültigen Produktionsbuilds. Der damalige Build wurde mangels Authenticode-Zertifikat
 ausschließlich über den ausdrücklichen Schalter `-Unsigned` erzeugt. Windows
 darf deshalb `Unbekannter Herausgeber` anzeigen.
 
 Keine Store-Veröffentlichung und kein Sichtbarkeitswechsel wurden vorgenommen.
 Edge `1.0.1` wurde nicht zur Prüfung eingereicht.
+
+Am 2026-09-04 gab der Product Owner danach den endgültigen r26-Build
+ausdrücklich frei. Diese spätere Buildfreigabe umfasste weiterhin keine Store-
+oder GitHub-Veröffentlichung.
 
 ## Repository- und Releaseidentität
 
@@ -37,7 +47,7 @@ Der Arbeitsbaum enthält die zusammengehörigen, noch nicht als Releaseabschluss
 committeten r26-Änderungen sowie das vom Benutzer bereitgestellte Briefing.
 Historische Dateien und fremde Änderungen wurden nicht entfernt.
 
-## Aktueller Kandidat
+## Damaliger, inzwischen verworfener Kandidat
 
 | Artefakt | Bytes | SHA-256 |
 | --- | ---: | --- |
@@ -170,31 +180,19 @@ vorhanden. Anschließend wurde das reproduzierbar geprüfte Paket
 Center verifizierte Version `1.0.1`; sie steht nun **In draft** und weiterhin
 **Hidden**, während `1.0.0` live bleibt. `Publish` wurde nicht verwendet.
 
-## Phasenergebnis und offene Bedingungen
+## Abschluss des Zwischenstands
 
-Phasen 0 bis 7: **PASS**. Phase 8 bleibt **HOLD**. Die zuletzt installierte EXE
-hat den vorhandenen Hostlauf technisch bestanden, ist aber durch danach
-implementierte Browser-Lifecycle- und Komponenten-Inventar-Fixes nicht mehr der
-freigabefähige Quellstand.
-Der isolierte Unsigned-VM-Testkandidat `f30a2795…9dfa8` hat inzwischen die
-saubere Windows-11-Installation sowie den vollständigen Chrome-Neustart mit
-Extension `1.0.1`, passender Buildidentität und 8/8 bestanden. Noch offen sind:
+Die hier dokumentierten technischen HOLD-Punkte wurden danach geschlossen:
 
-1. abschließende Hash-Bindung der bereits funktional bestandenen direkten
-   r25→r26-/Dirty-Migration an den später freigegebenen Produktionskandidaten;
-2. die übrigen isolierten Negativ- und Browser-Lifecycle-Fälle; der zuvor
-   offene vollständige Brave-Neustart ist nach dem Wechsel der entpackten
-   Erweiterung vom Repository-Netzpfad auf
-   `%APPDATA%\PLwC\app\bridge\extension` bestanden (`1.0.1`, passender Build,
-   `8/8`, erfolgreicher `plwc_status`);
-3. Aktualisierung dieses Nachweises auf vollständiges PASS;
-4. Abschluss der laufenden Chrome-Prüfung für die bereits gespeicherte
-   Sichtbarkeit **Nicht gelistet** und eine getrennte ausdrückliche
-   Veröffentlichungsentscheidung;
-5. ausdrückliche Freigabe eines endgültigen Produktionsbuilds.
+- der saubere Windows-11-VM-Lauf einschließlich Chrome-Neustart bestand;
+- der vollständige Brave-Neustart bestand nach dem Wechsel der entpackten
+  Erweiterung auf `%APPDATA%\PLwC\app\bridge\extension`;
+- der korrigierte Komponentenbestand meldet `blocking=none` und
+  `unknown=none`, einschließlich Document Worker `0.1.0`;
+- der endgültige Kandidat `d604e771…97dc65` bestand die direkte, an r25
+  `e0fdcc54…1fa7c` gebundene Aktualisierung mit 12/12 Postflight und 8/8
+  Live-Health;
+- der Product Owner gab diesen ausdrücklich unsignierten r26-Build frei.
 
-Auf dem Abnahmehost sind Windows Sandbox, VirtualBox, VMware und QEMU nicht
-verfügbar; Docker läuft im Linux-Modus. Das Aktivieren einer Windows-Funktion
-mit möglichem Neustart wurde nicht ohne ausdrückliche Zustimmung vorgenommen.
-
-**Kein Store-Gate ist freigegeben.**
+Damit wurde dieser Zwischenstand durch **Phase 8 PASS** ersetzt. Kein
+Store-Gate und keine GitHub-Release-Veröffentlichung sind dadurch freigegeben.

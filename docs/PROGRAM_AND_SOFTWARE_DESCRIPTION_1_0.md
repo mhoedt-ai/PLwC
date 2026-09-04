@@ -287,19 +287,20 @@ The current r26 candidate evidence records:
 
 | Gate | Result |
 | --- | --- |
-| Python suite | 107 passed, 6 capability-dependent skips |
-| Browser extension suite | 184/184 passed, typecheck and build PASS |
+| Python suite | 112 passed, 6 capability-dependent skips |
+| Browser extension suite | 190/190 passed, typecheck and build PASS |
 | Windows installer Pester contracts | 72/72 passed |
 | Isolated `ValidateOnly` | PASS; no `PLwC-Setup-*.exe` created and protected artifacts unchanged |
-| r26 Setup candidate | 5,493,306 bytes, SHA-256 `55e10b6193ddf0bb88efc2e02e5ad5d587f3c54b48b48b2f58795e4a6b6feab6`, explicitly unsigned |
-| Candidate payload manifest | SHA-256 `e2fbb20578422b989607f8bbe7a8ac5aaee8ba0e5e15f6d40e79dd6870cd0827` |
-| Existing-host r26-to-r26 update | PASS; 12/12 postflight, 8/8 live health, user-data hashes unchanged |
-| Windows 11 clean and direct r25-to-r26 acceptance | SYSTEM PENDING against the exact candidate |
-| Chrome link distribution | HOLD: accepted draft remains Private without a selected tester group |
+| Store package reproducibility, inventory, identity and secret scan | PASS |
+| final r26 Setup candidate | 5,494,996 bytes, SHA-256 `d604e7714ab4838337ac036a91335292c7315fd9b0be7d16c54c08b39797dc65`, explicitly unsigned |
+| Candidate payload manifest | SHA-256 `571319b097172418cad69b89b30debd83ad70975c5095d89bef7fdd789bba76b` |
+| Direct r25-to-r26 update | PASS; r25 `e0fdcc54…1fa7c`, both setups exit 0, 12/12 r26 postflight, 8/8 live health, user-data tree hashes unchanged |
+| Windows 11 clean installation and browser restart | PASS on the isolated VM candidate from the same implementation state |
+| Installed component inventory | PASS; `blocking=none`, `unknown=none`, including Docker, Qdrant and Document Worker |
+| Chrome 1.0.1 link distribution | Review pending, visibility Unlisted, automatic publication disabled |
 
-The Product Owner approved this Setup build, but not a Store action. Phase 8
-remains on hold until the clean and direct r25 system cases bind to the same
-immutable executable. The detailed status is recorded in
+The Product Owner approved this explicitly unsigned Setup build, but not a
+Store or GitHub publication. Phase 8 is PASS. The detailed status is recorded in
 [`R26_PHASE8_RELEASE_ACCEPTANCE_DE.md`](evidence/R26_PHASE8_RELEASE_ACCEPTANCE_DE.md).
 
 ## 15. Distribution, signing and Store state
@@ -310,29 +311,27 @@ signing route. Windows may therefore show an unknown-publisher warning. The
 exact public URL and SHA-256 are the external integrity anchors for this
 candidate.
 
-The current r26 Windows candidate is also deliberately unsigned. It has not
-been published. Its immutable local identity is the SHA-256 recorded above;
-clean-Windows and direct r25-to-r26 acceptance remain open before release
-closure.
+The final r26 Windows candidate is also deliberately unsigned. It has not been
+published. Its immutable local identity is the SHA-256 recorded above; the
+direct r25-to-r26 acceptance and the clean-Windows implementation-state test
+are complete.
 
-The submitted Chrome and Edge candidates contain the 1.0 packages, public-safe
-listing text, privacy declarations, support/privacy URLs and three sanitized
-1280 x 800 screenshots. On 2026-09-03 the Chrome dashboard showed version 1.0.0
-as accepted and `Bereit zur Veröffentlichung`, but its active visibility was
-Private and no trusted-tester group was selected. It is therefore not a usable
-link distribution. The intended visibility is Unlisted. The current Edge
-dashboard state was not reverified in this r26 source pass and must not be
-inferred from the older submission record. Approval, visibility, controlled
-availability and publication remain separate gates.
+The submitted Chrome and Edge candidates contain extension 1.0.1, public-safe
+listing text, privacy declarations, support/privacy URLs and sanitized Store
+screenshots. Chrome 1.0.1 is pending review under the existing Store ID with
+visibility **Unlisted**; automatic publication after review is disabled and no
+version is published. Edge 1.0.1 is saved under the existing CRX identity and
+remains **In draft**/**Hidden**, while 1.0.0 remains live. Approval,
+visibility, controlled availability and publication remain separate gates.
 
 ## 16. Remaining release gates
 
 Before any Store availability or publication action:
 
-1. recheck the live Chrome and Edge dashboard states and active visibility;
-2. set Chrome to the approved Unlisted/link-only model only with explicit
-   authorization, then wait if that change triggers another review;
-3. install the review-approved Store-signed package under its real ID;
+1. wait for Chrome 1.0.1 review and recheck the active visibility before any
+   publication action;
+2. decide separately whether Chrome 1.0.1 and Edge 1.0.1 may be published;
+3. install each review-approved Store-signed package under its real ID;
 4. repeat Native Messaging, loopback, tool-contract, confirmation, restart and
    missing-native-host acceptance;
 5. compare the saved screenshots with the accepted Store-ID build;
@@ -340,8 +339,8 @@ Before any Store availability or publication action:
    identities.
 
 The unavailable Store link is an external distribution hold, not evidence that
-the locally tested 1.0 components failed. A Store package update to extension
-1.0.1 is a separate approval gate and is not authorized by the r26 work.
+the locally tested 1.0 components failed. Store publication remains a separate
+approval gate and is not authorized by the r26 build approval.
 
 ## 17. Documentation map
 
