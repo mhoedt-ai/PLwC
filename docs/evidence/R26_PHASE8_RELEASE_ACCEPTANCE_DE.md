@@ -107,11 +107,13 @@ Produktionskandidaten und die ausdrückliche Freigabe für diesen endgültigen
 Build. Die Einzelheiten stehen in
 `docs/R26_WINDOWS_TEST_MATRIX.md`.
 
-Der aktuelle Store-Zustand wurde live gelesen. Chrome `1.0.0` bleibt akzeptiert,
-aber privat ohne Trusted-Tester-Gruppe und ist keine Linkveröffentlichung. Ein
-neuer Chrome-Upload ist gesperrt, bis die wartende Veröffentlichung abgebrochen
-wird; dieser Schritt wurde nicht ausgeführt. Edge `1.0.0` ist bereits live und
-hidden. Das geprüfte `1.0.1`-Paket wurde dort in derselben CRX-Identität als
+Der aktuelle Store-Zustand wurde live gelesen. Chrome `1.0.0` war akzeptiert,
+aber privat ohne Trusted-Tester-Gruppe und keine Linkveröffentlichung.
+Der Product Owner brach die wartende Veröffentlichung ab; `1.0.0` wurde nicht
+veröffentlicht. Das geprüfte Chrome-Paket `1.0.1` ist nun in derselben ID
+gespeichert und steht **Entwurf**, weiterhin **Privat**, ohne Testergruppe und
+ohne veröffentlichte Version. Edge `1.0.0` ist bereits live und hidden. Das
+geprüfte `1.0.1`-Paket wurde dort in derselben CRX-Identität als
 Hidden-Aktualisierung gespeichert und steht **In draft**; die bestehende
-`1.0.0` bleibt live. Keine Veröffentlichung und kein Sichtbarkeitswechsel wurden
-ausgeführt.
+`1.0.0` bleibt live. Keine neue Veröffentlichung, kein Sichtbarkeitswechsel und
+keine Review-Einreichung wurden ausgeführt.

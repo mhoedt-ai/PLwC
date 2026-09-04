@@ -144,7 +144,12 @@ endete zunächst an Googles Passwort-Reauth. Nach der später erfolgreichen
 Anmeldung wurde derselbe Zustand live bestätigt. Der Paketbereich sperrt einen
 neuen Upload, solange der akzeptierte Entwurf auf die Veröffentlichung wartet;
 das Menü bietet nur den Abbruch dieser Veröffentlichung. Dieser potenziell
-review-verwerfende Schritt wurde nicht ausgeführt.
+review-verwerfende Schritt wurde anschließend durch den Product Owner
+ausgeführt; `1.0.0` wurde dabei nicht veröffentlicht. Das reproduzierbar
+geprüfte Paket `PLwC-Chat-Bridge-1.0.1-chrome-brave-store.zip` wurde danach in
+dieselbe Artikel-ID geladen und gespeichert. Chrome zeigt Version `1.0.1`,
+Status **Entwurf**, weiterhin **Privat**, keine Trusted-Tester-Gruppe und keine
+veröffentlichte Version. `Prüfen lassen` wurde nicht betätigt.
 
 Edge wurde am 2026-09-04 ebenfalls live verifiziert: Version `1.0.0` war
 **Live**, Sichtbarkeit **Hidden**, CRX-ID
@@ -172,9 +177,8 @@ Extension `1.0.1`, passender Buildidentität und 8/8 bestanden. Noch offen sind:
    `%APPDATA%\PLwC\app\bridge\extension` bestanden (`1.0.1`, passender Build,
    `8/8`, erfolgreicher `plwc_status`);
 3. Aktualisierung dieses Nachweises auf vollständiges PASS;
-4. ausdrückliche Entscheidung, ob der akzeptierte private Chrome-Entwurf
-   abgebrochen und durch das vorbereitete `1.0.1`-Paket mit neuem Review ersetzt
-   werden soll;
+4. ausdrückliche Entscheidung über Chrome-Sichtbarkeit und die getrennte
+   Einreichung des gespeicherten `1.0.1`-Entwurfs zur Prüfung;
 5. ausdrückliche Freigabe eines endgültigen Produktionsbuilds.
 
 Auf dem Abnahmehost sind Windows Sandbox, VirtualBox, VMware und QEMU nicht
