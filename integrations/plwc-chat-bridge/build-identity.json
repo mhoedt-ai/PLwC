@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "product": "PLwC Chat Bridge",
+  "releaseVersion": "1.0.0",
+  "buildId": "plwc-chat-bridge@1.0.0",
+  "installer": {
+    "componentId": "chat-bridge",
+    "directoryName": "bridge"
+  },
+  "components": {
+    "nodeBridge": "1.0.0",
+    "browserExtension": "1.0.0",
+    "nativeLauncher": "1.0.0"
+  }
+}

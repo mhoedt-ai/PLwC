@@ -109,12 +109,17 @@ from plwc_gateway.adapters.pba import (
     profile_onboarding_schema,
     scan_tagebuch_patterns,
 )
+from plwc_gateway.adapters.sandbox import (
+    CONTAINER_WORKDIR as SANDBOX_CONTAINER_WORKDIR,
+    TMPFS_SPEC as SANDBOX_TMPFS_SPEC,
+)
 from plwc_gateway.audit import AuditError, AuditLogger, JsonlAuditLogger
 from plwc_gateway.config import (
     ConfigValidationError,
     GatewayConfig,
     PERSONA_LAYER_DISABLED_ENV_VAR,
     PERSONA_LAYER_ENABLED_ENV_VAR,
+    WORKSPACE_STANDARD_DIRECTORIES,
     load_gateway_config,
 )
 from plwc_gateway.onboarding import build_first_run_status, generate_claude_config
@@ -575,6 +580,25 @@ DESCRIBE_REQUIREMENTS = (
     "FR-DESC-007",
     "FR-DESC-008",
 )
+DESCRIBE_OPERATION_FILTER_SCOPES = frozenset({"workspace_operation", "document_operation"})
+DESCRIBE_OPERATION_EXAMPLES = {
+    "document_operation": "create_pdf",
+    "workspace_operation": "read",
+}
+PUBLIC_ERROR_CATEGORIES = (
+    "INVALID_REQUEST",
+    "NOT_FOUND",
+    "UNAVAILABLE",
+    "CONFLICT",
+    "POLICY_DENY",
+)
+GOVERNANCE_POLICY_CONTRACT_VERSION = "1.0"
+GOVERNANCE_POLICY_RULE_NAMES = (
+    "memory_write_threshold",
+    "persona_write_threshold",
+    "temperament_write_threshold",
+)
+SANDBOX_ACCEPTANCE_REQUIREMENTS = ("SBX-001", "SBX-002", "SBX-003", "SBX-004", "SBX-005")
 
 PUBLIC_TOOLS = (
     PUBLIC_STATUS_TOOL,
@@ -639,6 +663,9 @@ def _runtime_status_payload(config: GatewayConfig) -> dict[str, Any]:
         "registered_public_tool_count": tool_count,
         "public_tools": list(PUBLIC_TOOLS),
         "workspace_root": str(config.allowed_roots[0]) if config.allowed_roots else None,
+        "workspace_standard_directories": list(config.workspace_standard_directories),
+        "workspace_standard_directory_status": _workspace_standard_directory_status(config),
+        "workspace_standard_directories_complete": _workspace_standard_directories_complete(config),
         "profile_root": str(config.profile_root),
         "configured_active_profile": profile_setup["configured_active_profile"],
         "resolved_active_profile": profile_setup["resolved_active_profile"],
@@ -684,6 +711,9 @@ def _runtime_status_payload(config: GatewayConfig) -> dict[str, Any]:
         "required_profile_files": profile_setup["required_files"],
         "missing_profile_files": profile_setup["missing_files"],
         "governance_thresholds": config.governance.as_dict(),
+        "effective_governance_policy": _effective_governance_policy(config),
+        "qdrant_enabled": _qdrant_enabled_for(config, selected_profile),
+        "qdrant_enabled_source": config.qdrant_enabled_source,
         "profile_compile": {
             "persona_layer_enabled": config.persona_layer_enabled,
             "persona_layer_enabled_source": config.persona_layer_enabled_source,
@@ -695,6 +725,94 @@ def _runtime_status_payload(config: GatewayConfig) -> dict[str, Any]:
             "legacy_env_var": PERSONA_LAYER_ENABLED_ENV_VAR,
         },
         "setup_warnings": list(config.setup_warnings),
+    }
+
+
+def _effective_governance_policy(config: GatewayConfig) -> dict[str, Any]:
+    rules = {
+        name: _effective_governance_threshold_rule(config, name)
+        for name in GOVERNANCE_POLICY_RULE_NAMES
+    }
+    return {
+        "schema_version": GOVERNANCE_POLICY_CONTRACT_VERSION,
+        "rules": rules,
+        "global_security_minima": {
+            "direct_host_shell_execution": {
+                "effective_policy": "forbidden",
+                "requirement_ids": ["SR-001", "SR-010"],
+            },
+            "runtime_security_policy_mutation": {
+                "effective_policy": "forbidden",
+                "requirement_ids": ["SR-005", "SR-010"],
+            },
+            "protected_governance_files": {
+                "effective_policy": "governed_tools_only",
+                "requirement_ids": ["SR-004", "SR-010"],
+            },
+        },
+    }
+
+
+def _effective_governance_threshold_rule(config: GatewayConfig, name: str) -> dict[str, Any]:
+    value = int(getattr(config.governance, name))
+    source = str(getattr(config.governance, f"{name}_source"))
+    user_preference_recorded = source != "default"
+    return {
+        "user_preference_recorded": user_preference_recorded,
+        "user_preference": value if user_preference_recorded else None,
+        "user_preference_source": source if user_preference_recorded else None,
+        "effective_policy": value,
+        "effective_policy_source": source,
+        "global_minimum": 1,
+        "effective_policy_overridden_by_global_minimum": False,
+    }
+
+
+def _attach_effective_governance_policy(payload: dict[str, Any], config: GatewayConfig) -> dict[str, Any]:
+    policy = _effective_governance_policy(config)
+    payload["effective_governance_policy"] = policy
+    data = payload.get("data")
+    if isinstance(data, dict):
+        data.setdefault("effective_governance_policy", policy)
+    return payload
+
+
+def _attach_sandbox_acceptance_gate(payload: dict[str, Any]) -> dict[str, Any]:
+    payload["sandbox_acceptance_gate"] = _sandbox_acceptance_gate()
+    return payload
+
+
+def _sandbox_acceptance_gate() -> dict[str, Any]:
+    return {
+        "schema_version": "1.0",
+        "requirements": list(SANDBOX_ACCEPTANCE_REQUIREMENTS),
+        "positive_acceptance_environment": {
+            "requires_docker_capable_windows": True,
+            "current_non_docker_vm_is_negative_evidence_only": True,
+            "pytest_enable_env_var": "PLWC_RUN_DOCKER_ACCEPTANCE=1",
+            "pytest_marker": "docker_acceptance",
+        },
+        "execution_boundary": {
+            "host_shell_fallback": False,
+            "runtime_network": "none",
+            "root_filesystem": "read_only",
+            "container_workdir": SANDBOX_CONTAINER_WORKDIR,
+            "workspace_mount_target": SANDBOX_CONTAINER_WORKDIR,
+            "workspace_mount_mode": "rw",
+            "tmpfs": SANDBOX_TMPFS_SPEC,
+            "dynamic_mounts_allowed": False,
+            "dynamic_canary_mounts_allowed": False,
+            "docker_socket_mount_allowed": False,
+            "docker_host_network_allowed": False,
+            "runtime_image_pull_policy": "never",
+        },
+        "acceptance_expectations": {
+            "SBX-001": "A Docker-capable system reports sandbox_ready=true.",
+            "SBX-002": "A file written under /work appears in the configured workspace.",
+            "SBX-003": "Writing to /etc or an equivalent protected root path fails; /tmp may be writable.",
+            "SBX-004": "The positive path is inside /work; outside-mount writes fail and no dynamic canary mount is added.",
+            "SBX-005": "Docker socket and comparable engine interfaces are unavailable inside the container.",
+        },
     }
 
 
@@ -713,6 +831,27 @@ def _runtime_status_result(loaded: GatewayConfig) -> dict[str, Any]:
         "error": execution.policy.reason,
         "policy_decision": execution.policy.decision.value,
     }
+
+
+def _workspace_standard_directory_status(config: GatewayConfig) -> list[dict[str, Any]]:
+    workspace_root = config.allowed_roots[0] if config.allowed_roots else None
+    directory_names = config.workspace_standard_directories or WORKSPACE_STANDARD_DIRECTORIES
+    status: list[dict[str, Any]] = []
+    for directory_name in directory_names:
+        directory = workspace_root / directory_name if workspace_root is not None else None
+        status.append(
+            {
+                "name": directory_name,
+                "path": str(directory) if directory is not None else None,
+                "exists": bool(directory is not None and directory.exists()),
+                "is_directory": bool(directory is not None and directory.is_dir()),
+            }
+        )
+    return status
+
+
+def _workspace_standard_directories_complete(config: GatewayConfig) -> bool:
+    return all(item["is_directory"] for item in _workspace_standard_directory_status(config))
 
 
 def plwc_runtime_status(
@@ -774,8 +913,70 @@ def plwc_generate_claude_config(
     return result
 
 
+def _requested_profile_status_payload(config: GatewayConfig, profile_name: str) -> dict[str, Any]:
+    requested = profile_name.strip()
+    setup = _profile_adapter(config).profile_setup_status(requested)
+    current = config.active_profile_name
+    requested_is_active = requested.casefold() == current.casefold()
+    target_is_valid = setup.get("active_profile_directory") is not None
+    target_exists = bool(setup.get("selected_profile_exists"))
+    target_profile_valid = bool(setup.get("selected_profile_valid"))
+    onboarding_required = bool(setup.get("onboarding_required"))
+    quoted_profile = json.dumps(requested, ensure_ascii=False)
+
+    if not target_is_valid:
+        workflow = "invalid_profile_name"
+        instruction = "Choose a valid profile name without path separators before starting onboarding."
+    elif not target_exists:
+        workflow = "profile_creation"
+        instruction = (
+            'Collect the onboarding answers, then call plwc_governor(operation="plan", '
+            f'plan_type="profile_creation", profile={quoted_profile}, onboarding_answers={{... including '
+            f'"profile_name": {quoted_profile}}}). Review the plan and apply it with the same values and '
+            "confirmed=true. The governed apply creates and activates the profile automatically."
+        )
+    elif not target_profile_valid:
+        workflow = "profile_repair"
+        instruction = (
+            f"Inspect requested_profile_status.next_actions and repair profile {quoted_profile} through "
+            "a governed onboarding or import flow before activation."
+        )
+    elif not requested_is_active:
+        workflow = "profile_activation"
+        instruction = (
+            'Call plwc_governor(operation="plan", plan_type="profile_activation", '
+            f"profile={quoted_profile}), review the plan, then apply the same profile with confirmed=true."
+        )
+    elif onboarding_required:
+        workflow = "profile_onboarding"
+        instruction = (
+            'Complete the active profile through plwc_governor(operation="plan", '
+            f'plan_type="profile_creation", profile={quoted_profile}, onboarding_answers={{... including '
+            f'"profile_name": {quoted_profile}}}), then apply the reviewed plan with confirmed=true.'
+        )
+    else:
+        workflow = "ready"
+        instruction = "The requested profile is active and ready."
+
+    return {
+        "requested_profile_name": requested,
+        "requested_profile_is_active": requested_is_active,
+        "requested_profile_workflow": workflow,
+        "requested_profile_status": setup,
+        "requested_profile_instruction": instruction,
+        "profile_name_parameter_effect": "inspection_only",
+        "active_profile_changed": False,
+        "profile_context_note": (
+            "plwc_status never changes the active profile. Missing profiles are created and activated by "
+            "a confirmed profile_creation Governor apply; existing profiles are switched by a confirmed "
+            "profile_activation Governor apply."
+        ),
+    }
+
+
 def plwc_status(
     scope: str = "",
+    profile_name: str = "",
     *,
     config: GatewayConfig | None = None,
     audit_logger: AuditLogger | None = None,
@@ -817,6 +1018,12 @@ def plwc_status(
 
     payload["facade"] = PUBLIC_STATUS_TOOL
     payload["scope"] = normalized_scope
+    if normalized_scope in {"runtime", "first_run"}:
+        _attach_effective_governance_policy(payload, loaded)
+    if normalized_scope == "sandbox":
+        _attach_sandbox_acceptance_gate(payload)
+    if profile_name.strip():
+        payload.update(_requested_profile_status_payload(loaded, profile_name))
     _audit_public_result(PUBLIC_STATUS_TOOL, payload, config=loaded, audit_logger=audit_logger)
     return payload
 
@@ -1270,6 +1477,7 @@ def plwc_document_operation(
             input_paths=input_paths,
             output_dir=output_dir,
             error_category="audit_error",
+            config=loaded,
         )
         _audit_public_result(DOCUMENT_OPERATION_TOOL, payload, config=loaded, audit_logger=audit_logger, high_risk=True)
         return payload
@@ -1383,6 +1591,7 @@ def plwc_document_operation(
         input_path=input_path,
         input_paths=input_paths,
         output_dir=output_dir,
+        config=loaded,
     )
     audit_failure = _audit_public_result(
         DOCUMENT_OPERATION_TOOL,
@@ -1398,6 +1607,7 @@ def plwc_describe(
     scope: str = "tools",
     detail: str = "short",
     format: str = "json",
+    operation: str = "",
     *,
     config: GatewayConfig | None = None,
     audit_logger: AuditLogger | None = None,
@@ -1406,12 +1616,14 @@ def plwc_describe(
     normalized_scope = _normalize_describe_scope(scope)
     normalized_detail = detail.strip().casefold() if isinstance(detail, str) else ""
     normalized_format = format.strip().casefold() if isinstance(format, str) else ""
+    normalized_operation = _normalize_describe_operation(normalized_scope, operation)
 
     if normalized_scope not in DESCRIBE_SCOPES:
         payload = {
             "ok": False,
             "operation": "describe",
             "scope": normalized_scope or str(scope),
+            "operation_filter": normalized_operation or None,
             "policy_decision": PolicyDecision.DENY.value,
             "error": (
                 "Unsupported describe scope. Supported scopes: "
@@ -1423,6 +1635,7 @@ def plwc_describe(
             "scope_aliases": dict(sorted(_DESCRIBE_SCOPE_ALIASES.items())),
             "requirement_ids": list(DESCRIBE_REQUIREMENTS),
         }
+        payload.update(_describe_next_step(scope="tools"))
         _audit_public_result(DESCRIBE_TOOL, payload, config=loaded, audit_logger=audit_logger)
         return payload
     if normalized_detail not in {"short", "full"}:
@@ -1432,6 +1645,7 @@ def plwc_describe(
             normalized_format,
             "detail must be short or full.",
             "validation_error",
+            operation=normalized_operation,
         )
         _audit_public_result(DESCRIBE_TOOL, payload, config=loaded, audit_logger=audit_logger)
         return payload
@@ -1442,17 +1656,30 @@ def plwc_describe(
             normalized_format,
             "format must be json or markdown.",
             "validation_error",
+            operation=normalized_operation,
         )
         _audit_public_result(DESCRIBE_TOOL, payload, config=loaded, audit_logger=audit_logger)
         return payload
+    operation_validation = _describe_operation_filter_failure(
+        normalized_scope,
+        normalized_detail,
+        normalized_format,
+        normalized_operation,
+    )
+    if operation_validation is not None:
+        _audit_public_result(DESCRIBE_TOOL, operation_validation, config=loaded, audit_logger=audit_logger)
+        return operation_validation
 
     data = _describe_data(normalized_scope, normalized_detail, loaded)
+    if normalized_operation:
+        data = _describe_operation_filtered_data(normalized_scope, data, normalized_operation)
     if normalized_format == "markdown":
         data = {"markdown": _describe_markdown(normalized_scope, data)}
     payload = {
         "ok": True,
         "operation": "describe",
         "scope": normalized_scope,
+        "operation_filter": normalized_operation or None,
         "detail": normalized_detail,
         "format": normalized_format,
         "policy_decision": PolicyDecision.ALLOW.value,
@@ -1506,6 +1733,49 @@ def plwc_compile_profile(
     result = profile_adapter.compile_profile(_selected_profile(profile, loaded), task_context=task_context)
     payload = _public_payload(result)
     _audit_public_result("plwc_compile_profile", payload, config=loaded, audit_logger=audit_logger)
+    return payload
+
+
+def clu_doctor_diagnose(
+    *,
+    profile: str = "",
+    doctor_scope: str = "general",
+    task_context: str = "",
+    query: str = "",
+    config: GatewayConfig | None = None,
+) -> dict[str, Any]:
+    """Run the deterministic CLU Doctor without audit or any persistent change.
+
+    This internal configuration-UI entry point is intentionally not registered
+    as a public MCP tool. Public ``plwc_profile(operation="doctor")`` keeps its
+    existing metadata-audit behavior and the eight-tool facade remains fixed.
+    """
+
+    loaded = _load_config(config)
+    normalized_scope = _normalize_dispatch_value(doctor_scope)
+    if normalized_scope not in SUPPORTED_DOCTOR_SCOPES:
+        raise ValueError(f"Unsupported CLU Doctor scope: {doctor_scope!r}.")
+    return _clu_doctor_payload(
+        loaded,
+        profile=_selected_profile(profile, loaded),
+        doctor_scope=normalized_scope,
+        task_context=task_context,
+        query=query,
+    )
+
+
+def runtime_status_diagnose(*, config: GatewayConfig | None = None) -> dict[str, Any]:
+    """Return the policy-checked runtime snapshot without an audit append.
+
+    This is reserved for the local read-only configuration Doctor. It is not a
+    public MCP tool and does not change the audited behavior of ``plwc_status``.
+    """
+
+    loaded = _load_config(config)
+    payload = _runtime_status_result(loaded)
+    payload["facade"] = PUBLIC_STATUS_TOOL
+    payload["scope"] = "runtime"
+    _attach_effective_governance_policy(payload, loaded)
     return payload
 
 
@@ -1900,6 +2170,7 @@ def plwc_governor_plan(
         payload.setdefault("data", {})["source_provenance"] = _plan_source_provenance(
             source_file, source_heading, source_sha256, loaded
         )
+    _attach_effective_governance_policy(payload, loaded)
     _audit_public_result("plwc_governor_plan", payload, config=loaded, audit_logger=audit_logger)
     return payload
 
@@ -1983,6 +2254,7 @@ def plwc_governor_apply(
         plan_id=plan_id,
     )
     payload = _public_payload(result)
+    _attach_effective_governance_policy(payload, loaded)
     audit_failure = _audit_public_result(
         "plwc_governor_apply",
         payload,
@@ -2142,6 +2414,7 @@ def plwc_governor(
             payload.setdefault("data", {})["source_provenance"] = _plan_source_provenance(
                 source_file, source_heading, source_sha256, loaded
             )
+        _attach_effective_governance_policy(payload, loaded)
         _audit_public_result(GOVERNOR_TOOL, payload, config=loaded, audit_logger=audit_logger)
         return payload
 
@@ -2181,6 +2454,7 @@ def plwc_governor(
     payload = _public_payload(result)
     payload["facade"] = GOVERNOR_TOOL
     payload["operation"] = normalized_operation
+    _attach_effective_governance_policy(payload, loaded)
     audit_failure = _audit_public_result(
         GOVERNOR_TOOL,
         payload,
@@ -2200,6 +2474,7 @@ def plwc_sandbox_status(
     loaded = _load_config(config)
     sandbox = adapter or _sandbox_adapter(loaded)
     payload = _public_payload(sandbox.status())
+    _attach_sandbox_acceptance_gate(payload)
     _audit_public_result("plwc_sandbox_status", payload, config=loaded, audit_logger=audit_logger)
     return payload
 
@@ -2223,6 +2498,7 @@ def plwc_run_python_sandboxed(
         return preflight
     sandbox = adapter or _sandbox_adapter(loaded)
     payload = _public_payload(sandbox.run_python(code))
+    _attach_sandbox_acceptance_gate(payload)
     audit_failure = _audit_public_result(
         "plwc_run_python_sandboxed",
         payload,
@@ -2252,6 +2528,7 @@ def plwc_run_shell_sandboxed(
         return preflight
     sandbox = adapter or _sandbox_adapter(loaded)
     payload = _public_payload(sandbox.run_shell(command))
+    _attach_sandbox_acceptance_gate(payload)
     audit_failure = _audit_public_result(
         "plwc_run_shell_sandboxed",
         payload,
@@ -2332,6 +2609,7 @@ def plwc_sandbox_run(
     else:
         result = sandbox.run_node(code.strip())
     payload = _public_payload(result)
+    _attach_sandbox_acceptance_gate(payload)
     payload["facade"] = SANDBOX_RUN_TOOL
     payload["lang"] = normalized_lang
     payload["requested_timeout_seconds"] = timeout
@@ -2370,14 +2648,19 @@ def build_mcp_server() -> Any:
     # run_sync is not cancellable here, so an in-flight write is never abandoned;
     # concurrent writes are serialized by the per-profile write lock (pba).
     @mcp.tool()
-    async def plwc_status(scope: str = "") -> dict[str, Any]:
-        """Report PLwC runtime, sandbox, first-run onboarding, or config status. Use scope="first_run" at Desktop startup and onboarding."""
-        return await anyio.to_thread.run_sync(lambda: globals()["plwc_status"](scope))
+    async def plwc_status(scope: str = "", profile_name: str = "") -> dict[str, Any]:
+        """Report PLwC runtime, sandbox, first-run onboarding, or config status. profile_name inspects an onboarding target without activating it."""
+        return await anyio.to_thread.run_sync(lambda: globals()["plwc_status"](scope, profile_name))
 
     @mcp.tool()
-    async def plwc_describe(scope: str = "tools", detail: str = "short", format: str = "json") -> dict[str, Any]:
+    async def plwc_describe(
+        scope: str = "tools",
+        detail: str = "short",
+        format: str = "json",
+        operation: str = "",
+    ) -> dict[str, Any]:
         """Describe PLwC tools, schemas, dispatch operations, onboarding payloads, and safe plan/apply instructions."""
-        return await anyio.to_thread.run_sync(lambda: globals()["plwc_describe"](scope, detail, format))
+        return await anyio.to_thread.run_sync(lambda: globals()["plwc_describe"](scope, detail, format, operation))
 
     @mcp.tool()
     async def plwc_profile(
@@ -2531,7 +2814,7 @@ def build_mcp_server() -> Any:
         max_bytes: int | None = None,
         require_content_hash: str = "",
     ) -> dict[str, Any]:
-        """Run governed workspace list, search, read, write, copy, move, rename, replace, and binary operations inside allowed roots."""
+        """Run governed workspace operations inside allowed roots. Use list with depth to discover filenames; search scans text contents only. Verify candidate paths with file_info before mutation."""
         # Forward by keyword to prevent positional drift if the public
         # function's signature is reordered (see RC2-BUG-W01 / C01).
         return await anyio.to_thread.run_sync(lambda: globals()["plwc_workspace_operation"](
@@ -2646,6 +2929,18 @@ def _normalize_describe_scope(scope: Any) -> str:
     # RC12-DESC-001 (A) — resolve tool-name aliases (e.g. "workspace",
     # "plwc_profile") to the canonical scope; canonical names pass through.
     return _DESCRIBE_SCOPE_ALIASES.get(normalized, normalized)
+
+
+def _normalize_describe_operation(scope: str, operation: Any) -> str:
+    if not isinstance(operation, str):
+        return ""
+    if not operation.strip():
+        return ""
+    if scope == "document_operation":
+        return _normalize_document_operation(operation)
+    if scope == "workspace_operation":
+        return _normalize_workspace_operation(operation)
+    return _normalize_dispatch_value(operation)
 
 
 def _normalize_dispatch_value(value: Any) -> str:
@@ -6498,7 +6793,9 @@ def _workspace_operation_payload(
     payload["reason"] = "Operation completed." if payload.get("ok") is True else payload.get("error", "Operation denied.")
     payload["changed_files"] = list(changed_files)
     payload["read_files"] = list(read_files)
-    payload["error_category"] = None if payload.get("ok") is True else error_category or _error_category(payload.get("error"))
+    payload["error_category"] = None if payload.get("ok") is True else error_category or _legacy_error_category(payload.get("error"))
+    _normalize_public_error_contract(payload)
+    _apply_workspace_artifact_provenance(payload, operation)
     if protected_boundary_decision:
         payload["protected_boundary_decision"] = protected_boundary_decision
     elif "SR-004" in set(payload.get("requirement_ids") or ()):
@@ -6506,6 +6803,24 @@ def _workspace_operation_payload(
     if isinstance(payload.get("files"), (list, tuple)):
         payload["byte_count"] = sum(int(item.get("size") or 0) for item in payload["files"] if isinstance(item, dict))
     return payload
+
+
+def _apply_workspace_artifact_provenance(payload: dict[str, Any], operation: str) -> None:
+    if payload.get("ok") is not True:
+        return
+    if operation == "write_binary":
+        payload["artifact_origin"] = payload.get("artifact_origin") or "workspace_binary_write"
+        payload["validation_status"] = payload.get("validation_status") or "unvalidated"
+        return
+    if operation == "read_binary":
+        payload["artifact_origin"] = payload.get("artifact_origin") or "unknown"
+        payload["validation_status"] = payload.get("validation_status") or "unvalidated"
+        return
+    if operation == "file_info":
+        info = payload.get("info")
+        if isinstance(info, dict) and info.get("kind") == "file":
+            payload["artifact_origin"] = payload.get("artifact_origin") or "unknown"
+            payload["validation_status"] = payload.get("validation_status") or "unvalidated"
 
 
 def _document_operation_payload(
@@ -6517,6 +6832,7 @@ def _document_operation_payload(
     input_paths: list[str] | None = None,
     output_dir: str = "",
     error_category: str | None = None,
+    config: GatewayConfig | None = None,
 ) -> dict[str, Any]:
     raw_payload = _public_payload(result)
     ok = raw_payload.get("ok") is True
@@ -6647,10 +6963,134 @@ def _document_operation_payload(
             payload[key] = raw_payload[key]
     if raw_payload.get("file_size") is not None:
         payload["file_size"] = raw_payload["file_size"]
+    _apply_document_artifact_provenance(payload, operation, raw_payload, config)
     if not ok:
         payload["error"] = raw_payload.get("error", "Document operation denied.")
-        payload["error_category"] = raw_payload.get("error_category") or error_category or _error_category(payload["error"])
+        payload["error_category"] = raw_payload.get("error_category") or error_category or _legacy_error_category(payload["error"])
+        _normalize_public_error_contract(payload)
     return payload
+
+
+def _apply_document_artifact_provenance(
+    payload: dict[str, Any],
+    operation: str,
+    raw_payload: dict[str, Any],
+    config: GatewayConfig | None,
+) -> None:
+    if payload.get("ok") is not True:
+        return
+    if operation != "create_pdf":
+        return
+
+    payload["artifact_origin"] = raw_payload.get("artifact_origin") or "document_worker"
+    payload["artifact_origin_detail"] = raw_payload.get("artifact_origin_detail") or "document_worker_create_pdf"
+    payload["workspace_intermediate_artifacts"] = list(raw_payload.get("workspace_intermediate_artifacts") or [])
+    payload["intermediate_artifact_policy"] = (
+        "No workspace intermediate artifact is required for direct create_pdf output. "
+        "Any future required workspace intermediate artifact must be stored under Temp/<task>/."
+    )
+    validation = _technical_pdf_validation(
+        raw_payload.get("output_path"),
+        payload.get("output_path"),
+        config,
+    )
+    payload["technical_validation"] = validation
+    if validation["status"] == "passed":
+        payload["validation_status"] = raw_payload.get("validation_status") or "validated"
+        payload["validation_detail_status"] = raw_payload.get("validation_detail_status") or "technically_validated"
+        if validation.get("page_count") is not None and payload.get("page_count") is None:
+            payload["page_count"] = validation["page_count"]
+        return
+
+    payload["ok"] = False
+    payload["status"] = "failed"
+    payload["decision"] = "failed"
+    payload["policy_decision"] = PolicyDecision.ALLOW.value
+    payload["reason"] = validation["error"]
+    payload["error"] = validation["error"]
+    payload["error_category"] = "document_validation_failed"
+    payload["validation_status"] = "validation_failed"
+    _normalize_public_error_contract(payload)
+
+
+def _technical_pdf_validation(
+    raw_output_path: Any,
+    requested_output_path: Any,
+    config: GatewayConfig | None,
+) -> dict[str, Any]:
+    output_file = _resolve_document_output_file(raw_output_path, requested_output_path, config)
+    if output_file is None:
+        return {
+            "format": "pdf",
+            "status": "failed",
+            "validator": "pypdf",
+            "error": "create_pdf output path could not be resolved inside the configured workspace.",
+        }
+    try:
+        from pypdf import PdfReader
+
+        reader = PdfReader(str(output_file))
+        page_count = len(reader.pages)
+    except Exception as exc:
+        return {
+            "format": "pdf",
+            "status": "failed",
+            "validator": "pypdf",
+            "path": str(output_file),
+            "error": f"create_pdf output failed technical PDF validation: {exc}",
+        }
+    if page_count < 1:
+        return {
+            "format": "pdf",
+            "status": "failed",
+            "validator": "pypdf",
+            "path": str(output_file),
+            "page_count": page_count,
+            "error": "create_pdf output failed technical PDF validation: PDF has no pages.",
+        }
+    return {
+        "format": "pdf",
+        "status": "passed",
+        "validator": "pypdf",
+        "path": str(output_file),
+        "page_count": page_count,
+    }
+
+
+def _resolve_document_output_file(
+    raw_output_path: Any,
+    requested_output_path: Any,
+    config: GatewayConfig | None,
+) -> Path | None:
+    if config is None:
+        return None
+    for value in (raw_output_path, requested_output_path):
+        resolved = _resolve_workspace_candidate(value, config)
+        if resolved is not None:
+            return resolved
+    return None
+
+
+def _resolve_workspace_candidate(value: Any, config: GatewayConfig) -> Path | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    candidate = Path(value)
+    paths = [candidate] if candidate.is_absolute() else [root / candidate for root in config.allowed_roots]
+    for path in paths:
+        resolved = path.expanduser().resolve(strict=False)
+        if _path_is_inside_any_root(resolved, config.allowed_roots):
+            return resolved
+    return None
+
+
+def _path_is_inside_any_root(path: Path, roots: tuple[Path, ...]) -> bool:
+    for root in roots:
+        try:
+            path.relative_to(root.resolve(strict=False))
+            return True
+        except ValueError:
+            continue
+    return False
 
 
 def _document_operation_mcp_response(payload: dict[str, Any]) -> Any:
@@ -6758,11 +7198,15 @@ def _describe_validation_failure(
     output_format: str,
     reason: str,
     error_category: str,
+    *,
+    operation: str = "",
+    next_step: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "ok": False,
         "operation": "describe",
         "scope": scope,
+        "operation_filter": operation or None,
         "detail": detail,
         "format": output_format,
         "data": None,
@@ -6771,6 +7215,75 @@ def _describe_validation_failure(
         "policy_decision": PolicyDecision.DENY.value,
         "requirement_ids": list(DESCRIBE_REQUIREMENTS),
     }
+    payload.update(next_step or _describe_next_step(scope=scope, operation=operation))
+    return payload
+
+
+def _describe_operation_filter_failure(
+    scope: str,
+    detail: str,
+    output_format: str,
+    operation: str,
+) -> dict[str, Any] | None:
+    if not operation:
+        return None
+    if scope not in DESCRIBE_OPERATION_FILTER_SCOPES:
+        return _describe_validation_failure(
+            scope,
+            detail,
+            output_format,
+            "operation filtering is supported only for workspace_operation and document_operation scopes.",
+            "validation_error",
+            operation=operation,
+            next_step=_describe_next_step(scope=scope),
+        )
+
+    supported_operations = _describe_supported_operations(scope)
+    if operation in supported_operations:
+        return None
+    return _describe_validation_failure(
+        scope,
+        detail,
+        output_format,
+        f"Unsupported {scope} operation filter: {operation}.",
+        "unknown_operation",
+        operation=operation,
+        next_step=_describe_next_step(scope=scope, operation=_describe_example_operation(scope)),
+    ) | {
+        "unsupported_operation_filter": operation,
+        "supported_operations": supported_operations,
+    }
+
+
+def _describe_supported_operations(scope: str) -> list[str]:
+    if scope == "document_operation":
+        return sorted(SUPPORTED_DOCUMENT_OPERATIONS)
+    if scope == "workspace_operation":
+        return sorted(SUPPORTED_WORKSPACE_OPERATIONS)
+    return []
+
+
+def _describe_example_operation(scope: str) -> str:
+    return DESCRIBE_OPERATION_EXAMPLES.get(scope, "")
+
+
+def _describe_next_step(*, scope: str, operation: str = "") -> dict[str, Any]:
+    required_fields = ["scope"]
+    if operation:
+        required_fields.append("operation")
+    return {
+        "next_tool": DESCRIBE_TOOL,
+        "next_operation": "describe",
+        "next_plan_type": None,
+        "required_fields": required_fields,
+        "example_call": _describe_example_call(scope, operation=operation),
+    }
+
+
+def _describe_example_call(scope: str, *, operation: str = "") -> str:
+    if operation:
+        return f'{DESCRIBE_TOOL}(scope="{scope}", operation="{operation}")'
+    return f'{DESCRIBE_TOOL}(scope="{scope}")'
 
 
 def _dispatch_validation_failure(
@@ -6811,6 +7324,133 @@ def _describe_tool_purposes() -> dict[str, str]:
     }
 
 
+def _describe_operation_filtered_data(scope: str, data: dict[str, Any], operation: str) -> dict[str, Any]:
+    if scope == "document_operation":
+        return _describe_document_operation_filtered_data(data, operation)
+    if scope == "workspace_operation":
+        return _describe_workspace_operation_filtered_data(data, operation)
+    return data
+
+
+def _describe_document_operation_filtered_data(data: dict[str, Any], operation: str) -> dict[str, Any]:
+    required_fields = data.get("required_fields") if isinstance(data.get("required_fields"), dict) else {}
+    optional_fields = data.get("optional_fields") if isinstance(data.get("optional_fields"), dict) else {}
+    filtered: dict[str, Any] = {
+        "tool": data["tool"],
+        "worker_image": data["worker_image"],
+        "worker_mount": data["worker_mount"],
+        "operation_filter": operation,
+        "supported_operations": [operation],
+        "required_fields": {operation: required_fields.get(operation, [])},
+        "optional_fields": {operation: optional_fields.get(operation, [])},
+        "common_required_fields": ["operation"],
+        "example_call": _document_operation_example_call(operation),
+        "runtime_policy": data.get("runtime_policy"),
+        "path_safety": data.get("path_safety"),
+    }
+    creation_contract = _document_operation_creation_contract(data, operation)
+    if creation_contract:
+        filtered["creation_contract"] = creation_contract
+    for limit_key in _document_operation_limit_keys(operation):
+        if data.get(limit_key) is not None:
+            filtered[limit_key] = data[limit_key]
+    return {key: value for key, value in filtered.items() if value is not None}
+
+
+def _describe_workspace_operation_filtered_data(data: dict[str, Any], operation: str) -> dict[str, Any]:
+    required_fields = data.get("required_fields") if isinstance(data.get("required_fields"), dict) else {}
+    optional_fields = data.get("optional_fields") if isinstance(data.get("optional_fields"), dict) else {}
+    return {
+        "tool": data["tool"],
+        "operation_filter": operation,
+        "supported_operations": [operation],
+        "required_fields": {operation: required_fields.get(operation, [])},
+        "optional_fields": {operation: optional_fields.get(operation, [])},
+        "common_required_fields": ["operation"],
+        "example_call": _workspace_operation_example_call(operation),
+        "workspace_standard_directories": data.get("workspace_standard_directories", []),
+        "temp_policy": data.get("temp_policy"),
+        "trashcan_policy": data.get("trashcan_policy"),
+        "path_safety": data.get("path_safety"),
+        "forbidden_operations": data.get("forbidden_operations", []),
+    }
+
+
+def _document_operation_creation_contract(data: dict[str, Any], operation: str) -> dict[str, Any]:
+    raw_contract = data.get("creation_contract")
+    if not isinstance(raw_contract, dict):
+        return {}
+    contract: dict[str, Any] = {}
+    if raw_contract.get(operation) is not None:
+        contract[operation] = raw_contract[operation]
+    if operation in SUPPORTED_DOCUMENT_CREATE_OPERATIONS:
+        for key, value in raw_contract.items():
+            if key == "unsupported_fields":
+                contract[key] = value
+                continue
+            if operation == "create_pdf" and key.startswith("pdf_v2_"):
+                contract[key] = value
+            elif operation == "create_docx" and key.startswith("docx_v2_"):
+                contract[key] = value
+            elif operation == "create_xlsx" and key.startswith("xlsx_v2_"):
+                contract[key] = value
+            elif operation == "create_pptx" and key.startswith("pptx_v2_"):
+                contract[key] = value
+    return contract
+
+
+def _document_operation_limit_keys(operation: str) -> tuple[str, ...]:
+    if operation == "create_pdf":
+        return ("pdf_creation_v2_limits",)
+    if operation == "create_docx":
+        return ("docx_creation_v2_limits",)
+    if operation == "create_xlsx":
+        return ("xlsx_creation_v2_limits",)
+    if operation == "create_pptx":
+        return ("pptx_creation_v2_limits",)
+    if operation in SUPPORTED_DOCUMENT_PDF_OPERATIONS:
+        return ("pdf_mvp_limits",)
+    if operation in SUPPORTED_DOCUMENT_ZIP_OPERATIONS:
+        return ("zip_mvp_limits",)
+    if operation in SUPPORTED_DOCUMENT_IMAGE_OPERATIONS:
+        return ("image_read_limits",)
+    if operation in SUPPORTED_DOCUMENT_OFFICE_OPERATIONS:
+        return ("office_mvp_limits",)
+    return ()
+
+
+def _document_operation_example_call(operation: str) -> str:
+    if operation == "create_pdf":
+        return f'{DOCUMENT_OPERATION_TOOL}(operation="create_pdf", output_path="reports/v2.pdf", content={{...}})'
+    if operation in SUPPORTED_DOCUMENT_CREATE_OPERATIONS:
+        extension = DOCUMENT_OPERATION_EXTENSIONS.get(operation, "")
+        return f'{DOCUMENT_OPERATION_TOOL}(operation="{operation}", output_path="artifacts/example{extension}", content={{...}})'
+    if operation == "read_image":
+        return f'{DOCUMENT_OPERATION_TOOL}(operation="read_image", input_path="images/example.png")'
+    if operation in {"merge_pdf", "create_zip"}:
+        extension = DOCUMENT_OPERATION_EXTENSIONS.get(operation, ".out")
+        return f'{DOCUMENT_OPERATION_TOOL}(operation="{operation}", input_paths=[...], output_path="Temp/task/example{extension}")'
+    if operation in {"split_pdf", "extract_zip"}:
+        return f'{DOCUMENT_OPERATION_TOOL}(operation="{operation}", input_path="source{DOCUMENT_OPERATION_EXTENSIONS.get(operation, "")}", output_dir="Temp/task/")'
+    if operation.startswith("inspect_"):
+        return f'{DOCUMENT_OPERATION_TOOL}(operation="{operation}", input_path="source{DOCUMENT_OPERATION_EXTENSIONS.get(operation, "")}")'
+    return f'{DOCUMENT_OPERATION_TOOL}(operation="{operation}", input_path="source{DOCUMENT_OPERATION_EXTENSIONS.get(operation, "")}", output_path="Temp/task/output")'
+
+
+def _workspace_operation_example_call(operation: str) -> str:
+    if operation in {"move", "rename", "copy"}:
+        return f'{WORKSPACE_OPERATION_TOOL}(operation="{operation}", source_path="Temp/source.txt", target_path="Trashcan/source.txt")'
+    if operation == "write_binary":
+        return f'{WORKSPACE_OPERATION_TOOL}(operation="write_binary", path="Temp/output.bin", content_base64="...")'
+    if operation == "batch_read":
+        return f'{WORKSPACE_OPERATION_TOOL}(operation="batch_read", paths=["Tagebuch/2026-07-30.md"])'
+    if operation == "search":
+        return f'{WORKSPACE_OPERATION_TOOL}(operation="search", path=".", query="needle")'
+    if operation == "exact_replace":
+        return f'{WORKSPACE_OPERATION_TOOL}(operation="exact_replace", path="notes.txt", old_text="old", new_text="new", expected_replacements=1)'
+    return f'{WORKSPACE_OPERATION_TOOL}(operation="{operation}", path=".")'
+
+
 def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, Any]:
     if scope == "tools":
         tool_purposes = _describe_tool_purposes()
@@ -6828,6 +7468,11 @@ def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, 
                 "old_individual_tool_names_public": False,
                 "feature_expansion": False,
             },
+            "public_error_categories": list(PUBLIC_ERROR_CATEGORIES),
+            "error_detail_category": (
+                "When ok=false, error_category is a broad public class; "
+                "error_detail_category preserves the previous fine-grained diagnostic when available."
+            ),
             "dispatch": {
                 PUBLIC_STATUS_TOOL: {"scope": sorted(SUPPORTED_STATUS_SCOPES)},
                 PROFILE_TOOL: {"operation": sorted(SUPPORTED_PROFILE_OPERATIONS)},
@@ -6836,6 +7481,10 @@ def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, 
                 SANDBOX_RUN_TOOL: {"lang": sorted(SUPPORTED_SANDBOX_LANGS)},
                 WORKSPACE_OPERATION_TOOL: {"operation": sorted(SUPPORTED_WORKSPACE_OPERATIONS)},
                 DOCUMENT_OPERATION_TOOL: {"operation": sorted(SUPPORTED_DOCUMENT_OPERATIONS)},
+                DESCRIBE_TOOL: {
+                    "scope": sorted(DESCRIBE_SCOPES),
+                    "operation_filter_scopes": sorted(DESCRIBE_OPERATION_FILTER_SCOPES),
+                },
             },
             "legacy_mapping": {
                 "plwc_runtime_status": f"{PUBLIC_STATUS_TOOL}(scope=runtime)",
@@ -6891,6 +7540,20 @@ def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, 
                 "first_status_call": f'{PUBLIC_STATUS_TOOL}(scope="first_run")',
                 "onboarding_confirmation": "Do not apply profile creation until the user explicitly confirms.",
             },
+            "effective_governance_policy_contract": {
+                "schema_version": GOVERNANCE_POLICY_CONTRACT_VERSION,
+                "status_field": "effective_governance_policy",
+                "plan_apply_field": "effective_governance_policy",
+                "rule_fields": [
+                    "user_preference_recorded",
+                    "user_preference",
+                    "user_preference_source",
+                    "effective_policy",
+                    "effective_policy_source",
+                    "global_minimum",
+                    "effective_policy_overridden_by_global_minimum",
+                ],
+            },
             "legacy_tools_replaced": [
                 "plwc_runtime_status",
                 "plwc_sandbox_status",
@@ -6904,6 +7567,16 @@ def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, 
             "tool": WORKSPACE_OPERATION_TOOL,
             "supported_operations": sorted(SUPPORTED_WORKSPACE_OPERATIONS),
             "aliases": {"create_directory": "create_dir"},
+            "workspace_standard_directories": list(WORKSPACE_STANDARD_DIRECTORIES),
+            "temp_policy": (
+                "Use Temp/<task>/ for actual intermediate workspace artifacts such as extracted PDF text, "
+                "rendered PDF pages, document image assets, DOCX fragments and conversion files. "
+                "PLwC never cleans Temp automatically."
+            ),
+            "trashcan_policy": (
+                "Trashcan/ is only a normal move destination. PLwC has no delete operation, never moves "
+                "files there automatically and never invents a replacement name on target conflict."
+            ),
             "required_fields": {
                 "list": ["operation", "path"],
                 "search": ["operation", "path", "query"],
@@ -6981,6 +7654,10 @@ def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, 
             },
             "search_scope_guards": {
                 "note": (
+                    "Search scans text contents, not filenames. Inventory and index matches "
+                    "are candidate references, not proof that the named file exists at that "
+                    "location. Use list with sufficient depth for filename discovery and "
+                    "file_info to verify an exact path before mutation. "
                     "RC12-FS-003 — text search bounds its walk so a large binary or "
                     "huge tree cannot stall it. Guards only reduce scope; results carry "
                     "search_stats so skipped files are never silent."
@@ -7807,6 +8484,11 @@ def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, 
                 REFLECTION_CONDENSATION_PLAN_TYPE,
             ],
             "confirmation": "Apply requires confirmed=true before mutation.",
+            "effective_governance_policy_contract": {
+                "schema_version": GOVERNANCE_POLICY_CONTRACT_VERSION,
+                "field": "effective_governance_policy",
+                "shared_with_status": True,
+            },
             "profile_creation_onboarding_schema": profile_onboarding_schema(
                 persona_layer_enabled=config.persona_layer_enabled
             ),
@@ -8094,6 +8776,7 @@ def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, 
                 "Supply node_modules in the workspace mount; 'npm install' cannot reach a registry inside the sandbox."
             ),
             "node_tmp_noexec": "/tmp is mounted noexec; scripts that execute temp files will fail — this is expected.",
+            "sandbox_acceptance_gate": _sandbox_acceptance_gate(),
             "legacy_tools_replaced": ["plwc_sandbox_status", "plwc_run_python_sandboxed", "plwc_run_shell_sandboxed"],
             "mount_path": WORKER_CONTAINER_WORKDIR,
             "network": "disabled for controlled workers",
@@ -8246,10 +8929,10 @@ def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, 
                 "First profile creation uses governed onboarding apply with confirmed=true, never manual protected-file edits.",
             ],
             "active_profile_precedence": [
-                "An explicitly configured active profile wins over active_profile.json state.",
-                "A missing configured active profile becomes the onboarding target and does not fall back to another profile.",
-                "An invalid configured active profile reports invalid_configured_profile/setup_required and does not fall back.",
-                "When no configured profile exists, active_profile.json may select the active profile and active_profile_source reports plwc_state.",
+                "Governed active_profile.json state is the canonical active-profile selection.",
+                "Shared PLwC settings are the bootstrap selection when no governed profile state exists.",
+                "Host or extension configuration is used only when neither governed state nor a shared selection exists.",
+                "A newly created or explicitly activated profile is visible to every gateway on its next call.",
             ],
             "onboarding_schema": profile_onboarding_schema(persona_layer_enabled=config.persona_layer_enabled),
             "profile_schema": {
@@ -8296,6 +8979,12 @@ def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, 
                     "default": "tools",
                     "choices": sorted(DESCRIBE_SCOPES),
                     "note": "Tool-name aliases are accepted (e.g. 'workspace', 'profile', 'plwc_governor').",
+                },
+                "operation": {
+                    "required": False,
+                    "default": "",
+                    "supported_scopes": sorted(DESCRIBE_OPERATION_FILTER_SCOPES),
+                    "note": "Filter operation-heavy scopes, e.g. plwc_describe(scope=\"document_operation\", operation=\"create_pdf\").",
                 },
                 "detail": {"required": False, "default": "short", "choices": ["short", "full"]},
                 "format": {"required": False, "default": "json", "choices": ["json", "markdown"]},
@@ -8516,6 +9205,8 @@ def _qdrant_enabled_for(config: GatewayConfig, profile: str) -> bool:
        (this still works when PLwC runs without the config window, e.g. tests);
     3. otherwise OFF.
     """
+    if config.qdrant_enabled is not None:
+        return config.qdrant_enabled
     env_value = os.environ.get("PLWC_QDRANT_ENABLED")
     if env_value is not None and env_value.strip() != "":
         return qdrant_index.qdrant_enabled({qdrant_index.QDRANT_ENABLED_KEY: env_value})
@@ -9998,6 +10689,7 @@ def _audit_public_result(
     audit_logger: AuditLogger | None,
     high_risk: bool = False,
 ) -> dict[str, Any] | None:
+    _normalize_public_error_contract(result)
     try:
         _audit(config, audit_logger).record(
             _audit_completed_event(tool_name, result, high_risk=high_risk)
@@ -10021,7 +10713,7 @@ def _audit_started_event(tool_name: str, arguments: dict[str, Any], *, high_risk
 
 
 def _audit_completed_event(tool_name: str, result: dict[str, Any], *, high_risk: bool) -> dict[str, Any]:
-    return {
+    event = {
         "event": "tool_call_completed",
         "tool_name": tool_name,
         "action_type": _action_type_for(tool_name),
@@ -10030,10 +10722,18 @@ def _audit_completed_event(tool_name: str, result: dict[str, Any], *, high_risk:
         "result_status": _result_status(result),
         "policy_decision": _policy_decision_value(result.get("policy_decision")),
         "requirement_ids": list(result.get("requirement_ids") or ()),
-        "error_category": result.get("error_category") or _error_category(result.get("error")),
+        "error_category": result.get("error_category")
+        or _public_error_category(result.get("error_detail_category"), result.get("error")),
         "result_metrics": _result_metrics(result),
         "redaction": "result_metadata_only",
     }
+    if result.get("error_detail_category") is not None:
+        event["error_detail_category"] = result.get("error_detail_category")
+    if result.get("artifact_origin") is not None:
+        event["artifact_origin"] = result.get("artifact_origin")
+    if result.get("validation_status") is not None:
+        event["validation_status"] = result.get("validation_status")
+    return event
 
 
 def _action_type_for(tool_name: str) -> str:
@@ -10087,10 +10787,110 @@ def _policy_decision_value(value: Any) -> str | None:
     return str(value)
 
 
-def _error_category(error: Any) -> str | None:
+def _normalize_public_error_contract(payload: dict[str, Any]) -> dict[str, Any]:
+    if payload.get("ok") is True:
+        return payload
+    detail_category = (
+        _string_or_none(payload.get("error_detail_category"))
+        or _string_or_none(payload.get("error_category"))
+        or _legacy_error_category(payload.get("error"))
+    )
+    public_category = _public_error_category(
+        detail_category,
+        payload.get("error") or payload.get("reason"),
+    )
+    if public_category is not None:
+        payload["error_category"] = public_category
+    if detail_category is not None and detail_category != public_category:
+        payload["error_detail_category"] = detail_category
+    return payload
+
+
+def _public_error_category(detail_category: str | None, error: Any = None) -> str | None:
+    category = _string_or_none(detail_category)
+    if category in PUBLIC_ERROR_CATEGORIES:
+        return category
+    if category in {
+        "validation_error",
+        "unsupported_operation",
+        "unsupported_mode",
+        "unsupported_layout",
+        "unsupported_extension",
+        "unsupported_format",
+        "unknown_scope",
+        "unknown_operation",
+        "invalid_field_type",
+        "limit_exceeded",
+        "source_provenance_invalid",
+        "tagebuch_canonical_path_required",
+        "qdrant_disabled",
+    }:
+        return "INVALID_REQUEST"
+    if category in {
+        "not_found",
+        "worker_missing",
+        "engine_missing",
+        "source_deleted_replan_required",
+        "source_heading_not_found",
+    }:
+        return "NOT_FOUND" if category.startswith("source_") or category == "not_found" else "UNAVAILABLE"
+    if category in {
+        "sandbox_unavailable",
+        "docker_unavailable",
+        "timeout",
+        "audit_error",
+        "adapter_error",
+        "permission_error",
+        "document_validation_failed",
+        "empty_output",
+        "output_missing",
+        "worker_error",
+    }:
+        return "UNAVAILABLE"
+    if category in {
+        "stale_precondition",
+        "unexpected_replacement_count",
+        "overwrite_not_supported",
+        "output_exists",
+        "source_changed_replan_required",
+        "qdrant_ConcurrencyError",
+    }:
+        return "CONFLICT"
+    if category in {
+        "policy_denied",
+        "policy_violation",
+        "protected_path_rejected",
+        "path_traversal_rejected",
+        "path_traversal_denied",
+        "absolute_path_rejected",
+        "external_url_rejected",
+        "rejected_invalid_target",
+        "workspace_boundary_rejected",
+    }:
+        return "POLICY_DENY"
+
+    text = str(error or "").casefold()
+    if "docker" in text or "safe mode" in text or "worker missing" in text or "engine missing" in text:
+        return "UNAVAILABLE"
+    if "not found" in text or "no such file" in text or "missing" in text:
+        return "NOT_FOUND"
+    if "conflict" in text or "stale" in text or ("replacement" in text and "expected" in text):
+        return "CONFLICT"
+    if "policy" in text or "denied" in text or "forbidden" in text or "protected" in text:
+        return "POLICY_DENY"
+    if "timeout" in text or "timed out" in text or "audit" in text:
+        return "UNAVAILABLE"
+    if text:
+        return "INVALID_REQUEST"
+    return None
+
+
+def _legacy_error_category(error: Any) -> str | None:
     if error is None:
         return None
     text = str(error).casefold()
+    if "docker" in text or "safe mode" in text:
+        return "sandbox_unavailable"
     if "unsupported" in text or "not supported" in text:
         return "unsupported_operation"
     if "replacement" in text and "expected" in text and "found" in text:
@@ -10107,11 +10907,16 @@ def _error_category(error: Any) -> str | None:
         return "timeout"
     if "audit" in text:
         return "audit_error"
-    if "docker" in text or "safe mode" in text:
-        return "sandbox_unavailable"
     if "policy" in text or "denied" in text or "forbidden" in text or "protected" in text:
         return "policy_denied"
     return "adapter_error"
+
+
+def _string_or_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _result_metrics(result: dict[str, Any]) -> dict[str, int]:
@@ -10565,13 +11370,13 @@ def _public_payload(result: Any) -> dict[str, Any]:
 
 
 def _fail_closed(tool_name: str, reason: str, requirement_ids: tuple[str, ...]) -> dict[str, Any]:
-    return {
+    return _normalize_public_error_contract({
         "ok": False,
         "operation": tool_name,
         "policy_decision": PolicyDecision.DENY.value,
         "error": reason,
         "requirement_ids": list(requirement_ids),
-    }
+    })
 
 
 if __name__ == "__main__":

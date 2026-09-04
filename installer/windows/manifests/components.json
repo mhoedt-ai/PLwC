@@ -1,0 +1,1216 @@
+{
+  "$schema": "./components.schema.json",
+  "schemaVersion": "1.0.0",
+  "product": {
+    "id": "plwc_windows",
+    "name": "PLwC for Windows",
+    "platform": "win32",
+    "appDataRoot": "%APPDATA%\\PLwC",
+    "releaseVersion": "1.0.0",
+    "gatewayVersion": "1.0.0",
+    "chatBridgeVersion": "1.0.0"
+  },
+  "installerTokens": {
+    "{pythonExe}": "Absolute Python 3.11 or newer executable resolved by the installer.",
+    "{extensionId}": "Stable PLwC Chat Bridge extension ID nlogfcafjdfdoknpkbehjgihpafpipdb.",
+    "{browser}": "Selected native-messaging browser target: Chrome, Edge, Brave, Both, or All."
+  },
+  "managedDirectories": [
+    {
+      "id": "app",
+      "path": "%APPDATA%\\PLwC\\app",
+      "purpose": "Versioned application payloads and verified package copies.",
+      "mutability": "installer_managed",
+      "preserveOnUpgrade": true,
+      "preserveOnUninstall": false
+    },
+    {
+      "id": "workspace",
+      "path": "%APPDATA%\\PLwC\\workspace",
+      "purpose": "Default governed PLwC workspace.",
+      "mutability": "user_managed",
+      "preserveOnUpgrade": true,
+      "preserveOnUninstall": true
+    },
+    {
+      "id": "profiles",
+      "path": "%APPDATA%\\PLwC\\profiles",
+      "purpose": "Profile-owned governance, memory, persona, temperament, journal, and reflection state.",
+      "mutability": "user_managed",
+      "preserveOnUpgrade": true,
+      "preserveOnUninstall": true
+    },
+    {
+      "id": "config",
+      "path": "%APPDATA%\\PLwC\\config",
+      "purpose": "Runtime-wide configuration and installer-generated client descriptors.",
+      "mutability": "user_managed",
+      "preserveOnUpgrade": true,
+      "preserveOnUninstall": true
+    },
+    {
+      "id": "state",
+      "path": "%APPDATA%\\PLwC\\state",
+      "purpose": "Runtime-wide mutable state.",
+      "mutability": "runtime_managed",
+      "preserveOnUpgrade": true,
+      "preserveOnUninstall": true
+    },
+    {
+      "id": "logs",
+      "path": "%APPDATA%\\PLwC\\logs",
+      "purpose": "Runtime and installer logs.",
+      "mutability": "runtime_managed",
+      "preserveOnUpgrade": true,
+      "preserveOnUninstall": true
+    },
+    {
+      "id": "profile_backups",
+      "path": "%APPDATA%\\PLwC\\profile_backups",
+      "purpose": "Recoverable profile backups made before import, migration, or governed administration.",
+      "mutability": "installer_managed",
+      "preserveOnUpgrade": true,
+      "preserveOnUninstall": true
+    }
+  ],
+  "components": [
+    {
+      "id": "gateway_runtime",
+      "displayName": "PLwC Gateway runtime",
+      "kind": "gateway_runtime",
+      "version": "1.0.0",
+      "availability": "actual",
+      "description": "Shared eight-tool plwc-gateway stdio runtime used by all selectable client integrations.",
+      "selection": {
+        "defaultSelected": true,
+        "required": true,
+        "visibility": "user"
+      },
+      "dependsOn": [],
+      "installStrategy": {
+        "mode": "copy_tree"
+      },
+      "payloads": [
+        {
+          "id": "gateway_runtime_tree",
+          "role": "Executable Python gateway runtime extracted from the verified MCPB payload.",
+          "source": {
+            "path": "build\\mcpb\\plwc-gateway-1.0.0",
+            "state": "actual",
+            "repositoryTracked": false,
+            "type": "directory"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\gateway",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "directory"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\gateway",
+            "type": "directory",
+            "overwritePolicy": "versioned_replace",
+            "mutable": false
+          },
+          "required": true
+        },
+        {
+          "id": "default_profile_template",
+          "role": "Initial default profile template; existing profile data is never overwritten.",
+          "source": {
+            "path": "build\\mcpb\\plwc-gateway-1.0.0\\profiles\\template",
+            "state": "actual",
+            "repositoryTracked": false,
+            "type": "directory"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\gateway\\profiles\\template",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "directory"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\profiles\\default",
+            "type": "directory",
+            "overwritePolicy": "create_if_missing",
+            "mutable": true
+          },
+          "required": true
+        },
+        {
+          "id": "security_config_example",
+          "role": "Conservative security configuration example, not an implied active user configuration.",
+          "source": {
+            "path": "build\\mcpb\\plwc-gateway-1.0.0\\config\\security.yaml.example",
+            "state": "actual",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\gateway\\config\\security.yaml.example",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\config\\security.yaml.example",
+            "type": "file",
+            "overwritePolicy": "create_if_missing",
+            "mutable": true
+          },
+          "required": true
+        }
+      ],
+      "prerequisites": [
+        {
+          "id": "windows",
+          "type": "operating_system",
+          "name": "Windows",
+          "scope": "install",
+          "required": true,
+          "detection": {
+            "type": "installer_resolved",
+            "value": "win32"
+          }
+        },
+        {
+          "id": "python",
+          "type": "runtime",
+          "name": "Python",
+          "scope": "runtime",
+          "required": true,
+          "version": ">=3.11",
+          "detection": {
+            "type": "command",
+            "value": "python --version"
+          }
+        },
+        {
+          "id": "python_dependencies",
+          "type": "runtime",
+          "name": "Python packages from requirements.txt",
+          "scope": "runtime",
+          "required": true,
+          "version": "mcp; fastembed==0.8.0; qdrant-client==1.18.0",
+          "detection": {
+            "type": "command",
+            "value": "{pythonExe} -c import mcp"
+          }
+        },
+        {
+          "id": "docker",
+          "type": "optional_service",
+          "name": "Docker Desktop",
+          "scope": "runtime",
+          "required": false,
+          "detection": {
+            "type": "command",
+            "value": "docker version"
+          }
+        }
+      ],
+      "installerInputs": [
+        {
+          "id": "workspace_path",
+          "type": "directory",
+          "required": true,
+          "default": "%APPDATA%\\PLwC\\workspace",
+          "description": "Governed workspace root."
+        },
+        {
+          "id": "profiles_path",
+          "type": "directory",
+          "required": true,
+          "default": "%APPDATA%\\PLwC\\profiles",
+          "description": "Profile root shared by selected PLwC clients."
+        },
+        {
+          "id": "active_profile_name",
+          "type": "string",
+          "required": true,
+          "default": "default",
+          "validationPattern": "^[^\\\\/:*?\"<>|]+$",
+          "description": "Initial active profile directory name."
+        },
+        {
+          "id": "security_config",
+          "type": "file",
+          "required": false,
+          "default": "",
+          "description": "Optional active security.yaml; empty uses bundled conservative defaults."
+        },
+        {
+          "id": "memory_write_threshold",
+          "type": "string",
+          "required": true,
+          "default": "2",
+          "validationPattern": "^[0-9]+$",
+          "description": "Minimum confirmed evidence count for memory writes."
+        },
+        {
+          "id": "persona_write_threshold",
+          "type": "string",
+          "required": true,
+          "default": "3",
+          "validationPattern": "^[0-9]+$",
+          "description": "Minimum confirmed evidence count for persona writes."
+        },
+        {
+          "id": "temperament_write_threshold",
+          "type": "string",
+          "required": true,
+          "default": "2",
+          "validationPattern": "^[0-9]+$",
+          "description": "Minimum confirmed evidence count for temperament writes."
+        },
+        {
+          "id": "qdrant_enabled",
+          "type": "boolean",
+          "required": true,
+          "default": false,
+          "description": "Optional Qdrant retrieval index, disabled by default."
+        }
+      ],
+      "smokeChecks": [
+        {
+          "id": "gateway_stage_layout",
+          "phase": "post_stage",
+          "type": "path_contract",
+          "required": true,
+          "target": "installer\\windows\\stage\\gateway",
+          "assertions": [
+            {
+              "subject": "server.py",
+              "operator": "exists",
+              "expected": true
+            },
+            {
+              "subject": "src\\plwc_gateway\\mcp\\server.py",
+              "operator": "exists",
+              "expected": true
+            },
+            {
+              "subject": "manifest.json",
+              "operator": "exists",
+              "expected": true
+            }
+          ]
+        },
+        {
+          "id": "gateway_python_compile",
+          "phase": "post_install",
+          "type": "command",
+          "required": true,
+          "command": {
+            "executable": "{pythonExe}",
+            "arguments": [
+              "-m",
+              "compileall",
+              "-q",
+              "%APPDATA%\\PLwC\\app\\gateway"
+            ]
+          },
+          "assertions": [
+            {
+              "subject": "exitCode",
+              "operator": "equals",
+              "expected": 0
+            }
+          ]
+        },
+        {
+          "id": "gateway_mcp_contract",
+          "phase": "post_install",
+          "type": "mcp_contract",
+          "required": true,
+          "target": "%APPDATA%\\PLwC\\app\\gateway\\server.py",
+          "assertions": [
+            {
+              "subject": "serverName",
+              "operator": "equals",
+              "expected": "plwc-gateway"
+            },
+            {
+              "subject": "runtimeVersion",
+              "operator": "equals",
+              "expected": "1.0.0"
+            },
+            {
+              "subject": "publicToolCount",
+              "operator": "count_equals",
+              "expected": 8
+            }
+          ]
+        }
+      ],
+      "clientTargetIds": []
+    },
+    {
+      "id": "claude_desktop_mcpb",
+      "displayName": "MCPB for Claude Desktop",
+      "kind": "claude_mcpb",
+      "version": "1.0.0",
+      "availability": "actual",
+      "description": "Verified unsigned MCPB package staged for assisted installation in Claude Desktop.",
+      "selection": {
+        "defaultSelected": false,
+        "required": false,
+        "visibility": "user"
+      },
+      "dependsOn": [
+        "gateway_runtime"
+      ],
+      "installStrategy": {
+        "mode": "assisted"
+      },
+      "payloads": [
+        {
+          "id": "claude_mcpb_package",
+          "role": "Unsigned privacy-filtered Claude Desktop MCPB package.",
+          "source": {
+            "path": "build\\mcpb\\plwc-gateway-1.0.0.mcpb",
+            "state": "actual",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\claude\\plwc-gateway-1.0.0.mcpb",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\packages\\plwc-gateway-1.0.0.mcpb",
+            "type": "file",
+            "overwritePolicy": "replace_if_hash_matches",
+            "mutable": false
+          },
+          "required": true,
+          "integrity": {
+            "algorithm": "sha256",
+            "value": "2f71ac903bf85cc70023805ec0f901e84c4294982c1b59940350db3591a2d345"
+          }
+        }
+      ],
+      "prerequisites": [
+        {
+          "id": "claude_desktop",
+          "type": "application",
+          "name": "Claude Desktop",
+          "scope": "install",
+          "required": true,
+          "detection": {
+            "type": "installer_resolved",
+            "value": "Claude Desktop installation"
+          }
+        }
+      ],
+      "installerInputs": [],
+      "smokeChecks": [
+        {
+          "id": "claude_mcpb_hash",
+          "phase": "post_stage",
+          "type": "hash_contract",
+          "required": true,
+          "target": "installer\\windows\\stage\\claude\\plwc-gateway-1.0.0.mcpb",
+          "assertions": [
+            {
+              "subject": "sha256",
+              "operator": "equals",
+              "expected": "2f71ac903bf85cc70023805ec0f901e84c4294982c1b59940350db3591a2d345"
+            }
+          ]
+        },
+        {
+          "id": "claude_mcpb_client_acceptance",
+          "phase": "client_acceptance",
+          "type": "manual_client_check",
+          "required": true,
+          "target": "Claude Desktop",
+          "assertions": [
+            {
+              "subject": "visibleServerName",
+              "operator": "equals",
+              "expected": "plwc-gateway"
+            },
+            {
+              "subject": "visiblePublicToolCount",
+              "operator": "count_equals",
+              "expected": 8
+            }
+          ]
+        }
+      ],
+      "clientTargetIds": [
+        "claude_desktop"
+      ]
+    },
+    {
+      "id": "codex_stdio",
+      "displayName": "STDIO for Codex",
+      "kind": "stdio_client",
+      "version": "1.0.0",
+      "availability": "prepared",
+      "description": "Generates a conservative one-server stdio descriptor; direct Codex config mutation remains gated on a separately verified current schema.",
+      "selection": {
+        "defaultSelected": false,
+        "required": false,
+        "visibility": "user"
+      },
+      "dependsOn": [
+        "gateway_runtime"
+      ],
+      "installStrategy": {
+        "mode": "generate_config"
+      },
+      "payloads": [
+        {
+          "id": "codex_stdio_descriptor",
+          "role": "Installer-generated Codex stdio descriptor derived from the real gateway manifest.",
+          "source": {
+            "path": "build\\mcpb\\plwc-gateway-1.0.0\\manifest.json",
+            "state": "actual",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\codex\\plwc-gateway.generated.toml",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\config\\clients\\codex\\plwc-gateway.generated.toml",
+            "type": "file",
+            "overwritePolicy": "backup_merge",
+            "mutable": true
+          },
+          "required": true
+        }
+      ],
+      "prerequisites": [
+        {
+          "id": "codex",
+          "type": "application",
+          "name": "Codex",
+          "scope": "runtime",
+          "required": true,
+          "detection": {
+            "type": "command",
+            "value": "codex --version"
+          }
+        }
+      ],
+      "installerInputs": [
+        {
+          "id": "persona_layer_disabled",
+          "type": "boolean",
+          "required": true,
+          "default": true,
+          "description": "Conservative local-client default for explicit profile-context injection."
+        }
+      ],
+      "smokeChecks": [
+        {
+          "id": "codex_descriptor_generated",
+          "phase": "post_install",
+          "type": "path_contract",
+          "required": true,
+          "target": "%APPDATA%\\PLwC\\config\\clients\\codex\\plwc-gateway.generated.toml",
+          "assertions": [
+            {
+              "subject": "file",
+              "operator": "exists",
+              "expected": true
+            },
+            {
+              "subject": "serverName",
+              "operator": "equals",
+              "expected": "plwc-gateway"
+            }
+          ]
+        },
+        {
+          "id": "codex_client_acceptance",
+          "phase": "client_acceptance",
+          "type": "manual_client_check",
+          "required": true,
+          "target": "Codex",
+          "assertions": [
+            {
+              "subject": "visibleServerName",
+              "operator": "equals",
+              "expected": "plwc-gateway"
+            },
+            {
+              "subject": "visiblePublicToolCount",
+              "operator": "count_equals",
+              "expected": 8
+            }
+          ]
+        }
+      ],
+      "clientTargetIds": [
+        "codex"
+      ]
+    },
+    {
+      "id": "odysseus_stdio",
+      "displayName": "STDIO for Odysseus",
+      "kind": "stdio_client",
+      "version": "1.0.0",
+      "availability": "prepared",
+      "description": "Generates a portable one-server stdio descriptor for assisted Odysseus configuration.",
+      "selection": {
+        "defaultSelected": false,
+        "required": false,
+        "visibility": "user"
+      },
+      "dependsOn": [
+        "gateway_runtime"
+      ],
+      "installStrategy": {
+        "mode": "generate_config"
+      },
+      "payloads": [
+        {
+          "id": "odysseus_stdio_descriptor",
+          "role": "Installer-generated Odysseus stdio descriptor derived from the real gateway manifest.",
+          "source": {
+            "path": "build\\mcpb\\plwc-gateway-1.0.0\\manifest.json",
+            "state": "actual",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\odysseus\\plwc-gateway.generated.json",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\config\\clients\\odysseus\\plwc-gateway.generated.json",
+            "type": "file",
+            "overwritePolicy": "backup_merge",
+            "mutable": true
+          },
+          "required": true
+        }
+      ],
+      "prerequisites": [
+        {
+          "id": "odysseus",
+          "type": "application",
+          "name": "Odysseus",
+          "scope": "runtime",
+          "required": true,
+          "detection": {
+            "type": "installer_resolved",
+            "value": "User-selected Odysseus installation or executable"
+          }
+        }
+      ],
+      "installerInputs": [
+        {
+          "id": "persona_layer_disabled",
+          "type": "boolean",
+          "required": true,
+          "default": true,
+          "description": "Conservative local-client default for explicit profile-context injection."
+        }
+      ],
+      "smokeChecks": [
+        {
+          "id": "odysseus_descriptor_generated",
+          "phase": "post_install",
+          "type": "json_contract",
+          "required": true,
+          "target": "%APPDATA%\\PLwC\\config\\clients\\odysseus\\plwc-gateway.generated.json",
+          "assertions": [
+            {
+              "subject": "serverName",
+              "operator": "equals",
+              "expected": "plwc-gateway"
+            },
+            {
+              "subject": "transport",
+              "operator": "equals",
+              "expected": "stdio"
+            }
+          ]
+        },
+        {
+          "id": "odysseus_client_acceptance",
+          "phase": "client_acceptance",
+          "type": "manual_client_check",
+          "required": true,
+          "target": "Odysseus",
+          "assertions": [
+            {
+              "subject": "visibleServerName",
+              "operator": "equals",
+              "expected": "plwc-gateway"
+            },
+            {
+              "subject": "visiblePublicToolCount",
+              "operator": "count_equals",
+              "expected": 8
+            }
+          ]
+        }
+      ],
+      "clientTargetIds": [
+        "odysseus"
+      ]
+    },
+    {
+      "id": "chat_bridge",
+      "displayName": "PLwC Chat Bridge",
+      "kind": "chat_bridge",
+      "version": "1.0.0",
+      "availability": "prepared",
+      "description": "Stages the built loopback bridge and unpacked browser extension and prepares the Windows native launcher for Reconnect autostart.",
+      "selection": {
+        "defaultSelected": false,
+        "required": false,
+        "visibility": "user"
+      },
+      "dependsOn": [
+        "gateway_runtime"
+      ],
+      "installStrategy": {
+        "mode": "build_and_copy",
+        "preparationCommands": [
+          {
+            "executable": "npm",
+            "arguments": [
+              "ci"
+            ],
+            "workingDirectory": "integrations\\plwc-chat-bridge\\bridge"
+          },
+          {
+            "executable": "npm",
+            "arguments": [
+              "ci"
+            ],
+            "workingDirectory": "integrations\\plwc-chat-bridge\\extension"
+          },
+          {
+            "executable": "npm",
+            "arguments": [
+              "run",
+              "check"
+            ],
+            "workingDirectory": "integrations\\plwc-chat-bridge"
+          }
+        ]
+      },
+      "payloads": [
+        {
+          "id": "bridge_runtime",
+          "role": "Compiled loopback WebSocket-to-MCP bridge JavaScript.",
+          "source": {
+            "path": "integrations\\plwc-chat-bridge\\bridge\\dist",
+            "state": "actual",
+            "repositoryTracked": false,
+            "type": "directory"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\chat-bridge\\bridge\\dist",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "directory"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\bridge\\dist",
+            "type": "directory",
+            "overwritePolicy": "versioned_replace",
+            "mutable": false
+          },
+          "required": true
+        },
+        {
+          "id": "bridge_production_dependencies",
+          "role": "Production Node dependencies materialized from the pinned bridge lockfile during staging.",
+          "source": {
+            "path": "integrations\\plwc-chat-bridge\\bridge\\package-lock.json",
+            "state": "actual",
+            "repositoryTracked": true,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\chat-bridge\\bridge\\node_modules",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "directory"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\bridge\\node_modules",
+            "type": "directory",
+            "overwritePolicy": "versioned_replace",
+            "mutable": false
+          },
+          "required": true
+        },
+        {
+          "id": "browser_extension",
+          "role": "Built Manifest V3 unpacked extension for chatgpt.com and chat.openai.com.",
+          "source": {
+            "path": "integrations\\plwc-chat-bridge\\extension\\dist",
+            "state": "actual",
+            "repositoryTracked": false,
+            "type": "directory"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\chat-bridge\\extension",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "directory"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\extension",
+            "type": "directory",
+            "overwritePolicy": "versioned_replace",
+            "mutable": false
+          },
+          "required": true
+        },
+        {
+          "id": "bridge_config",
+          "role": "Rendered loopback-only bridge configuration targeting the installed gateway runtime.",
+          "source": {
+            "path": "integrations\\plwc-chat-bridge\\config\\plwc.example.json",
+            "state": "actual",
+            "repositoryTracked": true,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\chat-bridge\\config\\plwc.example.json",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\config\\plwc.json",
+            "type": "file",
+            "overwritePolicy": "backup_merge",
+            "mutable": true
+          },
+          "required": true
+        },
+        {
+          "id": "bridge_start_script",
+          "role": "Internal hidden-launch helper used by the native launcher; not the user-facing installer entry point.",
+          "source": {
+            "path": "integrations\\plwc-chat-bridge\\scripts\\start-windows.ps1",
+            "state": "actual",
+            "repositoryTracked": true,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\chat-bridge\\scripts\\start-windows.ps1",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\scripts\\start-windows.ps1",
+            "type": "file",
+            "overwritePolicy": "versioned_replace",
+            "mutable": false
+          },
+          "required": true
+        },
+        {
+          "id": "bridge_healthcheck_script",
+          "role": "Internal health check invoked by the native launcher after starting the bridge.",
+          "source": {
+            "path": "integrations\\plwc-chat-bridge\\bridge\\scripts\\healthcheck.mjs",
+            "state": "actual",
+            "repositoryTracked": true,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\chat-bridge\\bridge\\scripts\\healthcheck.mjs",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\bridge\\scripts\\healthcheck.mjs",
+            "type": "file",
+            "overwritePolicy": "versioned_replace",
+            "mutable": false
+          },
+          "required": true
+        },
+        {
+          "id": "bridge_launch_script",
+          "role": "Node.js launch helper used by the native launcher for a deterministic installed-layout start.",
+          "source": {
+            "path": "integrations\\plwc-chat-bridge\\bridge\\scripts\\launch-bridge.mjs",
+            "state": "actual",
+            "repositoryTracked": true,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\chat-bridge\\bridge\\scripts\\launch-bridge.mjs",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\bridge\\scripts\\launch-bridge.mjs",
+            "type": "file",
+            "overwritePolicy": "versioned_replace",
+            "mutable": false
+          },
+          "required": true
+        },
+        {
+          "id": "native_launcher",
+          "role": "Native Messaging launcher executable compiled from the real C# host source during staging.",
+          "source": {
+            "path": "integrations\\plwc-chat-bridge\\native\\launcher-host\\Plwc.ChatBridge.NativeLauncher.cs",
+            "state": "actual",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\chat-bridge\\native\\bin\\plwc-chat-bridge-launcher.exe",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\native\\bin\\plwc-chat-bridge-launcher.exe",
+            "type": "file",
+            "overwritePolicy": "versioned_replace",
+            "mutable": false
+          },
+          "required": true
+        },
+        {
+          "id": "native_extension_identity",
+          "role": "Stable extension identity shared by the browser extension, native launcher and Windows installer.",
+          "source": {
+            "path": "integrations\\plwc-chat-bridge\\native\\extension-identity.json",
+            "state": "actual",
+            "repositoryTracked": true,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\chat-bridge\\native\\extension-identity.json",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\native\\extension-identity.json",
+            "type": "file",
+            "overwritePolicy": "versioned_replace",
+            "mutable": false
+          },
+          "required": true
+        },
+        {
+          "id": "native_host_manifest",
+          "role": "Browser-specific Native Messaging manifest rendered with the installed launcher path and extension ID.",
+          "source": {
+            "path": "integrations\\plwc-chat-bridge\\extension\\src\\manifest.json",
+            "state": "actual",
+            "repositoryTracked": true,
+            "type": "file"
+          },
+          "stage": {
+            "path": "installer\\windows\\stage\\chat-bridge\\native\\manifest\\plwc.chat_bridge.launcher.json",
+            "state": "prepared",
+            "repositoryTracked": false,
+            "type": "file"
+          },
+          "destination": {
+            "path": "%APPDATA%\\PLwC\\app\\bridge\\native\\manifest\\plwc.chat_bridge.launcher.json",
+            "type": "file",
+            "overwritePolicy": "backup_merge",
+            "mutable": true
+          },
+          "required": true
+        }
+      ],
+      "prerequisites": [
+        {
+          "id": "nodejs",
+          "type": "runtime",
+          "name": "Node.js",
+          "scope": "runtime",
+          "required": true,
+          "version": ">=22.12.0",
+          "detection": {
+            "type": "command",
+            "value": "node --version"
+          }
+        },
+        {
+          "id": "npm",
+          "type": "build_tool",
+          "name": "npm",
+          "scope": "build",
+          "required": true,
+          "detection": {
+            "type": "command",
+            "value": "npm --version"
+          }
+        },
+        {
+          "id": "csharp_compiler",
+          "type": "build_tool",
+          "name": "C# compiler from .NET Framework or PATH",
+          "scope": "build",
+          "required": true,
+          "detection": {
+            "type": "file",
+            "value": "%WINDIR%\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"
+          }
+        },
+        {
+          "id": "windows_powershell",
+          "type": "runtime",
+          "name": "Windows PowerShell",
+          "scope": "runtime",
+          "required": true,
+          "detection": {
+            "type": "file",
+            "value": "%WINDIR%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+          }
+        },
+        {
+          "id": "chromium_browser",
+          "type": "browser",
+          "name": "Google Chrome or Microsoft Edge",
+          "scope": "runtime",
+          "required": true,
+          "detection": {
+            "type": "installer_resolved",
+            "value": "At least one supported Chromium browser"
+          }
+        }
+      ],
+      "installerInputs": [],
+      "smokeChecks": [
+        {
+          "id": "chat_bridge_source_check",
+          "phase": "build",
+          "type": "command",
+          "required": true,
+          "command": {
+            "executable": "npm",
+            "arguments": [
+              "run",
+              "check"
+            ],
+            "workingDirectory": "integrations\\plwc-chat-bridge"
+          },
+          "assertions": [
+            {
+              "subject": "exitCode",
+              "operator": "equals",
+              "expected": 0
+            }
+          ]
+        },
+        {
+          "id": "chat_bridge_config_contract",
+          "phase": "post_stage",
+          "type": "json_contract",
+          "required": true,
+          "target": "installer\\windows\\stage\\chat-bridge\\config\\plwc.example.json",
+          "assertions": [
+            {
+              "subject": "bridge.host",
+              "operator": "equals",
+              "expected": "127.0.0.1"
+            },
+            {
+              "subject": "bridge.port",
+              "operator": "equals",
+              "expected": 3007
+            },
+            {
+              "subject": "tools.expectedPublicToolCount",
+              "operator": "equals",
+              "expected": 8
+            }
+          ]
+        },
+        {
+          "id": "chat_bridge_extension_contract",
+          "phase": "post_stage",
+          "type": "json_contract",
+          "required": true,
+          "target": "installer\\windows\\stage\\chat-bridge\\extension\\manifest.json",
+          "assertions": [
+            {
+              "subject": "manifest_version",
+              "operator": "equals",
+              "expected": 3
+            },
+            {
+              "subject": "permissions",
+              "operator": "contains",
+              "expected": "nativeMessaging"
+            },
+            {
+              "subject": "host_permissions",
+              "operator": "contains",
+              "expected": "ws://127.0.0.1:3007/*"
+            }
+          ]
+        },
+        {
+          "id": "chat_bridge_native_registry",
+          "phase": "post_install",
+          "type": "registry_contract",
+          "required": true,
+          "target": "HKCU\\Software\\{browser}\\NativeMessagingHosts\\plwc.chat_bridge.launcher",
+          "assertions": [
+            {
+              "subject": "defaultValue",
+              "operator": "equals",
+              "expected": "%APPDATA%\\PLwC\\app\\bridge\\native\\manifest\\plwc.chat_bridge.launcher.json"
+            }
+          ]
+        },
+        {
+          "id": "chat_bridge_reconnect",
+          "phase": "client_acceptance",
+          "type": "websocket_contract",
+          "required": true,
+          "target": "ws://127.0.0.1:3007/message",
+          "assertions": [
+            {
+              "subject": "Reconnect native launch",
+              "operator": "reachable",
+              "expected": true
+            },
+            {
+              "subject": "publicToolCount",
+              "operator": "count_equals",
+              "expected": 8
+            }
+          ]
+        }
+      ],
+      "clientTargetIds": [
+        "chatgpt_browser"
+      ]
+    }
+  ],
+  "clientTargets": [
+    {
+      "id": "claude_desktop",
+      "componentId": "claude_desktop_mcpb",
+      "displayName": "Claude Desktop MCPB",
+      "client": "claude_desktop",
+      "transport": "mcpb",
+      "availability": "actual",
+      "installable": true,
+      "installationMode": "assisted_mcpb",
+      "automaticClientConfiguration": false,
+      "installerOutputPath": "%APPDATA%\\PLwC\\app\\packages\\plwc-gateway-1.0.0.mcpb",
+      "clientConfigurationPath": "%APPDATA%\\Claude\\Claude Extensions Settings\\local.mcpb.plwc.plwc-gateway.json",
+      "limitations": [
+        "The package is unsigned and must pass the pinned SHA-256 gate.",
+        "Claude Desktop package installation is assisted because the application owns the MCPB import flow.",
+        "A direct stdio connector is a documented fallback when the Claude Desktop MCPB dialog is broken."
+      ]
+    },
+    {
+      "id": "codex",
+      "componentId": "codex_stdio",
+      "displayName": "Codex STDIO",
+      "client": "codex",
+      "transport": "stdio",
+      "availability": "prepared",
+      "installable": true,
+      "installationMode": "generated_snippet",
+      "automaticClientConfiguration": false,
+      "installerOutputPath": "%APPDATA%\\PLwC\\config\\clients\\codex\\plwc-gateway.generated.toml",
+      "clientConfigurationPath": null,
+      "stdioServer": {
+        "name": "plwc-gateway",
+        "command": "{pythonExe}",
+        "arguments": [
+          "%APPDATA%\\PLwC\\app\\gateway\\server.py"
+        ],
+        "environment": {
+          "PLWC_WORKSPACE_ROOT": "%APPDATA%\\PLwC\\workspace",
+          "PLWC_PROFILE_ROOT": "%APPDATA%\\PLwC\\profiles",
+          "PLWC_ACTIVE_PROFILE_NAME": "default",
+          "PLWC_CONFIG_FILE": "",
+          "PLWC_MEMORY_WRITE_THRESHOLD": 2,
+          "PLWC_PERSONA_WRITE_THRESHOLD": 3,
+          "PLWC_TEMPERAMENT_WRITE_THRESHOLD": 2,
+          "PLWC_QDRANT_ENABLED": false,
+          "PLWC_PERSONA_LAYER_DISABLED": true
+        }
+      },
+      "limitations": [
+        "The installer emits a reviewed snippet under the PLwC config root.",
+        "Direct mutation of Codex configuration is disabled until the current Codex schema and merge behavior have a separate acceptance gate."
+      ]
+    },
+    {
+      "id": "odysseus",
+      "componentId": "odysseus_stdio",
+      "displayName": "Odysseus STDIO",
+      "client": "odysseus",
+      "transport": "stdio",
+      "availability": "prepared",
+      "installable": true,
+      "installationMode": "generated_snippet",
+      "automaticClientConfiguration": false,
+      "installerOutputPath": "%APPDATA%\\PLwC\\config\\clients\\odysseus\\plwc-gateway.generated.json",
+      "clientConfigurationPath": null,
+      "stdioServer": {
+        "name": "plwc-gateway",
+        "command": "{pythonExe}",
+        "arguments": [
+          "%APPDATA%\\PLwC\\app\\gateway\\server.py"
+        ],
+        "environment": {
+          "PLWC_WORKSPACE_ROOT": "%APPDATA%\\PLwC\\workspace",
+          "PLWC_PROFILE_ROOT": "%APPDATA%\\PLwC\\profiles",
+          "PLWC_ACTIVE_PROFILE_NAME": "default",
+          "PLWC_CONFIG_FILE": "",
+          "PLWC_MEMORY_WRITE_THRESHOLD": 2,
+          "PLWC_PERSONA_WRITE_THRESHOLD": 3,
+          "PLWC_TEMPERAMENT_WRITE_THRESHOLD": 2,
+          "PLWC_QDRANT_ENABLED": false,
+          "PLWC_PERSONA_LAYER_DISABLED": true
+        }
+      },
+      "limitations": [
+        "The installer emits a portable descriptor because the exact Odysseus config destination is installation-specific.",
+        "Odysseus import and eight-tool acceptance remain assisted client steps."
+      ]
+    },
+    {
+      "id": "chatgpt_browser",
+      "componentId": "chat_bridge",
+      "displayName": "ChatGPT browser via PLwC Chat Bridge",
+      "client": "chatgpt_browser",
+      "transport": "websocket_native_messaging",
+      "availability": "prepared",
+      "installable": true,
+      "installationMode": "assisted_unpacked_extension",
+      "automaticClientConfiguration": false,
+      "installerOutputPath": "%APPDATA%\\PLwC\\app\\bridge\\extension",
+      "clientConfigurationPath": null,
+      "limitations": [
+        "The unpacked extension uses the stable ID nlogfcafjdfdoknpkbehjgihpafpipdb from its manifest key.",
+        "The Native Messaging host is registered automatically for Chrome, Edge and Brave per user under HKCU.",
+        "The bridge binds only to ws://127.0.0.1:3007/message and exposes exactly eight public gateway tools."
+      ]
+    }
+  ]
+}

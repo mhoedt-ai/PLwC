@@ -1,0 +1,50 @@
+{
+  "name": "PLwC Chat Bridge",
+  "track": "v1.0.0",
+  "bridge": {
+    "host": "127.0.0.1",
+    "port": 3007,
+    "transport": "websocket",
+    "path": "/message",
+    "implementation": "plwc-owned-node-bridge"
+  },
+  "gateway": {
+    "command": "python",
+    "args": [
+      "${repoRoot}/server.py"
+    ],
+    "cwd": "${repoRoot}",
+    "env": {}
+  },
+  "tools": {
+    "publicFacadeOnly": true,
+    "expectedPublicToolCount": 8
+  },
+  "executionPolicy": {
+    "readOnlyAutoExecution": "default-enabled-user-configurable",
+    "automaticResultSubmission": "read-only-or-explicitly-confirmed",
+    "writesRequireConfirmation": true,
+    "sandboxRequiresConfirmationByDefault": true,
+    "sandboxStandingConfirmation": "default-disabled-user-configurable",
+    "governorApplyRequiresConfirmation": true,
+    "retryMutatingCallsAfterAmbiguousTimeout": false
+  },
+  "ui": {
+    "productName": "PLwC Chat Bridge",
+    "iconSource": "../../plwc-icon-512.png",
+    "theme": "terminal-green",
+    "tabs": [
+      "PLwC Tools",
+      "Primer",
+      "Policy",
+      "Status",
+      "Settings"
+    ]
+  },
+  "hostLayout": {
+    "preferredPlacement": "right-dock",
+    "mustNotBlockLeftChatMenu": true,
+    "collapseBeforeOverlap": true,
+    "styleIsolation": "shadow-dom"
+  }
+}

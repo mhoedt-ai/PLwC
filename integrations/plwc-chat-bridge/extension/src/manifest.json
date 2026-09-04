@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "PLwC Chat Bridge",
+  "short_name": "PLwC Bridge",
+  "version": "1.0.1",
+  "version_name": "1.0.1",
+  "description": "Local PLwC gateway bridge for ChatGPT.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkq7Bw/JmWjrNUWm9vuwXHCcdmPPOLe4jllURNUW3CbhPCB4eurpvnJ0yN1WIkSkPq5uFVHERZl22dFpjkV3Gz98lMmrUdcqRTAqNYOqn5GaG1ksKtj0Ur6GE70zOPLX8UCYz5qVlKP50nLejZn91vMT3mU/CQie/ixROluFY72PlArksWH+m++3MoDaGZG9HmAP6k63+kiu6kn4YgqLtey1JIuytT9+aOhU82OtJeZV5r1B0EmRw0kTXda6XQew4/utiEzkXq0czhJq0C1hNfMr1xThIg+Cl7YfiBK+7SeZd0Xe4WKrM8GmZmRsLp1/U7UsQZZzZ+B4iUKGX6hsTGwIDAQAB",
+  "icons": {
+    "16": "icons/plwc-icon-512.png",
+    "32": "icons/plwc-icon-512.png",
+    "48": "icons/plwc-icon-512.png",
+    "128": "icons/plwc-icon-512.png"
+  },
+  "action": {
+    "default_title": "PLwC Chat Bridge",
+    "default_icon": {
+      "16": "icons/plwc-icon-512.png",
+      "32": "icons/plwc-icon-512.png",
+      "48": "icons/plwc-icon-512.png",
+      "128": "icons/plwc-icon-512.png"
+    }
+  },
+  "permissions": ["storage", "nativeMessaging"],
+  "host_permissions": ["ws://127.0.0.1:3007/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/plwc-icon-512.png"],
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"]
+    }
+  ]
+}

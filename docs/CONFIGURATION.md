@@ -1,5 +1,19 @@
 # Configuration
 
+## r26 local control center
+
+The single local **PLwC Configuration** page is the user-facing control center
+for shared settings, profile and workspace plans, the component inventory, the
+one PLwC Doctor, and signed update status. It distinguishes domain failures
+(`reason`, `message`, `validation_error`, `missing_files`) from HTTP transport
+status and does not present an empty or incomplete profile as activatable.
+
+Component rows keep installed identity, compatibility contract, availability,
+trust source, and action separate. The Update Center displays recommended versus
+required updates, last checked, last valid check, signature errors, and release
+notes. Download and installation each require their own confirmation. See
+[UPDATE_CENTER.md](UPDATE_CENTER.md) and [PLWC_DOCTOR.md](PLWC_DOCTOR.md).
+
 ## security.yaml
 
 The local policy file controls execution, safe mode, Docker behavior, allowed roots, protected paths, audit and governance rules.
@@ -31,6 +45,43 @@ active profile name, optional security config file and memory/persona
 thresholds.
 
 Client configuration generation must expose only `plwc-gateway`.
+
+## Shared Windows configuration and UI
+
+Windows Setup and PLwC Configuration share the user-scoped state below:
+
+```text
+%APPDATA%\PLwC\config\gateway-settings.json
+%APPDATA%\PLwC\config\active_profile.json
+%APPDATA%\PLwC\config\installer\selection.ini
+```
+
+The configuration page displays the effective workspace, profile, thresholds,
+Qdrant state and Persona Layer state. **Save settings** updates the shared
+Gateway configuration, the installed Bridge example configuration and the
+persisted installer selection. Legacy `plwc.json` Bridge configuration and
+UTF-16, UTF-8 or CP1252 installer selection files are migrated without silently
+discarding current values.
+
+The effective profile name resolves in this order:
+
+1. governed `active_profile.json` state;
+2. shared Gateway settings;
+3. host or extension configuration;
+4. product defaults.
+
+Ordinary settings save, reset and rollback do not activate another governed
+profile. Profile activation remains a dedicated confirmed governance flow.
+
+### Change the workspace after installation
+
+Use the workspace-change control in **PLwC Configuration** and provide an
+absolute path. Saving creates missing `Tagebuch`, `Temp` and `Trashcan`
+directories only. It does not move, overwrite or delete existing files. The
+new value is shared by Gateway, Chat Bridge and generated Codex/Odysseus
+configuration and is reused by later Setup updates.
+
+Restart only clients that still display the previous workspace after the save.
 
 ## Workspace search scope guards (RC12-FS-003)
 
@@ -111,7 +162,7 @@ change Governor confirmation.
 
 Direct non-Desktop environments may still set the legacy
 `PLWC_PERSONA_LAYER_ENABLED=false` environment variable. Packaged Claude Desktop
-builds use the disable flag because the rc18.dev2 Desktop smoke showed that a
+builds use the disable flag because an earlier Desktop smoke showed that a
 default-true Boolean did not reliably propagate `false`.
 
 ### Persona / user aliases and the INNER gate (RC12-GEN-001)

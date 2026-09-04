@@ -1,8 +1,9 @@
-# PLwC Open Beta Tester Guide
+# PLwC 1.0 Pre-release Tester Guide
 
-This guide is for open beta testers of the privacy-filtered PLwC MCPB package.
-The package is available for public testing, but it is still a beta artifact:
-it is unsigned, not production-certified and not a final public release.
+This guide is for testers of the privacy-filtered PLwC 1.0 MCPB and the
+explicit unsigned Windows Setup candidate. The artifacts are available for
+pre-release testing, but they are unsigned, not production-certified and not a
+final public release.
 
 Use the structured acceptance plan in
 [`EXTERNAL_TEST_PLAN.md`](EXTERNAL_TEST_PLAN.md). Report issues with
@@ -17,7 +18,7 @@ public facade tools. File, document, sandbox, profile, reflection and
 memory-governance operations pass through policy checks and local audit
 metadata.
 
-Open beta testing is meant to verify installability, tool discovery, governed
+Pre-release testing is meant to verify installability, tool discovery, governed
 ALLOW/DENY behavior, documentation clarity and host integration behavior. It is
 not a production certification.
 
@@ -51,22 +52,27 @@ Pick one role for a test pass.
 - Docker Desktop installed and running for sandbox and document-worker testing.
   Without Docker, PLwC should report Safe Mode: workspace/profile operations can
   still work, but sandboxed code execution is disabled.
-- The announced open beta MCPB package.
+- The announced PLwC 1.0 MCPB package or exact Windows Setup candidate.
 - The expected SHA256 for that exact package.
 - A disposable workspace and, if profile/governance behavior is tested, a
   disposable profile.
 
-Current baseline:
+Current 1.0 acceptance candidate:
 
 ```text
-Package: plwc-gateway-0.2.0-rc18.dev9.mcpb
-SHA256: 2F71AC903BF85CC70023805EC0F901E84C4294982C1B59940350DB3591A2D345
+Package: plwc-gateway-1.0.0.mcpb
+SHA256: 5E870F40B9B3FAEA79D3997AF9C657EF62C11295E85635A049214F7B63678FE7
 Signature: unsigned
 ```
 
+Windows Setup r24 testers must additionally verify SHA-256
+`b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0`
+for `PLwC-Setup-1.0.0-installer-r24.exe`. Browser Store testing remains limited
+to the separately approved private/hidden tracks after review.
+
 ## 4. Test Flow
 
-1. Download the announced MCPB package from the open beta distribution channel.
+1. Download the announced artifact from the pre-release distribution channel.
 2. Verify the SHA256 exactly before installing.
 3. Install the MCPB in Claude Desktop.
 4. Create or open a Claude Project for PLwC and add the PLwC Project

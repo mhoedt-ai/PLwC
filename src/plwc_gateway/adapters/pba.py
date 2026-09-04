@@ -84,6 +84,8 @@ PBA2_IMPORT_ALLOWED_FILES = (
     *PBA2_IMPORT_OPTIONAL_FILES,
 )
 MAX_PROFILE_IMPORT_FILE_BYTES = 1_000_000
+MAX_SKIPPED_CANDIDATE_PREVIEW = 12
+MAX_SKIPPED_CANDIDATE_SUMMARY_CHARS = 700
 # RC12-INNER-002: marker for the persona's inner-perspective ("soft truth") entries that
 # live in PERSONA.md, capped at MAX_ACTIVE_INNER_TRUTHS active at once.
 INNER_PERSPECTIVE_MARKER = "Innenperspektive"
@@ -3176,15 +3178,6 @@ class PBAProfileAdapter:
         return f"Active profile state update was denied: {execution.policy.reason}"
 
     def _created_profile_activation_blocker(self, profile_name: str) -> str | None:
-        if self.configured_active_profile_name and not _same_profile_name(
-            profile_name,
-            self.configured_active_profile_name,
-        ):
-            return (
-                "configured_active_profile_takes_precedence: Claude Desktop or security config "
-                f"selects '{self.configured_active_profile_name}', so created profile '{profile_name}' "
-                "will not become effective until the configured active profile is changed."
-            )
         if self.active_profile_state_file is None and not _same_profile_name(profile_name, self.active_profile_name):
             return (
                 "active_profile_state_unavailable: no PLwC active profile state file is configured, "
@@ -3198,16 +3191,16 @@ class PBAProfileAdapter:
         effective_after_apply = blocker is None
         if blocker:
             next_action = (
-                f"Set the active PLwC profile extension/config value to '{profile_name}', "
-                "restart or reload Claude Desktop, then rerun plwc_status(scope=\"runtime\")."
+                f"Repair the governed profile state before activating '{profile_name}', "
+                "then rerun plwc_status(scope=\"runtime\")."
             )
-            source_after = self.active_profile_source
-        elif self.configured_active_profile_name:
-            next_action = 'Rerun plwc_status(scope="runtime") to verify the configured profile is ready.'
             source_after = self.active_profile_source
         elif active_state_write_planned:
             next_action = 'Rerun plwc_status(scope="runtime") to verify active_profile_source="plwc_state".'
             source_after = "plwc_state"
+        elif self.configured_active_profile_name:
+            next_action = 'Rerun plwc_status(scope="runtime") to verify the configured profile is ready.'
+            source_after = self.active_profile_source
         else:
             next_action = 'Rerun plwc_status(scope="runtime") to verify the profile is ready.'
             source_after = self.active_profile_source
@@ -7333,6 +7326,7 @@ def _invalid_reflection_memory_promotion_plan(
 def _reflection_memory_skip(entry: dict[str, str], decision: str, reason: str) -> dict[str, Any]:
     return {
         "entry_id": entry["entry_id"],
+        "date": entry.get("date", ""),
         "candidate_summary": entry.get("content", ""),
         "candidate_for": entry.get("candidate_for", ""),
         "marker": entry.get("marker", ""),
@@ -7351,19 +7345,72 @@ def _skipped_candidates_summary(skipped: list[dict[str, Any]]) -> dict[str, int]
     return summary
 
 
+def _compact_text_preview(value: object, *, max_chars: int = MAX_SKIPPED_CANDIDATE_SUMMARY_CHARS) -> str:
+    text = str(value or "")
+    if len(text) <= max_chars:
+        return text
+    return f"{text[:max_chars].rstrip()} [...]"
+
+
+def _skipped_candidate_public_preview(candidate: dict[str, Any], *, original_index: int) -> dict[str, Any]:
+    return {
+        "original_index": original_index,
+        "entry_id": candidate.get("entry_id", ""),
+        "date": candidate.get("date", ""),
+        "decision": candidate.get("decision", ""),
+        "reason": candidate.get("reason", ""),
+        "candidate_for": candidate.get("candidate_for", ""),
+        "marker": candidate.get("marker", ""),
+        "trust": candidate.get("trust", ""),
+        "candidate_summary": _compact_text_preview(candidate.get("candidate_summary", "")),
+    }
+
+
+def _skipped_candidates_preview(skipped: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    review_relevant = [
+        (index, candidate)
+        for index, candidate in enumerate(skipped)
+        if str(candidate.get("decision") or "") != "already_processed"
+    ]
+    if not review_relevant:
+        return []
+    return [
+        _skipped_candidate_public_preview(candidate, original_index=index)
+        for index, candidate in reversed(review_relevant[-MAX_SKIPPED_CANDIDATE_PREVIEW:])
+    ]
+
+
 def _compact_skipped_candidates(payload: dict[str, Any]) -> dict[str, Any]:
     """P3: replace the full ``skipped_candidates`` list in a *public response* with
     a compact ``skipped_candidate_count`` + per-decision ``skipped_candidates_summary``.
-    The full list is preserved internally (plan dict, journal/audit trail). Returns a
-    shallow copy so the caller's dict (used for journal/id computation) is unchanged.
+    The full list is preserved internally (plan dict, journal/audit trail). Public
+    responses also include a bounded preview of review-relevant skips so compacted
+    plans still explain why recent candidates were not selected.
     """
     if "skipped_candidates" not in payload:
         return payload
     skipped = payload.get("skipped_candidates") or []
-    compact = dict(payload)
-    compact.pop("skipped_candidates", None)
-    compact["skipped_candidate_count"] = len(skipped)
-    compact["skipped_candidates_summary"] = _skipped_candidates_summary(skipped)
+    preview = _skipped_candidates_preview(skipped)
+    previewable_count = len([
+        candidate
+        for candidate in skipped
+        if str(candidate.get("decision") or "") != "already_processed"
+    ])
+    compact: dict[str, Any] = {}
+    for key, value in payload.items():
+        if key != "skipped_candidates":
+            compact[key] = value
+            continue
+        compact["skipped_candidate_count"] = len(skipped)
+        compact["skipped_candidates_summary"] = _skipped_candidates_summary(skipped)
+        if preview:
+            compact["skipped_candidates_preview"] = preview
+            compact["skipped_candidates_preview_count"] = len(preview)
+            compact["skipped_candidates_preview_omitted"] = max(0, previewable_count - len(preview))
+            compact["skipped_candidates_preview_note"] = (
+                "Bounded newest-first preview of skipped candidates requiring review; "
+                "already_processed candidates are summarized only."
+            )
     return compact
 
 

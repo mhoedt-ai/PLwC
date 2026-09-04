@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "case_id": "r26-dirty-migrated-r25",
+  "classification": "dirty_migrated",
+  "paths": {
+    "app": "%APPDATA%\\PLwC\\app",
+    "gateway": "%APPDATA%\\PLwC\\app\\gateway",
+    "bridge": "%APPDATA%\\PLwC\\app\\bridge",
+    "legacy_bridge": [
+      "%APPDATA%\\PLwC\\app\\chat-bridge",
+      "%APPDATA%\\PLwC\\app\\chat-bridge-1.0.0"
+    ]
+  },
+  "selection_ini": {
+    "BridgePath": "%APPDATA%\\PLwC\\app\\chat-bridge"
+  },
+  "processes": [
+    {
+      "image": "node.exe",
+      "executable_path": "%LOCALAPPDATA%\\Programs\\nodejs\\node.exe",
+      "command_line": "node.exe %APPDATA%\\PLwC\\app\\chat-bridge\\bridge\\dist\\src\\index.js",
+      "classification": "plwc_legacy_evidenced"
+    },
+    {
+      "image": "foreign-service.exe",
+      "executable_path": "C:\\Program Files\\Foreign\\foreign-service.exe",
+      "command_line": "foreign-service.exe --port 3007",
+      "classification": "foreign"
+    }
+  ],
+  "port_3007": {
+    "owner": "foreign-service.exe",
+    "classification": "foreign"
+  },
+  "startup_shortcuts": [
+    {
+      "name": "PLwC Chat Bridge.lnk",
+      "target": "%APPDATA%\\PLwC\\app\\chat-bridge\\scripts\\start-windows.ps1",
+      "classification": "plwc_legacy_evidenced"
+    }
+  ],
+  "scheduled_tasks": [
+    {
+      "name": "PLwC Chat Bridge",
+      "command": "%APPDATA%\\PLwC\\app\\chat-bridge\\scripts\\start-windows.ps1",
+      "classification": "plwc_legacy_evidenced"
+    }
+  ],
+  "native_messaging": [
+    {
+      "browser": "chrome",
+      "manifest_path": "%APPDATA%\\PLwC\\app\\chat-bridge\\native\\manifest\\plwc.chat_bridge.launcher.json",
+      "classification": "plwc_legacy_evidenced"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "FAUN",
+      "path": "%APPDATA%\\PLwC\\profiles\\FAUN",
+      "present_files": [],
+      "classification": "incomplete"
+    }
+  ],
+  "expected": {
+    "install_mode": "migration_required",
+    "legacy_paths_detected": 2,
+    "user_data_preserved": true,
+    "foreign_processes_terminated": 0,
+    "port_conflict_blocks_apply": true
+  }
+}

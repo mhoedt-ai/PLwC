@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plwc.example/schemas/release-manifest-1.0.0.json",
+  "title": "PLwC signed release manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "product", "release", "components", "artifacts", "signature"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "const": "1.0.0" },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "installer_revision"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "$ref": "#/$defs/semver" },
+        "installer_revision": { "type": "string", "minLength": 1 }
+      }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["published_at", "update_kind", "notes"],
+      "properties": {
+        "published_at": { "type": "string", "format": "date-time" },
+        "update_kind": { "enum": ["recommended", "required"] },
+        "notes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["de", "en"],
+          "properties": {
+            "de": { "type": "string", "minLength": 1 },
+            "en": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "version", "compatibility"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "version": { "$ref": "#/$defs/semver" },
+          "compatibility": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minimum", "maximum_exclusive"],
+            "properties": {
+              "minimum": { "$ref": "#/$defs/semver" },
+              "maximum_exclusive": { "$ref": "#/$defs/semver" }
+            }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "file_name", "url", "size", "sha256", "build_identity"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "const": "windows_installer" },
+          "file_name": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}\\.exe$" },
+          "url": { "type": "string", "pattern": "^https://" },
+          "size": { "type": "integer", "minimum": 1, "maximum": 2147483648 },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "build_identity": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["schema_version", "build_id", "product_version", "installer_revision", "sha256"],
+            "properties": {
+              "schema_version": { "const": 1 },
+              "build_id": { "type": "string", "minLength": 1 },
+              "product_version": { "$ref": "#/$defs/semver" },
+              "installer_revision": { "type": "string", "minLength": 1 },
+              "sha256": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "value_base64"],
+      "properties": {
+        "algorithm": { "const": "rsa-sha256-pkcs1v15" },
+        "key_id": { "type": "string", "minLength": 1 },
+        "value_base64": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "semver": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}
