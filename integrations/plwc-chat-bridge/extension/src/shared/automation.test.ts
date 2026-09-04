@@ -24,6 +24,7 @@ const sandbox = {
   reason: "sandbox",
 };
 const unknown = { readOnly: false, requiresConfirmation: true, reason: "unknown" };
+const individualConfirmation = { readOnly: false, requiresConfirmation: true, reason: "individual" };
 
 test("automates read-only calls and recognized writes only after standing confirmation is enabled", () => {
   assert.equal(shouldAutoRun(settings, readOnly), true);
@@ -36,6 +37,10 @@ test("automates read-only calls and recognized writes only after standing confir
     false,
   );
   assert.equal(shouldAutoRun({ ...settings, readOnlyAutoRun: false }, readOnly), false);
+  assert.equal(
+    shouldAutoRun({ ...settings, autoConfirmWrites: true }, individualConfirmation),
+    false,
+  );
 });
 
 test("submits read-only and explicitly confirmed results without bypassing confirmation", () => {

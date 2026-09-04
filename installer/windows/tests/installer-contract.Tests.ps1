@@ -37,8 +37,8 @@ $configurationFiles = @(
 $componentsManifestPath = Join-Path $installerRoot "manifests\components.json"
 $workspaceStructurePath = Join-Path $assetsRoot "workspace-structure.iss"
 $workspaceFixturePath = Join-Path $testsRoot "workspace-structure-fixture.iss"
-$testGeneratedOutputRoot = Join-Path $installerRoot ".test-build"
-$unsignedGeneratedOutputRoot = Join-Path $installerRoot ".unsigned-build-r25"
+$testGeneratedOutputRoot = Join-Path $installerRoot ".validate-build"
+$unsignedGeneratedOutputRoot = Join-Path $installerRoot ".unsigned-build-r26"
 $stageRoot = Join-Path $testGeneratedOutputRoot "stage"
 $distRoot = Join-Path $testGeneratedOutputRoot "dist"
 $testScriptPath = [IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
@@ -87,6 +87,30 @@ function Get-PascalCalls {
             "(?is)\b(?:$FunctionPattern)\s*\((?<Arguments>.*?)\);"
         )
     )
+}
+
+function Get-BuildOutputSnapshot {
+    param([Parameter(Mandatory = $true)][string[]] $Roots)
+
+    $records = @()
+    foreach ($root in $Roots) {
+        $resolvedRoot = [IO.Path]::GetFullPath($root).TrimEnd('\', '/')
+        if (-not (Test-Path -LiteralPath $resolvedRoot -PathType Container)) {
+            $records += "missing|$resolvedRoot"
+            continue
+        }
+        $files = @(Get-ChildItem -LiteralPath $resolvedRoot -Recurse -File -Force | Sort-Object FullName)
+        if ($files.Count -eq 0) {
+            $records += "empty|$resolvedRoot"
+            continue
+        }
+        foreach ($file in $files) {
+            $relative = $file.FullName.Substring($resolvedRoot.Length).TrimStart('\', '/').Replace('\', '/')
+            $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $records += "$resolvedRoot|$relative|$($file.Length)|$hash"
+        }
+    }
+    return $records -join "`n"
 }
 
 Describe "PLwC Windows installer source contracts" {
@@ -173,6 +197,7 @@ Describe "PLwC Windows installer source contracts" {
         $generatedRoots = @(
             $testGeneratedOutputRoot,
             $unsignedGeneratedOutputRoot,
+            (Join-Path $installerRoot ".test-build"),
             (Join-Path $installerRoot "stage"),
             (Join-Path $installerRoot "dist"),
             (Join-Path $installerRoot "output")
@@ -486,13 +511,14 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
     }
 
     It "bounds external Python and Node detection processes" {
+        $codeSection | Should Match '(?m)^\s*PythonRuntimeProbeTimeoutMilliseconds\s*=\s*120000\s*;'
         $pythonCandidate = [regex]::Match(
             $codeSection,
             '(?is)procedure\s+CheckPythonCandidate.*?(?=procedure\s+CheckPythonRegistryRoot)'
         ).Value
         $pythonCandidate | Should Match '(?is)if\s+PythonVersionOK\s+then\s+Exit'
         $pythonCandidate | Should Match '(?is)RunProbeWithTimeout\(.*?sys\.version_info.*?,\s*5000\s*\)'
-        $pythonCandidate | Should Match '(?is)RunProbeWithTimeout\(.*?import\s+mcp,\s*qdrant_client,\s*onnxruntime,\s*fastembed.*?,\s*30000\s*\)'
+        $pythonCandidate | Should Match '(?is)RunProbeWithTimeout\(.*?import\s+mcp,\s*qdrant_client,\s*onnxruntime,\s*fastembed.*?,\s*PythonRuntimeProbeTimeoutMilliseconds\s*\)'
         $pythonCandidate | Should Not Match '(?i)\bRunProbe\s*\('
 
         $nodeCandidate = [regex]::Match(
@@ -566,7 +592,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $pythonFunction | Should Match '(?is)InstallVCRuntimePrerequisite\(True\).*?python-runtime-repair-probe.*?RunPythonRuntimeProbe\(PythonPathForRuntime,\s*LogPath\)'
         $pythonFunction | Should Match '(?is)\(not\s+PythonRuntimeOK\)\s+and\s+\(not\s+VCRuntimeRepairAttempted\).*?VCRuntimeRepairAttempted\s*:=\s*True.*?InstallVCRuntimePrerequisite\(True\)'
         $codeSection | Should Match '(?is)CheckPythonCandidate.*?import\s+mcp,\s*qdrant_client,\s*onnxruntime,\s*fastembed'
-        $codeSection | Should Match '(?is)function\s+RunPythonRuntimeProbe.*?python-runtime-probe\.py.*?RunProbeWithTimeout'
+        $codeSection | Should Match '(?is)function\s+RunPythonRuntimeProbe.*?python-runtime-probe\.py.*?RunProbeWithTimeout\(\s*PythonPath,\s*Parameters,\s*PythonRuntimeProbeTimeoutMilliseconds\s*\)'
 
         $python = Get-Command python.exe -ErrorAction Stop | Select-Object -First 1
         $testId = [guid]::NewGuid().ToString("N")
@@ -945,7 +971,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
     }
 
     It "uses an unmistakable installer revision in the UI and artifact name" {
-        $source | Should Match '(?im)^\s*#define\s+InstallerRevision\s+"installer-r25"\s*$'
+        $source | Should Match '(?im)^\s*#define\s+InstallerRevision\s+"installer-r26"\s*$'
         $setupSection | Should Match '(?im)^\s*AppVerName=.*\{#InstallerRevision\}\)\s*$'
         $setupSection | Should Match '(?im)^\s*OutputBaseFilename=PLwC-Setup-\{#AppVersion\}-\{#InstallerRevision\}\s*$'
     }
@@ -997,12 +1023,18 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $expectedBuildIdentity.releaseVersion | Should Be "1.0.0"
         $expectedBuildIdentity.components.nodeBridge | Should Be $expectedBuildIdentity.releaseVersion
         $expectedBuildIdentity.components.browserExtension | Should Be $expectedBuildIdentity.releaseVersion
+        $extensionPackage = Get-Content -LiteralPath (Join-Path $repoRoot "integrations\plwc-chat-bridge\extension\package.json") -Raw | ConvertFrom-Json
+        $extensionManifest = Get-Content -LiteralPath (Join-Path $repoRoot "integrations\plwc-chat-bridge\extension\src\manifest.json") -Raw | ConvertFrom-Json
+        $extensionPackage.version | Should Be "1.0.1"
+        $extensionManifest.version | Should Be $extensionPackage.version
+        $extensionManifest.version_name | Should Be $extensionPackage.version
+        $expectedBuildIdentity.components.browserExtension | Should Be "1.0.0"
         $expectedBuildIdentity.components.nativeLauncher | Should Be $expectedBuildIdentity.releaseVersion
         $componentManifest.product.releaseVersion | Should Be $expectedBuildIdentity.releaseVersion
         $source | Should Match '(?im)^\s*#define\s+AppVersion\s+"1\.0\.0"\s*$'
         $source | Should Match '(?im)^\s*#define\s+GatewayVersion\s+"1\.0\.0"\s*$'
         $source | Should Match '(?im)^\s*#define\s+NodeBridgeVersion\s+"1\.0\.0"\s*$'
-        $source | Should Match '(?im)^\s*#define\s+BrowserExtensionVersion\s+"1\.0\.0"\s*$'
+        $source | Should Match '(?im)^\s*#define\s+BrowserExtensionVersion\s+"1\.0\.1"\s*$'
         $source | Should Match '(?im)^\s*#define\s+NativeLauncherVersion\s+"1\.0\.0"\s*$'
         $source | Should Match '(?im)^\s*#define\s+BridgeDirectoryName\s+"bridge"\s*$'
         $source | Should Match '(?is)ReadStoredPath\(''GatewayPath'',\s*LastAppRoot\s*\+\s*''\\gateway''\)'
@@ -1019,8 +1051,46 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $codeSection | Should Match '(?is)function\s+HasCompleteExistingSettings.*?WorkspacePath.*?BackupsPath'
         $codeSection | Should Match '(?is)function\s+ReadStoredPath.*?GetIniString\(''PLwC'',\s*ValueName.*?Result\s*:=\s*StoredValue.*?else if RegQueryStringValue\(HKCU,\s*InstallerSettingsKey,\s*ValueName'
         $codeSection | Should Match '(?is)function\s+ShouldSkipPage.*?ExistingSettingsComplete.*?RuntimeDirsPage.*?DataDirsPage.*?OperatingDirsPage.*?ProfilePage.*?RuntimeSettingsPage.*?RuntimeOptionsPage'
-        $codeSection | Should Match '(?is)procedure\s+InitializeWizard.*?ReadStoredPath\(''AppPath''.*?ReadStoredPath\(''GatewayPath''.*?ReadStoredPath\(''BridgePath''.*?ReadStoredPath\(''WorkspacePath'''
+        $codeSection | Should Match '(?is)procedure\s+InitializeWizard.*?LegacyBridgePath\s*:=\s*ReadStoredPath\(''BridgePath''.*?ReadStoredPath\(''AppPath''.*?ReadStoredPath\(''GatewayPath''.*?RuntimeDirsPage\.Values\[2\]\s*:=\s*LastAppRoot\s*\+\s*''\\\{#BridgeDirectoryName\}''.*?ReadStoredPath\(''WorkspacePath'''
         $customMessageSection | Should Match '(?im)^german\.ReadyUpdateMode=Vorhandene PLwC-Installation erkannt\.'
+    }
+
+    It "uses one immutable r26 migration transaction and a hard postflight before success" {
+        $fileSection = Get-InnoSection -Source $source -Name "Files"
+        $codeSection = Get-InnoSection -Source $source -Name "Code"
+        $maintenanceSource = Get-Content -LiteralPath (Join-Path $assetsRoot "installer-maintenance.py") -Raw -Encoding UTF8
+        $stateSource = Get-Content -LiteralPath (Join-Path $repoRoot "src\plwc_gateway\installation\installer_state.py") -Raw -Encoding UTF8
+        $doctorSource = Get-Content -LiteralPath (Join-Path $repoRoot "src\plwc_gateway\installation\doctor.py") -Raw -Encoding UTF8
+
+        $fileSection | Should Match '(?im)^Source:\s*"assets\\installer-maintenance\.py";\s*Flags:\s*dontcopy$'
+        $fileSection | Should Match '(?im)^Source:.*installer_state\.py";\s*Flags:\s*dontcopy$'
+        $fileSection | Should Match '(?im)^Source:.*payload-manifest\.json";\s*DestDir:\s*"\{app\}\\installation"'
+        $codeSection | Should Match '(?is)function\s+GetBridgePath.*?GetAppPath.*?BridgeDirectoryName'
+        $codeSection | Should Match '(?is)procedure\s+CurStepChanged.*?ssInstall.*?PrepareInstallerMigration.*?ssPostInstall'
+        $codeSection | Should Match '(?is)ConfigureChatBridgeWindowsIntegration\s*;.*?RunHardInstallerPostflight\s*;.*?installation_completed.*?status=success'
+        $codeSection | Should Match '(?is)except.*?RollbackInstallerMigration.*?status=failure.*?RaiseException'
+        $codeSection | Should Match '(?is)InstallerMigrationTransactionPath\s*:=\s*GetStatePath.*?\\installation\\r26-installer-transaction\.json'
+        $codeSection | Should Not Match '\{tmp\}\\plwc-r26-installer-transaction\.json'
+        $codeSection | Should Match 'r26-installer-postflight\.json'
+        $codeSection | Should Match 'r26-installer-rollback\.json'
+        $codeSection | Should Match '(?is)function\s+GetCustomSetupExitCode.*?InstallerFailureExitCode'
+        $codeSection | Should Match '(?is)RollbackComplete\s*:=\s*RollbackInstallerMigration.*?InstallerFailureExitCode\s*:=\s*30.*?InstallerFailureExitCode\s*:=\s*50'
+        $maintenanceSource | Should Match 'InstallerStateEngine'
+        $maintenanceSource | Should Match 'preflight-prepare'
+        $maintenanceSource | Should Match 'archive_legacy_after_success'
+        $maintenanceSource | Should Match '(?is)phase.*rollback.*_atomic_write_json'
+        $stateSource | Should Match 'foreign_port_3007_owner'
+        $stateSource | Should Match 'app-before-r26'
+        $stateSource | Should Match 'payload\.hashes'
+        $stateSource | Should Match 'toolCount.*8'
+        $stateSource | Should Match 'native-messaging/plwc\.chat_bridge\.launcher\.json'
+        $stateSource | Should Match 'taskkill\.exe'
+        $stateSource | Should Match '-r26-failed-'
+        $stateSource | Should Match 'config_file_backups'
+        $doctorSource | Should Match "GetFolderPath\('Startup'\)"
+        $doctorSource | Should Match "GetFolderPath\('Desktop'\)"
+        $doctorSource | Should Match 'foreach\(\$linkPath in \$shortcutPaths\)'
+        $doctorSource | Should Not Match ([regex]::Escape('$env:APPDATA+''\Microsoft\Windows\Start Menu'))
     }
 
     It "synchronizes the selected workspace into shared settings and later editable client references" {
@@ -1036,7 +1106,8 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $python | Should Match 'PLWC_WORKSPACE_ROOT'
         $python | Should Match 'def\s+_read_generated_text'
         $python | Should Match 'cp1252'
-        $javascript | Should Match 'workspace_path:\s*elements\["workspace-input"\]'
+        $javascript | Should Match 'JSON\.stringify\(\{\s*workspace_path:\s*workspacePath\s*\}\)'
+        $javascript | Should Match 'currentWorkspacePlan\.requested_workspace_path'
         $german | Should Match 'id="workspace-input"'
     }
 
@@ -1087,7 +1158,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $buildSource | Should Match '(?is)function\s+Get-InstallerRevision.*?PLwCSetup\.iss'
         $buildSource | Should Match '(?is)function\s+Write-InstallerBuildIdentity.*?Get-FileHash.*?InstallerPath.*?Get-FileHash.*?PayloadManifestPath'
         $buildSource | Should Match 'CHAT-BRIDGE-1\.0'
-        $buildSource | Should Match 'docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R25_ACCEPTANCE_EN\.md'
+        $buildSource | Should Match 'docs/evidence/R26_PHASE8_RELEASE_ACCEPTANCE_DE\.md'
         foreach ($define in @(
             "InstallerRevision",
             "GatewayVersion",
@@ -1220,6 +1291,9 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
 
         $launcherSource = Get-Content -LiteralPath $nativeLauncherSourcePath -Raw -Encoding UTF8
         $launcherSource | Should Match '(?i)ResolveBridgeEndpoint'
+        $launcherSource | Should Match '(?i)ResolveInstallerDirectory\("ConfigPath",\s*"config"\)'
+        $launcherSource | Should Match '(?i)ResolveInstallerDirectory\("LogsPath",\s*"logs"\)'
+        $launcherSource | Should Match '(?i)ResolveInstallerDirectory\("StatePath",\s*"state"\)'
         $launcherSource | Should Match '(?i)QuoteArgument\(layout\.Endpoint\)'
         $launcherSource | Should Match '(?i)IsLoopbackPortOpen\(layout\.Port\)'
         $launcherSource | Should Match '(?is)health_timeout.*?StopLaunchedBridge\(launchOutput\)'
@@ -1255,9 +1329,14 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
             'Tools     8 / 8',
             'wrong extension directory',
             'Bridge is unavailable',
-            'Do not run repository scripts manually'
+            'Do\s+not\s+run\s+repository\s+scripts\s+manually'
         )) {
-            $guide | Should Match ([regex]::Escape($requiredText))
+            if ($requiredText -eq 'Do\s+not\s+run\s+repository\s+scripts\s+manually') {
+                $guide | Should Match $requiredText
+            }
+            else {
+                $guide | Should Match ([regex]::Escape($requiredText))
+            }
         }
     }
 
@@ -1374,10 +1453,12 @@ Describe "PLwC Windows payload build gate" {
             throw "Timed out waiting for the PLwC installer build mutex."
         }
 
-        $buildParameters = @{
-            ValidateOnly = $true
-            GeneratedOutputRoot = $testGeneratedOutputRoot
-        }
+        $protectedOutputRoots = @(
+            (Join-Path $installerRoot "stage"),
+            (Join-Path $installerRoot "dist")
+        )
+        $protectedOutputSnapshot = Get-BuildOutputSnapshot -Roots $protectedOutputRoots
+        $buildParameters = @{ ValidateOnly = $true }
         $existingBridgeBuild = Join-Path $repoRoot "integrations\plwc-chat-bridge\bridge\dist\src\index.js"
         $existingExtensionBuild = Join-Path $repoRoot "integrations\plwc-chat-bridge\extension\dist\manifest.json"
         if ((Test-Path -LiteralPath $existingBridgeBuild -PathType Leaf) -and
@@ -1401,9 +1482,21 @@ Describe "PLwC Windows payload build gate" {
         ($output -join "`n") | Should Match 'ISCC was not invoked'
     }
 
+    It "keeps canonical stage and dist byte-for-byte unchanged during default ValidateOnly" {
+        (Get-BuildOutputSnapshot -Roots $protectedOutputRoots) | Should Be $protectedOutputSnapshot
+        ([IO.Path]::GetFullPath($stageRoot).StartsWith(
+            [IO.Path]::GetFullPath((Join-Path $installerRoot ".validate-build")),
+            [StringComparison]::OrdinalIgnoreCase
+        )) | Should Be $true
+    }
+
     It "stages real Gateway and Chat Bridge runtime artifacts" {
         (Test-Path -LiteralPath (Join-Path $stageRoot "gateway\server.py") -PathType Leaf) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $stageRoot "gateway\src\plwc_gateway\mcp\server.py") -PathType Leaf) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $stageRoot "gateway\src\plwc_gateway\installation\update_center.py") -PathType Leaf) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $stageRoot "gateway\config\release-manifest.schema.json") -PathType Leaf) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $stageRoot "gateway\config\release-trust.json") -PathType Leaf) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $stageRoot "gateway\config\release-trust.schema.json") -PathType Leaf) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $stageRoot "chat-bridge\bridge\dist\src\index.js") -PathType Leaf) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $stageRoot "chat-bridge\extension\manifest.json") -PathType Leaf) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $stageRoot "chat-bridge\native\bin\plwc-chat-bridge-launcher.exe") -PathType Leaf) | Should Be $true
@@ -1481,6 +1574,12 @@ Describe "PLwC Windows payload build gate" {
             (Get-FileHash -LiteralPath $stagedPath -Algorithm SHA256).Hash.ToLowerInvariant() |
                 Should Be ([string] $manifestEntry[0].sha256)
         }
+        $stagedIcon = Join-Path $stageRoot "common\configuration\plwc.ico"
+        (Test-Path -LiteralPath $stagedIcon -PathType Leaf) | Should Be $true
+        $iconEntry = @($manifest.files | Where-Object { $_.path -eq "common/configuration/plwc.ico" })
+        $iconEntry.Count | Should Be 1
+        (Get-FileHash -LiteralPath $stagedIcon -Algorithm SHA256).Hash.ToLowerInvariant() |
+            Should Be ([string] $iconEntry[0].sha256)
     }
 
     It "records the complete component contract" {
@@ -1497,27 +1596,29 @@ Describe "PLwC Windows payload build gate" {
         $chatBridge.buildId | Should Be $expectedBuildIdentity.buildId
         $chatBridge.identityPath | Should Be "chat-bridge/build-identity.json"
         $chatBridge.components.nodeBridge | Should Be $expectedBuildIdentity.components.nodeBridge
-        $chatBridge.components.browserExtension | Should Be $expectedBuildIdentity.components.browserExtension
+        $stagedExtensionManifest = Get-Content -LiteralPath (Join-Path $stageRoot "chat-bridge\extension\manifest.json") -Raw | ConvertFrom-Json
+        $chatBridge.components.browserExtension | Should Be $stagedExtensionManifest.version
         $chatBridge.components.nativeLauncher | Should Be $expectedBuildIdentity.components.nativeLauncher
     }
 
     It "binds staged payload metadata to the installer revision and component versions" {
         $manifest = Get-Content -LiteralPath (Join-Path $stageRoot "payload-manifest.json") -Raw | ConvertFrom-Json
         $expectedBuildIdentity = Get-Content -LiteralPath $bridgeBuildIdentityPath -Raw | ConvertFrom-Json
-        $manifest.installer.revision | Should Be "installer-r25"
+        $manifest.installer.revision | Should Be "installer-r26"
         $manifest.installer.artifactName | Should Be (
-            "PLwC-Setup-{0}-installer-r25.exe" -f $manifest.version
+            "PLwC-Setup-{0}-installer-r26.exe" -f $manifest.version
         )
         $manifest.installer.buildIdentityArtifact | Should Be (
-            "PLwC-{0}-installer-r25-build-identity.json" -f $manifest.version
+            "PLwC-{0}-installer-r26-build-identity.json" -f $manifest.version
         )
-        $manifest.installer.evidencePackage | Should Be "CHAT-BRIDGE-1.0"
-        $manifest.installer.evidencePath | Should Be "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R25_ACCEPTANCE_EN.md"
+        $manifest.installer.evidencePackage | Should Be "R26-PHASE5"
+        $manifest.installer.evidencePath | Should Be "docs/evidence/R26_PHASE5_INSTALLER_MIGRATION_DE.md"
         $componentManifest = Get-Content -LiteralPath $componentsManifestPath -Raw | ConvertFrom-Json
         $manifest.version | Should Be $componentManifest.product.releaseVersion
         $manifest.installer.components.gateway | Should Be $componentManifest.product.gatewayVersion
         $manifest.installer.components.nodeBridge | Should Be $expectedBuildIdentity.components.nodeBridge
-        $manifest.installer.components.browserExtension | Should Be $expectedBuildIdentity.components.browserExtension
+        $stagedExtensionManifest = Get-Content -LiteralPath (Join-Path $stageRoot "chat-bridge\extension\manifest.json") -Raw | ConvertFrom-Json
+        $manifest.installer.components.browserExtension | Should Be $stagedExtensionManifest.version
         $manifest.installer.components.nativeLauncher | Should Be $expectedBuildIdentity.components.nativeLauncher
     }
 

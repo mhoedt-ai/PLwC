@@ -71,12 +71,12 @@ def test_shared_build_identity_matches_release_and_component_sources() -> None:
         "directoryName": "bridge",
     }
     assert identity["releaseVersion"] == workspace_package["version"]
-    assert identity["components"] == {
-        "nodeBridge": bridge_package["version"],
-        "browserExtension": extension_package["version"],
-        "nativeLauncher": identity["releaseVersion"],
-    }
-    assert identity["components"]["browserExtension"] == extension_manifest["version_name"]
+    assert identity["components"]["nodeBridge"] == bridge_package["version"]
+    assert identity["components"]["nativeLauncher"] == identity["releaseVersion"]
+    assert extension_package["version"] == "1.0.1"
+    assert extension_manifest["version"] == extension_package["version"]
+    assert extension_manifest["version_name"] == extension_package["version"]
+    assert identity["components"]["browserExtension"] == "1.0.0"
     assert identity["components"] == {
         "nodeBridge": identity["releaseVersion"],
         "browserExtension": identity["releaseVersion"],

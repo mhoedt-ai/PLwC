@@ -1,5 +1,19 @@
 # Configuration
 
+## r26 local control center
+
+The single local **PLwC Configuration** page is the user-facing control center
+for shared settings, profile and workspace plans, the component inventory, the
+one PLwC Doctor, and signed update status. It distinguishes domain failures
+(`reason`, `message`, `validation_error`, `missing_files`) from HTTP transport
+status and does not present an empty or incomplete profile as activatable.
+
+Component rows keep installed identity, compatibility contract, availability,
+trust source, and action separate. The Update Center displays recommended versus
+required updates, last checked, last valid check, signature errors, and release
+notes. Download and installation each require their own confirmation. See
+[UPDATE_CENTER.md](UPDATE_CENTER.md) and [PLWC_DOCTOR.md](PLWC_DOCTOR.md).
+
 ## security.yaml
 
 The local policy file controls execution, safe mode, Docker behavior, allowed roots, protected paths, audit and governance rules.

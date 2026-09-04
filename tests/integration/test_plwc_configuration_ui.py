@@ -3,7 +3,9 @@ from __future__ import annotations
 import http.client
 import importlib.util
 import json
+import subprocess
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
 
@@ -108,6 +110,24 @@ def _onboarding_answers(profile_name: str = "Researcher") -> dict[str, str]:
     }
 
 
+def _editable_settings(**overrides: object) -> dict[str, object]:
+    settings: dict[str, object] = {
+        "memory_write_threshold": 2,
+        "persona_write_threshold": 3,
+        "temperament_write_threshold": 2,
+        "qdrant_enabled": False,
+        "persona_layer_enabled": True,
+    }
+    settings.update(overrides)
+    return settings
+
+
+def _apply_workspace(service, workspace: Path) -> dict[str, object]:
+    plan = service.plan_workspace_change(str(workspace))
+    assert plan["valid"] is True
+    return service.apply_workspace_change(str(workspace), plan["plan_digest"], True)
+
+
 @pytest.fixture()
 def configured_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     for name in (
@@ -135,19 +155,30 @@ def test_snapshot_and_atomic_settings_update_are_shared_across_clients(
     service = configuration_module.PlwcConfigurationService(configured_root, language="en")
 
     before = service.snapshot()
-    after = service.update_settings(
-        {
-            "workspace_path": str(configured_root / "workspace-new"),
-            "memory_write_threshold": 4,
-            "persona_write_threshold": 5,
-            "temperament_write_threshold": 6,
-            "qdrant_enabled": True,
-            "persona_layer_enabled": False,
-        }
+    service.update_settings(
+        _editable_settings(
+            memory_write_threshold=4,
+            persona_write_threshold=5,
+            temperament_write_threshold=6,
+            qdrant_enabled=True,
+            persona_layer_enabled=False,
+        )
     )
+    plan = service.plan_workspace_change(str(configured_root / "workspace-new"))
+
+    assert plan["valid"] is True
+    assert plan["data_migration"] is False
+    assert not (configured_root / "workspace-new").exists()
+    with pytest.raises(configuration_module.ConfigurationError, match="explicit confirmation"):
+        service.apply_workspace_change(str(configured_root / "workspace-new"), plan["plan_digest"], False)
+    after = service.apply_workspace_change(
+        str(configured_root / "workspace-new"),
+        plan["plan_digest"],
+        True,
+    )["state"]
 
     assert before["runtime"]["active_profile_name"] == "default"
-    assert before["runtime"]["available_profiles"] == ["default", "Writer"]
+    assert [profile["name"] for profile in before["runtime"]["available_profiles"]] == ["default", "Writer"]
     assert after["settings"]["memory_write_threshold"] == 4
     assert after["settings"]["qdrant_enabled"] is True
     assert after["settings"]["persona_layer_enabled"] is False
@@ -173,7 +204,6 @@ def test_snapshot_and_atomic_settings_update_are_shared_across_clients(
     (
         {},
         {
-            "workspace_path": "/absolute/workspace",
             "memory_write_threshold": 0,
             "persona_write_threshold": 3,
             "temperament_write_threshold": 2,
@@ -181,7 +211,6 @@ def test_snapshot_and_atomic_settings_update_are_shared_across_clients(
             "persona_layer_enabled": True,
         },
         {
-            "workspace_path": "/absolute/workspace",
             "memory_write_threshold": 2,
             "persona_write_threshold": 3,
             "temperament_write_threshold": 2,
@@ -195,7 +224,7 @@ def test_settings_update_rejects_incomplete_or_ineffective_values(
     configured_root: Path,
     settings: dict[str, object],
 ) -> None:
-    service = configuration_module.PlwcConfigurationService(configured_root)
+    service = configuration_module.PlwcConfigurationService(configured_root, doctor_system_probes=False)
 
     with pytest.raises(configuration_module.ConfigurationError):
         service.update_settings(settings)
@@ -243,16 +272,7 @@ def test_workspace_update_synchronizes_installer_and_generated_client_files(
     service = configuration_module.PlwcConfigurationService(configured_root)
     new_workspace = configured_root / "relocated-workspace"
 
-    service.update_settings(
-        {
-            "workspace_path": str(new_workspace),
-            "memory_write_threshold": 2,
-            "persona_write_threshold": 3,
-            "temperament_write_threshold": 2,
-            "qdrant_enabled": False,
-            "persona_layer_enabled": True,
-        }
-    )
+    _apply_workspace(service, new_workspace)
 
     assert f"WorkspacePath={new_workspace}" in selection.read_text(encoding="utf-8")
     assert "ActiveProfile=default" in selection.read_text(encoding="utf-8")
@@ -336,16 +356,7 @@ def test_workspace_update_uses_a_custom_installer_configuration_root(
     )
     new_workspace = configured_root / "custom-config-workspace"
 
-    service.update_settings(
-        {
-            "workspace_path": str(new_workspace),
-            "memory_write_threshold": 2,
-            "persona_write_threshold": 3,
-            "temperament_write_threshold": 2,
-            "qdrant_enabled": False,
-            "persona_layer_enabled": True,
-        }
-    )
+    _apply_workspace(service, new_workspace)
 
     assert f"WorkspacePath={new_workspace}" in selection.read_text(encoding="utf-8")
     assert str(new_workspace).replace("\\", "\\\\") in codex.read_text(encoding="utf-8")
@@ -374,6 +385,45 @@ def test_profile_activation_uses_governor_plan_and_explicit_confirmation(
     assert result["state"]["runtime"]["active_profile_name"] == "Writer"
     state = json.loads((configured_root / "config" / "active_profile.json").read_text(encoding="utf-8"))
     assert state["active_profile_name"] == "Writer"
+
+
+def test_empty_profile_is_visible_as_invalid_and_activation_stays_blocked(
+    configuration_module: ModuleType,
+    configured_root: Path,
+) -> None:
+    (configured_root / "profiles" / "FAUN").mkdir()
+    service = configuration_module.PlwcConfigurationService(configured_root, language="de")
+
+    snapshot = service.snapshot()
+    plan = service.plan_profile_activation("FAUN")
+
+    faun = next(profile for profile in snapshot["runtime"]["available_profiles"] if profile["name"] == "FAUN")
+    assert faun["exists"] is True
+    assert faun["valid"] is False
+    assert faun["activatable"] is False
+    assert faun["status"] == "missing_required_files"
+    assert plan["ok"] is False
+    assert plan["valid"] is False
+    assert plan["reason"] == "Requested profile is missing required files."
+    assert plan["missing_files"] == [
+        "CORE.md",
+        "TEMPERAMENT.md",
+        "PERSONA.md",
+        "memory.md",
+        "reflection.md",
+        "governance/config.yaml",
+    ]
+
+
+def test_business_rejection_preserves_structured_reason_instead_of_http_200_fallback() -> None:
+    javascript = (CONFIGURATION_ROOT / "plwc-config.js").read_text(encoding="utf-8")
+
+    assert "payload?.reason" in javascript
+    assert "payload?.message" in javascript
+    assert "payload?.validation_error" in javascript
+    assert "payload?.missing_files" in javascript
+    assert "allowBusinessRejection: true" in javascript
+    assert 'throw new Error(payload.error || `HTTP ${response.status}`);' not in javascript
 
 
 def test_profile_creation_uses_governor_onboarding_plan_and_activates_new_profile(
@@ -425,6 +475,296 @@ def test_profile_creation_rejects_unknown_fields_and_incomplete_onboarding(
     assert not (configured_root / "profiles" / "Researcher").exists()
 
 
+def test_optional_component_probes_report_docker_and_document_worker_versions(
+    configuration_module: ModuleType,
+) -> None:
+    image_id = "sha256:" + "c" * 64
+
+    def runner(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        if args[1:] == ["--version"]:
+            return subprocess.CompletedProcess(args, 0, "Docker version 29.3.1, build fixture\n", "")
+        if args[1:] == ["version", "--format", "{{.Server.Version}}"]:
+            return subprocess.CompletedProcess(args, 0, "29.3.1\n", "")
+        if args[1:3] == ["image", "inspect"]:
+            return subprocess.CompletedProcess(args, 0, image_id + "\n", "")
+        raise AssertionError(f"Unexpected probe: {args!r}")
+
+    docker, worker = configuration_module._docker_component_observations(
+        "C:/Docker/docker.exe",
+        installer_selected=True,
+        runner=runner,
+    )
+
+    assert docker["present"] is True
+    assert docker["semantic_version"] == "29.3.1"
+    assert docker["postflight_verified"] is True
+    assert docker["source"]["trust"] == "observed_local"
+    assert worker["present"] is True
+    assert worker["semantic_version"] == "0.1.0"
+    assert worker["build_id"] == image_id
+    assert worker["postflight_verified"] is True
+    assert worker["source"]["trust"] == "observed_local"
+
+
+def test_document_worker_probe_distinguishes_missing_image_from_unavailable_daemon(
+    configuration_module: ModuleType,
+) -> None:
+    def missing_image_runner(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        if args[1:] == ["--version"]:
+            return subprocess.CompletedProcess(args, 0, "Docker version 29.3.1, build fixture\n", "")
+        if args[1:] == ["version", "--format", "{{.Server.Version}}"]:
+            return subprocess.CompletedProcess(args, 0, "29.3.1\n", "")
+        return subprocess.CompletedProcess(args, 1, "", "No such image")
+
+    _, missing_worker = configuration_module._docker_component_observations(
+        "C:/Docker/docker.exe",
+        installer_selected=True,
+        runner=missing_image_runner,
+    )
+
+    def unavailable_daemon_runner(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        if args[1:] == ["--version"]:
+            return subprocess.CompletedProcess(args, 0, "Docker version 29.3.1, build fixture\n", "")
+        return subprocess.CompletedProcess(args, 1, "", "daemon unavailable")
+
+    _, unknown_worker = configuration_module._docker_component_observations(
+        "C:/Docker/docker.exe",
+        installer_selected=True,
+        runner=unavailable_daemon_runner,
+    )
+
+    assert missing_worker["present"] is False
+    assert missing_worker["source"]["trust"] == "observed_local"
+    assert unknown_worker["present"] is None
+    assert unknown_worker["source"]["trust"] == "unavailable"
+
+
+def test_qdrant_probe_reports_distribution_version_independent_of_feature_flag(
+    configuration_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(configuration_module.importlib_metadata, "version", lambda name: "1.18.0")
+
+    observation = configuration_module._python_distribution_observation("qdrant-client", enabled=False)
+
+    assert observation["present"] is True
+    assert observation["semantic_version"] == "1.18.0"
+    assert observation["source"]["trust"] == "observed_local"
+    assert "enabled=false" in observation["source"]["detail"]
+
+
+def test_snapshot_exposes_actual_component_values_and_persisted_launcher_result(
+    configuration_module: ModuleType,
+    configured_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        configuration_module,
+        "_docker_component_observations",
+        lambda *_args, **_kwargs: (
+            {
+                "present": True,
+                "semantic_version": "29.3.1",
+                "postflight_verified": True,
+                "source": configuration_module._observed_source("docker_cli", "fixture"),
+            },
+            {
+                "present": True,
+                "semantic_version": "0.1.0",
+                "build_id": "sha256:" + "c" * 64,
+                "postflight_verified": True,
+                "source": configuration_module._observed_source("docker_image_inspect", "fixture"),
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        configuration_module,
+        "_python_distribution_observation",
+        lambda *_args, **_kwargs: {
+            "present": True,
+            "semantic_version": "1.18.0",
+            "source": configuration_module._observed_source("python_distribution", "fixture"),
+        },
+    )
+    app_root = configured_root / "app"
+    gateway_root = app_root / "gateway"
+    bridge_root = app_root / "bridge"
+    bridge_entry = bridge_root / "bridge" / "dist" / "src" / "index.js"
+    launcher = bridge_root / "native" / "bin" / "plwc-chat-bridge-launcher.exe"
+    bridge_entry.parent.mkdir(parents=True)
+    launcher.parent.mkdir(parents=True)
+    bridge_entry.write_text("console.log('bridge');\n", encoding="utf-8")
+    launcher.write_bytes(b"launcher-fixture")
+    build_identity = {
+        "schemaVersion": 1,
+        "product": "PLwC Chat Bridge",
+        "releaseVersion": "1.0.0",
+        "buildId": "plwc-chat-bridge@1.0.0",
+        "components": {
+            "nodeBridge": "1.0.0",
+            "browserExtension": "1.0.0",
+            "nativeLauncher": "1.0.0",
+        },
+    }
+    (bridge_root / "build-identity.json").write_text(json.dumps(build_identity), encoding="utf-8")
+    selection = configured_root / "config" / "installer" / "selection.ini"
+    selection.parent.mkdir(parents=True)
+    selection.write_text(
+        "[PLwC]\n"
+        f"AppPath={app_root}\n"
+        f"GatewayPath={gateway_root}\n"
+        f"BridgePath={bridge_root}\n"
+        f"StatePath={configured_root / 'state'}\n"
+        "[BuildIdentity]\n"
+        "BuildId=plwc-windows-setup@1.0.0/installer-r26#sha256:" + "a" * 64 + "\n"
+        "InstallerRevision=installer-r26\n"
+        "SetupExeSha256=" + "a" * 64 + "\n",
+        encoding="utf-8",
+    )
+    launcher_state = configured_root / "state" / "chat-bridge" / "launcher-last-result.json"
+    launcher_state.parent.mkdir(parents=True)
+    launcher_state.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "timestamp": "2026-09-02T12:00:00+00:00",
+                "action": "command_line_start",
+                "ok": True,
+                "state": "started",
+                "statusCode": "ready",
+                "operationExitCode": 0,
+                "bridgePath": str(bridge_root),
+                "toolCount": 8,
+                "logPath": str(configured_root / "logs" / "native-launcher.log"),
+                "buildIdentity": build_identity,
+            }
+        ),
+        encoding="utf-8",
+    )
+    extension_contact = configured_root / "state" / "chat-bridge" / "browser-extension-last-contact.json"
+    extension_contact.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "packageVersion": "1.0.1",
+                "extensionId": "feceodobnhefdbfgmbinkndhogpfkicb",
+                "browserFamily": "chrome",
+                "protocolVersion": "1.0.0",
+                "reportedAt": datetime.now(timezone.utc).isoformat(),
+                "receivedAt": datetime.now(timezone.utc).isoformat(),
+                "toolCount": 8,
+                "buildIdentity": build_identity,
+            }
+        ),
+        encoding="utf-8",
+    )
+    service = configuration_module.PlwcConfigurationService(configured_root, gateway_root=gateway_root)
+
+    snapshot = service.snapshot()
+    components = {component["id"]: component for component in snapshot["component_inventory"]["components"]}
+
+    assert components["windows_installer"]["installed"]["semantic_version"] == "1.0.0"
+    assert components["windows_installer"]["installed"]["build_revision"] == "installer-r26"
+    assert components["windows_installer"]["installed"]["sha256"] == "a" * 64
+    assert components["gateway"]["status"] == "ready"
+    assert components["gateway"]["installed"]["semantic_version"] == "1.0.0"
+    assert components["node_bridge"]["installed"]["build_id"] == "plwc-chat-bridge@1.0.0"
+    assert components["node_bridge"]["status"] == "ready"
+    assert components["native_launcher"]["installed"]["sha256"]
+    assert components["browser_extension"]["status"] == "ready"
+    assert components["browser_extension"]["installed"]["semantic_version"] == "1.0.1"
+    assert components["browser_extension"]["installed"]["protocol_version"] == "1.0.0"
+    assert components["docker"]["status"] == "ready"
+    assert components["docker"]["installed"]["semantic_version"] == "29.3.1"
+    assert components["qdrant"]["status"] == "compatible"
+    assert components["qdrant"]["installed"]["semantic_version"] == "1.18.0"
+    assert components["document_worker"]["status"] == "ready"
+    assert components["document_worker"]["installed"]["semantic_version"] == "0.1.0"
+    assert components["document_worker"]["installed"]["build_id"] == "sha256:" + "c" * 64
+    assert snapshot["launcher_last_result"]["statusCode"] == "ready"
+    assert snapshot["launcher_last_result"]["state_file"] == str(launcher_state)
+    assert snapshot["browser_extension_last_contact"]["extensionId"] == "feceodobnhefdbfgmbinkndhogpfkicb"
+    assert snapshot["browser_extension_last_contact"]["stale"] is False
+
+
+def test_configuration_doctor_diagnosis_plan_apply_and_idempotence(
+    configuration_module: ModuleType,
+    configured_root: Path,
+) -> None:
+    service = configuration_module.PlwcConfigurationService(
+        configured_root,
+        doctor_system_probes=False,
+    )
+    before = {
+        path.relative_to(configured_root).as_posix(): (
+            "directory" if path.is_dir() else path.read_bytes()
+        )
+        for path in configured_root.rglob("*")
+    }
+
+    diagnosis = service.run_doctor_diagnosis()
+
+    assert diagnosis["read_only"] is True
+    assert diagnosis["clu_diagnostic"]["doctor_mode"] == "clu"
+    assert diagnosis["clu_diagnostic"]["doctor_scope"] == "general"
+    assert not (configured_root / "logs" / "audit.jsonl").exists()
+    assert before == {
+        path.relative_to(configured_root).as_posix(): (
+            "directory" if path.is_dir() else path.read_bytes()
+        )
+        for path in configured_root.rglob("*")
+    }
+
+    plan = service.plan_doctor_repair(diagnosis["snapshot_id"])
+    assert plan["change_count"] == 3
+    assert all(action["type"] == "ensure_directory" for action in plan["actions"])
+    with pytest.raises(configuration_module.ConfigurationError, match="explicit confirmation"):
+        service.apply_doctor_repair(plan["plan_id"], False)
+
+    result = service.apply_doctor_repair(plan["plan_id"], True)
+    assert result["ok"] is True
+    assert result["result"] == "successful"
+    assert all((configured_root / "workspace" / name).is_dir() for name in ("Tagebuch", "Temp", "Trashcan"))
+
+    second_diagnosis = service.run_doctor_diagnosis()
+    second_plan = service.plan_doctor_repair(second_diagnosis["snapshot_id"])
+    assert second_plan["no_changes"] is True
+    second_result = service.apply_doctor_repair(second_plan["plan_id"], True)
+    assert second_result["result"] == "no_changes"
+    assert second_result["changed"] is False
+
+
+def test_native_launcher_persists_structured_last_result_atomically() -> None:
+    source = (
+        REPO_ROOT
+        / "integrations"
+        / "plwc-chat-bridge"
+        / "native"
+        / "launcher-host"
+        / "Plwc.ChatBridge.NativeLauncher.cs"
+    ).read_text(encoding="utf-8-sig")
+
+    assert '"launcher-last-result.json"' in source
+    for field in (
+        "timestamp",
+        "action",
+        "statusCode",
+        "operationExitCode",
+        "bridgePath",
+        "toolCount",
+        "logPath",
+        "buildIdentity",
+    ):
+        assert f'\\\"{field}\\\"' in source
+    assert "File.Replace(temporary, LastResultPath, null)" in source
+    assert '"browser-extension-last-contact.json"' in source
+    assert "PersistBrowserContact" in source
+    assert 'String.Equals(command, "record_contact"' in source
+    assert 'String.Equals(command, "start"' in source
+    assert "PersistBrowserContact(request, buildIdentity, out ignoredContactError)" in source
+    assert "return StartWithMutex(german, buildIdentity);" in source
+
+
 def _request(
     server,
     method: str,
@@ -462,7 +802,8 @@ def test_loopback_http_session_requires_bootstrap_cookie_and_same_origin_posts(
     docs.mkdir(parents=True)
     (docs / "getting-started-en.html").write_text("<!doctype html><title>Getting Started</title>", encoding="utf-8")
     (docs / "getting-started.css").write_text("body { color: black; }", encoding="utf-8")
-    service = configuration_module.PlwcConfigurationService(configured_root)
+    (configured_root / "profiles" / "FAUN").mkdir()
+    service = configuration_module.PlwcConfigurationService(configured_root, doctor_system_probes=False)
     server = configuration_module.create_http_server(
         service,
         CONFIGURATION_ROOT,
@@ -486,20 +827,59 @@ def test_loopback_http_session_requires_bootstrap_cookie_and_same_origin_posts(
         assert status == 200
         assert payload is not None and payload["ok"] is True
 
+        status, diagnosis, _ = _request(
+            server,
+            "POST",
+            "/api/doctor/diagnose",
+            cookie=cookie,
+            origin=server.origin,
+            body={},
+        )
+        assert status == 200
+        assert diagnosis is not None and diagnosis["read_only"] is True
+        status, doctor_plan, _ = _request(
+            server,
+            "POST",
+            "/api/doctor/plan",
+            cookie=cookie,
+            origin=server.origin,
+            body={"snapshot_id": diagnosis["snapshot_id"]},
+        )
+        assert status == 200
+        assert doctor_plan is not None and doctor_plan["confirmation_required"] is True
+
+        status, rejected_plan, _ = _request(
+            server,
+            "POST",
+            "/api/profile/plan",
+            cookie=cookie,
+            origin=server.origin,
+            body={"profile_name": "FAUN"},
+        )
+        assert status == 200
+        assert rejected_plan is not None and rejected_plan["ok"] is False
+        assert rejected_plan["reason"] == "Requested profile is missing required files."
+        assert rejected_plan["missing_files"] == [
+            "CORE.md",
+            "TEMPERAMENT.md",
+            "PERSONA.md",
+            "memory.md",
+            "reflection.md",
+            "governance/config.yaml",
+        ]
+
         status, payload, headers = _request(server, "GET", "/getting-started", cookie=cookie)
         assert status == 200
         assert payload is None
         assert headers["content-type"] == "text/html; charset=utf-8"
 
         settings = {
-            "settings": {
-                "workspace_path": str(configured_root / "workspace-http"),
-                "memory_write_threshold": 3,
-                "persona_write_threshold": 4,
-                "temperament_write_threshold": 5,
-                "qdrant_enabled": True,
-                "persona_layer_enabled": True,
-            }
+            "settings": _editable_settings(
+                memory_write_threshold=3,
+                persona_write_threshold=4,
+                temperament_write_threshold=5,
+                qdrant_enabled=True,
+            )
         }
         status, payload, _ = _request(
             server,
@@ -522,6 +902,142 @@ def test_loopback_http_session_requires_bootstrap_cookie_and_same_origin_posts(
         )
         assert status == 200
         assert payload is not None and payload["settings"]["memory_write_threshold"] == 3
+
+        workspace_path = str(configured_root / "workspace-http")
+        status, plan, _ = _request(
+            server,
+            "POST",
+            "/api/workspace/plan",
+            cookie=cookie,
+            origin=server.origin,
+            body={"workspace_path": workspace_path},
+        )
+        assert status == 200
+        assert plan is not None and plan["valid"] is True
+        assert not Path(workspace_path).exists()
+        status, applied, _ = _request(
+            server,
+            "POST",
+            "/api/workspace/apply",
+            cookie=cookie,
+            origin=server.origin,
+            body={"workspace_path": workspace_path, "plan_digest": plan["plan_digest"], "confirmed": True},
+        )
+        assert status == 200
+        assert applied is not None and applied["state"]["runtime"]["workspace_path"] == workspace_path
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_loopback_update_endpoints_preserve_separate_confirmations(
+    configuration_module: ModuleType,
+    configured_root: Path,
+) -> None:
+    class FakeUpdateCenter:
+        trusted_keys = {}
+
+        def __init__(self) -> None:
+            self.download_confirmations: list[bool] = []
+            self.install_confirmations: list[bool] = []
+
+        @staticmethod
+        def snapshot() -> dict[str, object]:
+            return {"state": "update_available", "integrity_verified": True}
+
+        @staticmethod
+        def check(*, force: bool = False) -> dict[str, object]:
+            assert force is True
+            return {"state": "update_available", "integrity_verified": True}
+
+        @staticmethod
+        def plan_download(artifact_id: str) -> dict[str, object]:
+            assert artifact_id == "windows_installer"
+            return {"plan_id": "plan-1", "confirmation_required": True}
+
+        def download(self, plan_id: str, *, confirmed: bool) -> dict[str, object]:
+            assert plan_id == "plan-1"
+            self.download_confirmations.append(confirmed)
+            if not confirmed:
+                raise configuration_module.UpdateContractError("download confirmation required")
+            return {"ok": True, "state": "download_verified", "integrity_verified": True}
+
+        def install(self, plan_id: str, *, confirmed: bool) -> dict[str, object]:
+            assert plan_id == "plan-1"
+            self.install_confirmations.append(confirmed)
+            if not confirmed:
+                raise configuration_module.UpdateContractError("install confirmation required")
+            return {"ok": True, "state": "installer_completed"}
+
+    update_center = FakeUpdateCenter()
+    service = configuration_module.PlwcConfigurationService(
+        configured_root,
+        doctor_system_probes=False,
+        update_center=update_center,
+    )
+    server = configuration_module.create_http_server(
+        service,
+        CONFIGURATION_ROOT,
+        session_token="update-session-token",
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        status, _, headers = _request(server, "GET", "/?token=update-session-token")
+        assert status == 303
+        cookie = headers["set-cookie"].split(";", 1)[0]
+
+        for path, body in (
+            ("/api/update/check", {}),
+            ("/api/update/download/plan", {"artifact_id": "windows_installer"}),
+        ):
+            status, payload, _ = _request(
+                server,
+                "POST",
+                path,
+                cookie=cookie,
+                origin=server.origin,
+                body=body,
+            )
+            assert status == 200
+            assert payload is not None
+
+        for path in ("/api/update/download", "/api/update/install"):
+            status, payload, _ = _request(
+                server,
+                "POST",
+                path,
+                cookie=cookie,
+                origin=server.origin,
+                body={"plan_id": "plan-1", "confirmed": False},
+            )
+            assert status == 400
+            assert payload is not None and payload["ok"] is False
+
+        status, downloaded, _ = _request(
+            server,
+            "POST",
+            "/api/update/download",
+            cookie=cookie,
+            origin=server.origin,
+            body={"plan_id": "plan-1", "confirmed": True},
+        )
+        assert status == 200
+        assert downloaded is not None and downloaded["state"] == "download_verified"
+
+        status, installed, _ = _request(
+            server,
+            "POST",
+            "/api/update/install",
+            cookie=cookie,
+            origin=server.origin,
+            body={"plan_id": "plan-1", "confirmed": True},
+        )
+        assert status == 200
+        assert installed is not None and installed["state"] == "installer_completed"
+        assert update_center.download_confirmations == [False, True]
+        assert update_center.install_confirmations == [False, True]
     finally:
         server.shutdown()
         server.server_close()
@@ -550,6 +1066,25 @@ def test_static_configuration_ui_is_bilingual_local_and_feature_complete() -> No
         'id="new-profile-name"',
         'id="review-create-profile-button"',
         'id="create-profile-button"',
+        'id="profile-details"',
+        'id="review-workspace-button"',
+        'id="workspace-dialog"',
+        'id="component-table-body"',
+        'id="launcher-result"',
+        'id="browser-extension-contact"',
+        'id="doctor-diagnose-button"',
+        'id="doctor-plan-button"',
+        'id="doctor-export-button"',
+        'id="doctor-dialog"',
+        'id="doctor-confirmation"',
+        'id="doctor-apply-button"',
+        'id="update-check-button"',
+        'id="update-review-button"',
+        'id="update-dialog"',
+        'id="update-download-confirmation"',
+        'id="update-download-button"',
+        'id="update-install-confirmation"',
+        'id="update-install-button"',
     ):
         assert control in english
         assert control in german
@@ -562,8 +1097,8 @@ def test_static_configuration_ui_is_bilingual_local_and_feature_complete() -> No
     assert 'class="app-link"' not in guide_english and 'class="app-link"' not in guide_german
     assert "Create a new profile" in guide_english
     assert "Neues Profil anlegen" in guide_german
-    assert english.count("formnovalidate") == 5
-    assert german.count("formnovalidate") == 5
+    assert english.count("formnovalidate") == 10
+    assert german.count("formnovalidate") == 10
     assert "[hidden]" in styles
     assert 'typeof write === "object"' in javascript
     assert "http://" not in combined
@@ -571,10 +1106,19 @@ def test_static_configuration_ui_is_bilingual_local_and_feature_complete() -> No
     for endpoint in (
         "/api/state",
         "/api/settings",
+        "/api/workspace/plan",
+        "/api/workspace/apply",
         "/api/profile/plan",
         "/api/profile/apply",
         "/api/profile/create/plan",
         "/api/profile/create/apply",
+        "/api/doctor/diagnose",
+        "/api/doctor/plan",
+        "/api/doctor/apply",
+        "/api/update/check",
+        "/api/update/download/plan",
+        "/api/update/download",
+        "/api/update/install",
     ):
         assert endpoint in javascript
 

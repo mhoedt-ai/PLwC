@@ -38,6 +38,10 @@ try {
     foreach ($sidecarFile in $sidecars) {
         $sidecar = Get-Content -LiteralPath $sidecarFile.FullName -Raw | ConvertFrom-Json
         if (
+            $sidecar.schemaVersion -ne 2 -or
+            $sidecar.releaseVersion -ne "1.0.0" -or
+            $sidecar.extensionVersion -ne "1.0.1" -or
+            $sidecar.buildId -ne "plwc-chat-bridge@1.0.0" -or
             $sidecar.target -notin $expectedTargets -or
             $sidecar.expectedExtensionId -notmatch '^[a-p]{32}$' -or
             $sidecar.expectedNativeMessagingOrigin -ne "chrome-extension://$($sidecar.expectedExtensionId)/" -or
@@ -49,6 +53,7 @@ try {
         $archivePath = Join-Path $firstOutput $sidecar.archive.fileName
         if (
             -not (Test-Path -LiteralPath $archivePath -PathType Leaf) -or
+            $sidecar.archive.fileName -notlike "PLwC-Chat-Bridge-$($sidecar.extensionVersion)-*-store.zip" -or
             (Get-Item -LiteralPath $archivePath).Length -ne $sidecar.archive.bytes -or
             (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sidecar.archive.sha256
         ) {

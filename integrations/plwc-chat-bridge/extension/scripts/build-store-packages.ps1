@@ -13,6 +13,7 @@ $extensionRoot = Split-Path -Parent $scriptRoot
 $integrationRoot = Split-Path -Parent $extensionRoot
 $distRoot = Join-Path $extensionRoot "dist"
 $sourceManifestPath = Join-Path $extensionRoot "src\manifest.json"
+$extensionPackagePath = Join-Path $extensionRoot "package.json"
 $storeContractPath = Join-Path $extensionRoot "store\store-contract.json"
 $identityContractPath = Join-Path $integrationRoot "native\extension-identity.json"
 $buildIdentityPath = Join-Path $integrationRoot "build-identity.json"
@@ -23,6 +24,7 @@ if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 
 $sourceManifest = Get-Content -LiteralPath $sourceManifestPath -Raw | ConvertFrom-Json
+$extensionPackage = Get-Content -LiteralPath $extensionPackagePath -Raw | ConvertFrom-Json
 $storeContract = Get-Content -LiteralPath $storeContractPath -Raw | ConvertFrom-Json
 $identityContract = Get-Content -LiteralPath $identityContractPath -Raw | ConvertFrom-Json
 $buildIdentity = Get-Content -LiteralPath $buildIdentityPath -Raw | ConvertFrom-Json
@@ -30,9 +32,11 @@ $buildIdentity = Get-Content -LiteralPath $buildIdentityPath -Raw | ConvertFrom-
 if (
     $storeContract.schemaVersion -ne 2 -or
     $identityContract.schemaVersion -ne 2 -or
-    $sourceManifest.version_name -ne $storeContract.releaseVersion -or
-    $sourceManifest.version_name -ne $identityContract.releaseVersion -or
-    $sourceManifest.version_name -ne $buildIdentity.releaseVersion
+    $storeContract.releaseVersion -ne $identityContract.releaseVersion -or
+    $storeContract.releaseVersion -ne $buildIdentity.releaseVersion -or
+    $sourceManifest.version -ne $extensionPackage.version -or
+    $sourceManifest.version_name -ne $extensionPackage.version -or
+    [string] $extensionPackage.version -notmatch '^1\.0\.[0-9]+$'
 ) {
     throw "Store package version and identity contracts are inconsistent."
 }
@@ -128,7 +132,10 @@ function Assert-PublicPackageTree {
     if ($null -ne $manifest.PSObject.Properties["key"]) {
         throw "Store package manifest contains the development key."
     }
-    if ($manifest.version_name -ne $storeContract.releaseVersion) {
+    if (
+        $manifest.version -ne $extensionPackage.version -or
+        $manifest.version_name -ne $extensionPackage.version
+    ) {
         throw "Store package manifest version does not match the Store contract."
     }
 
@@ -247,7 +254,7 @@ try {
 
     Assert-PublicPackageTree -PackageRoot $packageRoot
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
-    $safeVersion = ([string] $sourceManifest.version_name) -replace '[^0-9A-Za-z._-]', '-'
+    $safeVersion = ([string] $extensionPackage.version) -replace '[^0-9A-Za-z._-]', '-'
 
     foreach ($target in $targets) {
         $store = $storeContract.stores.PSObject.Properties[$target.StoreKey].Value
@@ -269,9 +276,10 @@ try {
         $archiveSize = (Get-Item -LiteralPath $archivePath).Length
 
         $sidecar = [ordered]@{
-            schemaVersion = 1
+            schemaVersion = 2
             product = "PLwC Chat Bridge"
-            releaseVersion = [string] $sourceManifest.version_name
+            releaseVersion = [string] $buildIdentity.releaseVersion
+            extensionVersion = [string] $extensionPackage.version
             buildId = [string] $buildIdentity.buildId
             target = [string] $target.Name
             expectedExtensionId = [string] $identity.extensionId

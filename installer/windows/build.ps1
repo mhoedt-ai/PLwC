@@ -18,17 +18,24 @@ $ErrorActionPreference = "Stop"
 $installerRoot = [IO.Path]::GetFullPath($PSScriptRoot)
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot "..\.."))
 $testOutputRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot ".test-build"))
-$unsignedOutputRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot ".unsigned-build-r25"))
+$validateOutputRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot ".validate-build"))
+$unsignedOutputRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot ".unsigned-build-r26"))
 $buildOutputRoot = if ([string]::IsNullOrWhiteSpace($GeneratedOutputRoot)) {
-    if ($Unsigned) { $unsignedOutputRoot } else { $installerRoot }
+    if ($ValidateOnly) { $validateOutputRoot }
+    elseif ($Unsigned) { $unsignedOutputRoot }
+    else { $installerRoot }
 }
 else {
     [IO.Path]::GetFullPath($GeneratedOutputRoot)
 }
 if (-not $buildOutputRoot.Equals($installerRoot, [StringComparison]::OrdinalIgnoreCase) -and
     -not $buildOutputRoot.Equals($testOutputRoot, [StringComparison]::OrdinalIgnoreCase) -and
+    -not ($ValidateOnly -and $buildOutputRoot.Equals($validateOutputRoot, [StringComparison]::OrdinalIgnoreCase)) -and
     -not ($Unsigned -and $buildOutputRoot.Equals($unsignedOutputRoot, [StringComparison]::OrdinalIgnoreCase))) {
     throw "Refusing unsafe generated output root '$buildOutputRoot'."
+}
+if ($ValidateOnly -and $buildOutputRoot.Equals($installerRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "ValidateOnly must use an isolated generated output root; refusing to modify installer stage or dist."
 }
 $stageRoot = [IO.Path]::GetFullPath((Join-Path $buildOutputRoot "stage"))
 $distRoot = [IO.Path]::GetFullPath((Join-Path $buildOutputRoot "dist"))
@@ -554,6 +561,7 @@ function Assert-StagedPayload {
         "common\configuration\plwc-config-de.html",
         "common\configuration\plwc-config.css",
         "common\configuration\plwc-config.js",
+        "common\configuration\plwc.ico",
         "gateway\server.py",
         "gateway\src\plwc_gateway\mcp\server.py",
         "chat-bridge\bridge\dist\src\index.js",
@@ -646,6 +654,7 @@ function Write-PayloadManifest {
         [Parameter(Mandatory = $true)][string] $ProductVersion,
         [Parameter(Mandatory = $true)][string] $GatewayVersion,
         [Parameter(Mandatory = $true)][string] $InstallerRevision,
+        [Parameter(Mandatory = $true)][string] $BrowserExtensionVersion,
         [AllowNull()][string] $McpbArtifact,
         [Parameter(Mandatory = $true)] $BuildIdentity
     )
@@ -687,7 +696,7 @@ function Write-PayloadManifest {
             identityPath = "chat-bridge/build-identity.json"
             components = [ordered]@{
                 nodeBridge = [string] $BuildIdentity.components.nodeBridge
-                browserExtension = [string] $BuildIdentity.components.browserExtension
+                browserExtension = $BrowserExtensionVersion
                 nativeLauncher = [string] $BuildIdentity.components.nativeLauncher
             }
         }
@@ -703,12 +712,12 @@ function Write-PayloadManifest {
             revision = $InstallerRevision
             artifactName = "PLwC-Setup-$ProductVersion-$InstallerRevision.exe"
             buildIdentityArtifact = "PLwC-$ProductVersion-$InstallerRevision-build-identity.json"
-            evidencePackage = "CHAT-BRIDGE-1.0"
-            evidencePath = "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R25_ACCEPTANCE_EN.md"
+            evidencePackage = "R26-PHASE5"
+            evidencePath = "docs/evidence/R26_PHASE5_INSTALLER_MIGRATION_DE.md"
             components = [ordered]@{
                 gateway = $GatewayVersion
                 nodeBridge = [string] $BuildIdentity.components.nodeBridge
-                browserExtension = [string] $BuildIdentity.components.browserExtension
+                browserExtension = $BrowserExtensionVersion
                 nativeLauncher = [string] $BuildIdentity.components.nativeLauncher
             }
         }
@@ -750,6 +759,7 @@ function Write-InstallerBuildIdentity {
         [Parameter(Mandatory = $true)][string] $ProductVersion,
         [Parameter(Mandatory = $true)][string] $GatewayVersion,
         [Parameter(Mandatory = $true)][string] $InstallerRevision,
+        [Parameter(Mandatory = $true)][string] $BrowserExtensionVersion,
         [Parameter(Mandatory = $true)] $BridgeBuildIdentity,
         [Parameter(Mandatory = $true)] $InstallerSignature,
         [Parameter(Mandatory = $true)] $NativeLauncherSignature,
@@ -783,7 +793,7 @@ function Write-InstallerBuildIdentity {
         components = [ordered]@{
             gateway = $GatewayVersion
             nodeBridge = [string] $BridgeBuildIdentity.components.nodeBridge
-            browserExtension = [string] $BridgeBuildIdentity.components.browserExtension
+            browserExtension = $BrowserExtensionVersion
             nativeLauncher = [string] $BridgeBuildIdentity.components.nativeLauncher
         }
         signing = $(if ($UnsignedBuild) {
@@ -805,7 +815,7 @@ function Write-InstallerBuildIdentity {
         })
         evidence = [ordered]@{
             package = "CHAT-BRIDGE-1.0"
-            acceptanceRecord = "docs/evidence/CHAT_BRIDGE_1_0_INSTALLER_R25_ACCEPTANCE_EN.md"
+            acceptanceRecord = "docs/evidence/R26_PHASE8_RELEASE_ACCEPTANCE_DE.md"
         }
     }
     Write-Utf8File -Path $identityPath -Content (($identity | ConvertTo-Json -Depth 8) + "`n")
@@ -850,6 +860,7 @@ try {
     $bridgePackage = Get-Content -LiteralPath (Join-Path $repoRoot "integrations\plwc-chat-bridge\bridge\package.json") -Raw | ConvertFrom-Json
     $extensionPackage = Get-Content -LiteralPath (Join-Path $bridgeSource "extension\package.json") -Raw | ConvertFrom-Json
     $extensionManifest = Get-Content -LiteralPath (Join-Path $bridgeSource "extension\src\manifest.json") -Raw | ConvertFrom-Json
+    $browserExtensionVersion = [string] $extensionPackage.version
     $productVersion = [string] $buildIdentity.releaseVersion
     if ([int] $buildIdentity.schemaVersion -ne 1 -or
         [string] $buildIdentity.product -ne "PLwC Chat Bridge" -or
@@ -858,8 +869,10 @@ try {
         [string] $buildIdentity.installer.directoryName -ne "bridge" -or
         [string] $buildIdentity.releaseVersion -ne [string] $bridgeWorkspacePackage.version -or
         [string] $buildIdentity.components.nodeBridge -ne [string] $bridgePackage.version -or
-        [string] $buildIdentity.components.browserExtension -ne [string] $extensionPackage.version -or
-        [string] $buildIdentity.components.browserExtension -ne [string] $extensionManifest.version_name -or
+        $browserExtensionVersion -ne [string] $extensionManifest.version -or
+        $browserExtensionVersion -ne [string] $extensionManifest.version_name -or
+        $browserExtensionVersion -notmatch '^1\.0\.[0-9]+$' -or
+        [string] $buildIdentity.components.browserExtension -ne '1.0.0' -or
         [string]::IsNullOrWhiteSpace([string] $buildIdentity.components.nativeLauncher)) {
         throw "PLwC Chat Bridge build identity is invalid or inconsistent: $buildIdentityPath"
     }
@@ -870,7 +883,7 @@ try {
         -Version ([string] $buildIdentity.components.nodeBridge)
     Assert-InstallerSafeVersion `
         -Name "Browser Extension" `
-        -Version ([string] $buildIdentity.components.browserExtension)
+        -Version $browserExtensionVersion
     Assert-InstallerSafeVersion `
         -Name "Native Launcher" `
         -Version ([string] $buildIdentity.components.nativeLauncher)
@@ -905,6 +918,7 @@ $configurationDestination = Join-Path $stageRoot "common\configuration"
 foreach ($file in @("plwc-config.py", "plwc-config-en.html", "plwc-config-de.html", "plwc-config.css", "plwc-config.js")) {
     Copy-BuildFile -Source (Join-Path $configurationSource $file) -Destination (Join-Path $configurationDestination $file)
 }
+Copy-BuildFile -Source (Join-Path $installerRoot "assets\plwc.ico") -Destination (Join-Path $configurationDestination "plwc.ico")
 
 $bridgeBuildRoot = Join-Path $bridgeSource "bridge"
 $extensionBuildRoot = Join-Path $bridgeSource "extension"
@@ -946,7 +960,16 @@ $gatewayRoot = Join-Path $stageRoot "gateway"
 foreach ($file in @("server.py", "pyproject.toml", "requirements.txt", "manifest.json", "server.json", "LICENSE", "README.md")) {
     Copy-BuildFile -Source (Join-Path $repoRoot $file) -Destination (Join-Path $gatewayRoot $file)
 }
-Copy-BuildFile -Source (Join-Path $repoRoot "config\security.yaml.example") -Destination (Join-Path $gatewayRoot "config\security.yaml.example")
+foreach ($file in @(
+    "security.yaml.example",
+    "compatibility-matrix.json",
+    "compatibility-matrix.schema.json",
+    "release-manifest.schema.json",
+    "release-trust.json",
+    "release-trust.schema.json"
+)) {
+    Copy-BuildFile -Source (Join-Path $repoRoot "config\$file") -Destination (Join-Path $gatewayRoot "config\$file")
+}
 Copy-FilteredTree -Source (Join-Path $repoRoot "src\plwc_gateway") -Destination (Join-Path $gatewayRoot "src\plwc_gateway") -Include {
     param($file, $relativePath)
     $file.Extension -eq ".py" -or $file.Name -eq ".gitkeep"
@@ -1033,6 +1056,7 @@ $payloadManifest = Write-PayloadManifest `
     -ProductVersion $productVersion `
     -GatewayVersion $gatewayVersion `
     -InstallerRevision $installerRevision `
+    -BrowserExtensionVersion $browserExtensionVersion `
     -McpbArtifact $mcpbArtifact `
     -BuildIdentity $buildIdentity
 (Get-Item -LiteralPath $payloadManifest).LastWriteTimeUtc = $fixedTimestamp
@@ -1068,7 +1092,7 @@ $isccArguments = @(
     "/DInstallerRevision=$installerRevision",
     "/DGatewayVersion=$gatewayVersion",
     "/DNodeBridgeVersion=$($buildIdentity.components.nodeBridge)",
-    "/DBrowserExtensionVersion=$($buildIdentity.components.browserExtension)",
+    "/DBrowserExtensionVersion=$browserExtensionVersion",
     "/DNativeLauncherVersion=$($buildIdentity.components.nativeLauncher)",
     "/DPlwcPayloadMiB=$plwcPayloadMiB",
     "/DStageDir=$stageRoot",
@@ -1105,6 +1129,7 @@ $installerBuildIdentity = Write-InstallerBuildIdentity `
     -ProductVersion $productVersion `
     -GatewayVersion $gatewayVersion `
     -InstallerRevision $installerRevision `
+    -BrowserExtensionVersion $browserExtensionVersion `
     -BridgeBuildIdentity $buildIdentity `
     -InstallerSignature $installerSignature `
     -NativeLauncherSignature $nativeLauncherSignature `

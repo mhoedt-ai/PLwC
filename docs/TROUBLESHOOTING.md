@@ -1,5 +1,37 @@
 # Troubleshooting
 
+## r26 Is Not Yet A Downloadable Setup
+
+The repository contains the `installer-r26` source and isolated validation
+payload, but no approved final r26 Setup executable. Do not rename an r24/r25
+file to r26 and do not use an isolated payload hash as an executable hash. The
+final r26 file name, size, Authenticode state, and SHA-256 must come from the
+future r26 acceptance record after explicit build approval.
+
+## Update Center Says `rejected`
+
+Stop the update flow. `rejected` means the live manifest, its signing key, its
+canonical signature, an HTTPS URL, or signed build metadata failed validation.
+Do not download the artifact directly as a workaround. A missing or empty
+production trust store is deliberately fail-closed. The r26 candidate expects
+public key `plwc-release-r1-6bc3b440c598c407`; an unknown key ID or mismatched
+signature must be treated as a rejected update.
+
+## Update Center Says `offline`
+
+PLwC remains usable. The page shows both the failed check time and the last
+valid manifest time. A cached manifest is usable only because its signature is
+reverified on every plan/download operation. Automatic checks are interval
+limited; use the manual check after network or proxy access is restored.
+
+## Update Download Or Installer Fails
+
+A short download, wrong size, or wrong SHA-256 leaves no executable. An
+installer return-code failure surfaces the r26 failure/rollback report when
+present. Do not repeatedly start the same installer after an ambiguous result;
+inspect `%APPDATA%\PLwC\state\installer-r26\last-failure.json` and run the
+read-only PLwC Doctor diagnosis first.
+
 ## Docker Missing
 
 PLwC runs in Safe Mode.

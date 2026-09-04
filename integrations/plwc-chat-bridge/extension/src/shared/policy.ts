@@ -33,6 +33,10 @@ function operationOf(argumentsValue: JsonObject): string {
   return typeof argumentsValue.operation === "string" ? argumentsValue.operation.trim().toLowerCase() : "";
 }
 
+function planTypeOf(argumentsValue: JsonObject): string {
+  return typeof argumentsValue.plan_type === "string" ? argumentsValue.plan_type.trim().toLowerCase() : "";
+}
+
 export function withConfirmedToolArguments(
   toolName: CanonicalToolName,
   argumentsValue: JsonObject,
@@ -57,6 +61,13 @@ export function decidePolicy(toolName: CanonicalToolName, argumentsValue: JsonOb
   if (toolName === "plwc_governor") {
     const operation = operationOf(argumentsValue);
     if (operation === "apply") {
+      if (["profile_activation", "profile_creation"].includes(planTypeOf(argumentsValue))) {
+        return {
+          readOnly: false,
+          requiresConfirmation: true,
+          reason: "Profile creation and activation require individual confirmation.",
+        };
+      }
       return { automaticConfirmationAllowed: true, readOnly: false, requiresConfirmation: true, reason: "Governor apply requires confirmation." };
     }
     if (GOVERNOR_READ_OPERATIONS.has(operation)) {
@@ -108,6 +119,6 @@ export const POLICY_ROWS = [
   ["Reflection", "Writes require confirmation or the enabled standing write setting"],
   ["Sandbox", "Requires individual confirmation or the enabled standing sandbox setting"],
   ["Governor plan", "Read-only planning"],
-  ["Governor apply", "Requires confirmation; the standing write setting may satisfy it"],
+  ["Governor apply", "Requires confirmation; profile creation and activation always require individual confirmation"],
   ["Unknown operation", "Never automatic; require individual confirmation"],
 ] as const;

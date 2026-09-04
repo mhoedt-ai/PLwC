@@ -23,10 +23,13 @@ test("builds the same primer and schema hash for equivalent tool sets", async ()
   const first = await buildPrimer({ tools });
   const second = await buildPrimer({ tools: [...tools].reverse() });
   assert.equal(first.hash, second.hash);
+  assert.equal(first.integrityVerified, true);
   assert.equal(first.text, second.text);
+  assert.match(first.text, /integrity_verified: true/u);
   assert.match(first.text, /plwc_governor/);
   assert.match(first.text, /standing write confirmation/);
   assert.match(first.text, /Sandbox execution and unknown operations always require individual confirmation/);
+  assert.match(first.text, /Profile creation and activation always require individual confirmation/u);
   assert.match(first.text, /fenced json code block/);
   assert.match(first.text, /plwc_tool_call/);
   assert.match(first.text, /Emit at most one tool call at a time/);
@@ -155,6 +158,17 @@ test("fails closed when an extra tool is advertised", async () => {
   await assert.rejects(
     buildPrimer({ tools: [...tools, { inputSchema: { type: "object" }, name: "unsafe_extra" }] }),
     /contract mismatch/,
+  );
+});
+
+test("fails closed when transported schema integrity is unverified or mismatched", async () => {
+  await assert.rejects(
+    buildPrimer({ integrityVerified: false, tools }),
+    /integrity was not verified/u,
+  );
+  await assert.rejects(
+    buildPrimer({ integrityVerified: true, schemaSha256: "0".repeat(64), tools }),
+    /changed in transit/u,
   );
 });
 

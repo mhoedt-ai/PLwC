@@ -37,6 +37,18 @@ def test_status_rejects_invalid_requested_profile_without_suggesting_governed_wr
     assert "plwc_governor" not in result["requested_profile_instruction"]
 
 
+def test_first_run_accepts_optional_profile_name_as_inspection_only(tmp_path: Path) -> None:
+    config = load_gateway_config(project_root=tmp_path)
+
+    result = plwc_status("first_run", "ZASA", config=config, docker_available=False)
+
+    assert result["scope"] == "first_run"
+    assert result["requested_profile_name"] == "ZASA"
+    assert result["profile_name_parameter_effect"] == "inspection_only"
+    assert result["active_profile_changed"] is False
+    assert result["requested_profile_workflow"] == "profile_creation"
+
+
 def test_status_without_requested_profile_keeps_the_existing_contract(
     tmp_path: Path,
 ) -> None:
@@ -53,3 +65,4 @@ def test_public_mcp_status_schema_advertises_requested_profile_inspection() -> N
     status_tool = next(tool for tool in server._tool_manager.list_tools() if tool.name == "plwc_status")
 
     assert set(status_tool.parameters["properties"]) == {"profile_name", "scope"}
+    assert "profile_name" not in status_tool.parameters.get("required", [])

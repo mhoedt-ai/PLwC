@@ -106,8 +106,10 @@ are fixed, so identical source produces identical bytes.
 
 The two ZIPs intentionally have identical runtime content. Store signing binds
 that keyless content to different public item identities. The adjacent sidecars
-bind each filename and SHA-256 to either the Chrome/Brave ID or the Edge ID;
-they are evidence files and are not included in the uploaded ZIP.
+bind each filename and SHA-256 to either the Chrome/Brave ID or the Edge ID.
+They record the extension package version separately from the compatible shared
+PLwC/Bridge release and build identity; they are evidence files and are not
+included in the uploaded ZIP.
 
 The canonical runtime identity contract is
 `../../native/extension-identity.json`. It names the retained development ID,

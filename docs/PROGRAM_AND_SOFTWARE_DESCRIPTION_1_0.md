@@ -2,15 +2,18 @@
 
 - Document status: current public technical description
 - Product version: `1.0.0`
-- Windows Setup revision: `installer-r24`
-- Last verified: 2026-08-30
+- Windows Setup source revision: `installer-r26` (production artifact not yet approved)
+- Current public reviewer artifact: `installer-r24`
+- Last verified: 2026-09-03
 
 ## 1. Release position
 
 PLwC 1.0 is a local, model-independent governance gateway for AI tool access,
 persistent context and controlled memory. The implementation and the Windows
-Setup candidate identify as 1.0.0. The current Windows artifact is an explicit
-unsigned pre-release candidate, not a production-certified release.
+Setup candidate identify as 1.0.0. The public Windows artifact remains the
+explicit unsigned r24 reviewer candidate. The r26 source candidate has passed
+phases 0 through 7, but no final r26 Setup executable has been authorized or
+built.
 
 | Item | Current identity or result |
 | --- | --- |
@@ -19,18 +22,24 @@ unsigned pre-release candidate, not a production-certified release.
 | Setup SHA-256 | `b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0` |
 | Setup size | 5,218,213 bytes |
 | Setup signature | Authenticode `NotSigned`; explicit unsigned build |
+| r26 source revision | `installer-r26`; final Setup SHA-256 and size pending explicit build approval |
 | Gateway MCPB | `plwc-gateway-1.0.0.mcpb` |
 | Repository MCPB SHA-256 | `5e870f40b9b3faea79d3997af9c657ef62c11295e85635a049214f7b63678fe7` |
 | Gateway | `1.0.0` |
 | Node Bridge | `1.0.0` |
-| Browser Extension | `1.0.0` |
+| Browser Extension source package | `1.0.1` (protocol remains `1.0.0`) |
+| Chrome Store draft | `1.0.0`, ID `feceodobnhefdbfgmbinkndhogpfkicb` |
 | Native Launcher | `1.0.0` |
 
-Chrome and Edge contain submitted 1.0.0 Store candidates. On 2026-08-30, Chrome
-entered pending review as a private trusted-tester item with automatic
-publication disabled. Edge entered review as hidden and link-only. Neither item
-is an installable Store release until its review path succeeds, so live
-Store-signed identity acceptance remains pending.
+The Chrome Developer Dashboard was rechecked on 2026-09-03. Draft
+`feceodobnhefdbfgmbinkndhogpfkicb` version 1.0.0 was accepted and showed
+`Bereit zur Veröffentlichung`, with Google's latest publication date shown as
+2026-10-01. Its approved visibility was still **Private**, with no selected
+trusted-tester group. It is therefore not a usable link distribution. The
+intended Chrome model is **Unlisted** (official Store link only), matching the
+Edge distribution intent. Visibility must be confirmed again before any future
+publication, and a new review triggered by that change must finish first. No
+Store publication is authorized by this document.
 
 ## 2. Product purpose
 
@@ -78,7 +87,7 @@ execution.
 | Claude Desktop | Local MCPB / stdio | Supported and smoke-tested. |
 | Codex | Prepared local stdio configuration | Setup generates a snippet; automatic mutation of unknown client configuration is intentionally disabled. |
 | Odysseus | Prepared local stdio configuration | Local route supported; setup generates a snippet when direct configuration cannot be verified safely. |
-| ChatGPT web | Browser Extension -> loopback Bridge -> local Gateway | Implementation and local Store-origin readiness pass; Store-signed installation remains pending review. |
+| ChatGPT web | Browser Extension -> loopback Bridge -> local Gateway | Implementation and local Store-origin readiness pass; the accepted Chrome item is still Private without a tester group and is not an installable link channel. |
 | Hosted ChatGPT custom app | Authenticated remote MCP facade | Not part of 1.0; the local MCPB must not be exposed through an unauthenticated public tunnel. |
 
 ## 5. Public MCP facade
@@ -257,7 +266,7 @@ functions remain available.
 
 ## 14. Verification status
 
-The current r24 evidence records:
+The historical r24 evidence records:
 
 | Gate | Result |
 | --- | --- |
@@ -274,6 +283,25 @@ The current r24 evidence records:
 The detailed evidence is
 [`CHAT_BRIDGE_1_0_INSTALLER_R24_ACCEPTANCE_EN.md`](evidence/CHAT_BRIDGE_1_0_INSTALLER_R24_ACCEPTANCE_EN.md).
 
+The current r26 candidate evidence records:
+
+| Gate | Result |
+| --- | --- |
+| Python suite | 107 passed, 6 capability-dependent skips |
+| Browser extension suite | 184/184 passed, typecheck and build PASS |
+| Windows installer Pester contracts | 72/72 passed |
+| Isolated `ValidateOnly` | PASS; no `PLwC-Setup-*.exe` created and protected artifacts unchanged |
+| r26 Setup candidate | 5,493,306 bytes, SHA-256 `55e10b6193ddf0bb88efc2e02e5ad5d587f3c54b48b48b2f58795e4a6b6feab6`, explicitly unsigned |
+| Candidate payload manifest | SHA-256 `e2fbb20578422b989607f8bbe7a8ac5aaee8ba0e5e15f6d40e79dd6870cd0827` |
+| Existing-host r26-to-r26 update | PASS; 12/12 postflight, 8/8 live health, user-data hashes unchanged |
+| Windows 11 clean and direct r25-to-r26 acceptance | SYSTEM PENDING against the exact candidate |
+| Chrome link distribution | HOLD: accepted draft remains Private without a selected tester group |
+
+The Product Owner approved this Setup build, but not a Store action. Phase 8
+remains on hold until the clean and direct r25 system cases bind to the same
+immutable executable. The detailed status is recorded in
+[`R26_PHASE8_RELEASE_ACCEPTANCE_DE.md`](evidence/R26_PHASE8_RELEASE_ACCEPTANCE_DE.md).
+
 ## 15. Distribution, signing and Store state
 
 The public r24 GitHub release is marked as a pre-release. Its Setup executable
@@ -282,26 +310,38 @@ signing route. Windows may therefore show an unknown-publisher warning. The
 exact public URL and SHA-256 are the external integrity anchors for this
 candidate.
 
+The current r26 Windows candidate is also deliberately unsigned. It has not
+been published. Its immutable local identity is the SHA-256 recorded above;
+clean-Windows and direct r25-to-r26 acceptance remain open before release
+closure.
+
 The submitted Chrome and Edge candidates contain the 1.0 packages, public-safe
 listing text, privacy declarations, support/privacy URLs and three sanitized
-1280 x 800 screenshots. Chrome is private with a trusted tester and deferred
-publication; Edge is hidden/link-only. Both are under review. Approval,
-controlled availability and public publication remain separate gates.
+1280 x 800 screenshots. On 2026-09-03 the Chrome dashboard showed version 1.0.0
+as accepted and `Bereit zur Veröffentlichung`, but its active visibility was
+Private and no trusted-tester group was selected. It is therefore not a usable
+link distribution. The intended visibility is Unlisted. The current Edge
+dashboard state was not reverified in this r26 source pass and must not be
+inferred from the older submission record. Approval, visibility, controlled
+availability and publication remain separate gates.
 
 ## 16. Remaining release gates
 
-Before any public Store publication:
+Before any Store availability or publication action:
 
-1. wait for both submitted controlled tracks to complete review;
-2. install the review-approved Store-signed package under its real ID;
-3. repeat Native Messaging, loopback, tool-contract, confirmation, restart and
+1. recheck the live Chrome and Edge dashboard states and active visibility;
+2. set Chrome to the approved Unlisted/link-only model only with explicit
+   authorization, then wait if that change triggers another review;
+3. install the review-approved Store-signed package under its real ID;
+4. repeat Native Messaging, loopback, tool-contract, confirmation, restart and
    missing-native-host acceptance;
-4. compare the saved screenshots with the accepted Store-ID build;
-5. renew the final H2 handoff binding Setup, Gateway, Bridge and Store
+5. compare the saved screenshots with the accepted Store-ID build;
+6. renew the final H2 handoff binding Setup, Gateway, Bridge and Store
    identities.
 
-The absence of Store review is an external sequencing hold, not evidence that
-the locally tested 1.0 components failed.
+The unavailable Store link is an external distribution hold, not evidence that
+the locally tested 1.0 components failed. A Store package update to extension
+1.0.1 is a separate approval gate and is not authorized by the r26 work.
 
 ## 17. Documentation map
 
@@ -312,6 +352,9 @@ the locally tested 1.0 components failed.
 - Tool reference: [`TOOLS.md`](TOOLS.md)
 - Security and Safe Mode: [`SECURITY_MODEL.md`](SECURITY_MODEL.md), [`SAFE_MODE.md`](SAFE_MODE.md)
 - Troubleshooting: [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)
+- Updates and release trust: [`UPDATE_CENTER.md`](UPDATE_CENTER.md)
+- Diagnostics and confirmed repair: [`PLWC_DOCTOR.md`](PLWC_DOCTOR.md)
+- r26 Windows acceptance matrix: [`R26_WINDOWS_TEST_MATRIX.md`](R26_WINDOWS_TEST_MATRIX.md)
 - Store submission gate: [`../integrations/plwc-chat-bridge/extension/store/submission-checklist.md`](../integrations/plwc-chat-bridge/extension/store/submission-checklist.md)
 
 Historical rc and earlier installer evidence remains intentionally unchanged.

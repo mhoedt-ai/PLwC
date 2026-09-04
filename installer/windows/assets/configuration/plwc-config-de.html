@@ -63,6 +63,7 @@
         </div>
       </div>
       <p class="path-line"><strong>Profilordner:</strong> <span id="profiles-path"></span></p>
+      <p id="profile-details" class="profile-details" aria-live="polite"></p>
     </section>
 
     <section aria-labelledby="workspace-title">
@@ -78,6 +79,9 @@
         <input id="workspace-input" type="text" autocomplete="off" spellcheck="false" placeholder="F:\USER\PLWC_Arbeitsbereich">
         <small>Beim Speichern werden der Ordner sowie <code>Tagebuch</code>, <code>Temp</code> und <code>Trashcan</code> bei Bedarf angelegt. Vorhandene Dateien werden nicht verschoben oder gelöscht.</small>
       </label>
+      <div class="workspace-actions">
+        <button id="review-workspace-button" class="button secondary" type="button">Workspaceänderung prüfen</button>
+      </div>
     </section>
 
     <section aria-labelledby="threshold-title">
@@ -148,6 +152,62 @@
       </div>
     </section>
 
+    <section aria-labelledby="components-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Kompatibilität</p>
+          <h2 id="components-title">Installierte Komponenten</h2>
+          <p>Tatsächlich lokal beobachtete Versionen werden getrennt von Vertrag, Buildidentität und Vertrauensquelle angezeigt.</p>
+        </div>
+      </div>
+      <div class="component-table-wrap">
+        <table class="component-table">
+          <thead><tr><th>Komponente</th><th>Installiert</th><th>Status</th><th>Quelle</th></tr></thead>
+          <tbody id="component-table-body"></tbody>
+        </table>
+      </div>
+      <p id="component-inventory-note" class="path-line"></p>
+    </section>
+
+    <section aria-labelledby="update-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Signierte Freigaben</p>
+          <h2 id="update-title">PLwC-Updatezentrale</h2>
+          <p>PLwC prüft höchstens in einem begrenzten Intervall. Download und Installation erfolgen niemals ohne getrennte ausdrückliche Bestätigungen.</p>
+        </div>
+      </div>
+      <div class="update-actions">
+        <button id="update-check-button" class="button secondary" type="button">Jetzt nach Updates suchen</button>
+        <button id="update-review-button" class="button primary" type="button" disabled>Downloadplan prüfen</button>
+      </div>
+      <dl class="detail-list update-details">
+        <div><dt>Status</dt><dd id="update-state">Noch nicht geprüft</dd></div>
+        <div><dt>Art</dt><dd id="update-kind">-</dd></div>
+        <div><dt>Zuletzt geprüft</dt><dd id="update-last-checked">-</dd></div>
+        <div><dt>Letzte gültige Prüfung</dt><dd id="update-last-valid">-</dd></div>
+        <div><dt>Releasehinweis</dt><dd id="update-notes">-</dd></div>
+      </dl>
+      <p id="update-error" class="error-text" hidden></p>
+    </section>
+
+    <section aria-labelledby="doctor-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">CLU-Diagnose</p>
+          <h2 id="doctor-title">PLwC-Doktor</h2>
+          <p>Der einzige PLwC-Doktor prüft die Installation garantiert ohne Änderungen. Reparaturen werden ausschließlich als erklärter Plan mit Plan-ID vorbereitet und erst nach deiner ausdrücklichen Bestätigung ausgeführt.</p>
+        </div>
+      </div>
+      <div class="doctor-actions">
+        <button id="doctor-diagnose-button" class="button secondary" type="button">Diagnose ausführen</button>
+        <button id="doctor-plan-button" class="button secondary" type="button" disabled>Reparaturplan anzeigen</button>
+        <button id="doctor-export-button" class="button secondary" type="button" disabled>Diagnosebericht exportieren</button>
+      </div>
+      <p id="doctor-summary" class="doctor-summary" aria-live="polite">Noch keine Diagnose ausgeführt.</p>
+      <ol id="doctor-findings" class="doctor-findings"></ol>
+    </section>
+
     <section class="technical" aria-labelledby="technical-title">
       <details>
         <summary id="technical-title">Konfigurationsdateien und Diagnose</summary>
@@ -155,11 +215,104 @@
           <div><dt>Gemeinsame Einstellungen</dt><dd id="settings-file"></dd></div>
           <div><dt>Profilzustand</dt><dd id="profile-state-file"></dd></div>
           <div><dt>Workspace</dt><dd id="workspace-path"></dd></div>
+          <div><dt>Letztes Launcher-Ergebnis</dt><dd id="launcher-result"></dd></div>
+          <div><dt>Letzter Extension-Kontakt</dt><dd id="browser-extension-contact"></dd></div>
         </dl>
         <div id="setup-warnings" class="warnings" hidden></div>
       </details>
     </section>
   </main>
+
+  <dialog id="update-dialog" aria-labelledby="update-dialog-title">
+    <form method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Verifizierter Downloadplan</p>
+          <h2 id="update-dialog-title">Update herunterladen und installieren</h2>
+        </div>
+        <button class="close-button" value="cancel" aria-label="Schließen" title="Schließen" type="submit" formnovalidate>×</button>
+      </div>
+      <dl class="plan-details">
+        <div><dt>Plan-ID</dt><dd id="update-plan-id"></dd></div>
+        <div><dt>Datei</dt><dd id="update-plan-file"></dd></div>
+        <div><dt>Größe / SHA-256</dt><dd id="update-plan-integrity"></dd></div>
+        <div><dt>Buildidentität</dt><dd id="update-plan-build"></dd></div>
+      </dl>
+      <label class="confirmation" for="update-download-confirmation">
+        <input id="update-download-confirmation" type="checkbox">
+        <span>Ich bestätige den Download genau dieses signierten und gehashten Artefakts.</span>
+      </label>
+      <div class="dialog-actions">
+        <button id="update-download-button" class="button primary" type="button" disabled>Update herunterladen</button>
+      </div>
+      <div id="update-install-step" hidden>
+        <p id="update-download-result" class="path-line"></p>
+        <label class="confirmation" for="update-install-confirmation">
+          <input id="update-install-confirmation" type="checkbox">
+          <span>Ich bestätige separat, dass der verifizierte r26-Installer jetzt interaktiv gestartet werden darf.</span>
+        </label>
+        <div class="dialog-actions">
+          <button id="update-install-button" class="button primary" type="button" disabled>Installer starten</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="workspace-dialog" aria-labelledby="workspace-dialog-title">
+    <form method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Änderungsplan</p>
+          <h2 id="workspace-dialog-title">Workspaceänderung prüfen</h2>
+        </div>
+        <button class="close-button" value="cancel" aria-label="Schließen" title="Schließen" type="submit" formnovalidate>×</button>
+      </div>
+      <div class="plan-flow" aria-label="Workspacewechsel">
+        <div><span>Aktuell</span><strong id="workspace-plan-current"></strong></div>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <div><span>Angefordert</span><strong id="workspace-plan-requested"></strong></div>
+      </div>
+      <dl class="plan-details">
+        <div><dt>Prüfung</dt><dd id="workspace-plan-validation"></dd></div>
+        <div><dt>Geplante Schreibvorgänge</dt><dd id="workspace-plan-writes"></dd></div>
+        <div><dt>Datenmigration</dt><dd id="workspace-plan-migration"></dd></div>
+      </dl>
+      <label class="confirmation" for="workspace-confirmation">
+        <input id="workspace-confirmation" type="checkbox">
+        <span>Ich habe den Plan geprüft und möchte die Workspaceverweise ändern. Bestehende Daten werden nicht verschoben.</span>
+      </label>
+      <div class="dialog-actions">
+        <button class="button secondary" value="cancel" type="submit" formnovalidate>Abbrechen</button>
+        <button id="apply-workspace-button" class="button primary" type="button" disabled>Workspace ändern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="doctor-dialog" aria-labelledby="doctor-dialog-title">
+    <form method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Deterministischer Reparaturplan</p>
+          <h2 id="doctor-dialog-title">PLwC-Doktor: Reparatur durchführen</h2>
+        </div>
+        <button class="close-button" value="cancel" aria-label="Schließen" title="Schließen" type="submit" formnovalidate>×</button>
+      </div>
+      <dl class="plan-details">
+        <div><dt>Plan-ID</dt><dd id="doctor-plan-id"></dd></div>
+        <div><dt>Diagnose-Snapshot</dt><dd id="doctor-snapshot-id"></dd></div>
+        <div><dt>Geplante Änderungen</dt><dd id="doctor-plan-actions"></dd></div>
+        <div><dt>Sicherung und Audit</dt><dd>Ersetzte Dateien werden gesichert; jeder Schritt wird protokolliert und anschließend geprüft.</dd></div>
+      </dl>
+      <label class="confirmation" for="doctor-confirmation">
+        <input id="doctor-confirmation" type="checkbox">
+        <span>Ich habe genau diesen Plan und seine Plan-ID geprüft und bestätige die aufgeführten Reparaturaktionen.</span>
+      </label>
+      <div class="dialog-actions">
+        <button class="button secondary" value="cancel" type="submit" formnovalidate>Abbrechen</button>
+        <button id="doctor-apply-button" class="button primary" type="button" disabled>Reparatur durchführen</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="profile-dialog" aria-labelledby="profile-dialog-title">
     <form method="dialog">

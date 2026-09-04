@@ -1,8 +1,40 @@
-import type { JsonObject, McpTool, ToolSetValidation } from "./contracts";
+import type { JsonObject, McpTool, ToolSchemaIntegrity, ToolSetValidation } from "./contracts";
 import type { BuildIdentity, BuildIdentityValidation } from "./build-identity";
 import type { PolicyDecision } from "./policy";
 
 export type ConnectionState = "disconnected" | "connecting" | "connected" | "error";
+export type ReadinessState =
+  | "disconnected"
+  | "connecting"
+  | "checking_build"
+  | "loading_tools"
+  | "ready"
+  | "incompatible"
+  | "error";
+
+export interface BridgeReadiness {
+  state: ReadinessState;
+  buildVerified: boolean;
+  toolsVerified: boolean;
+  toolCount: number;
+  expectedToolCount: 8;
+  generation: number;
+}
+
+export interface BrowserExtensionRuntimeIdentity {
+  packageVersion: string;
+  extensionId: string;
+  browserFamily: "brave" | "chrome" | "edge" | "chromium";
+  protocolVersion: "1.0.0";
+  reportedAt: string;
+}
+
+export interface StoreUpdateStatus {
+  state: "unknown" | "available";
+  availableVersion: string | null;
+  reportedAt: string | null;
+  source: "browser_event" | "not_reported";
+}
 export type LauncherState =
   | "not_requested"
   | "starting"
@@ -29,6 +61,9 @@ export interface BridgeStatus {
   lastError: string;
   launcher: LauncherStatus;
   pendingRequests: number;
+  readiness: BridgeReadiness;
+  extension: BrowserExtensionRuntimeIdentity;
+  storeUpdate: StoreUpdateStatus;
   toolSet: ToolSetValidation | null;
 }
 
@@ -166,15 +201,18 @@ export type BridgeRequest =
   | { type: "bridge.settings.get" }
   | { type: "bridge.settings.update"; settings: Partial<BridgeSettings> };
 
-export interface ToolListResponse {
+export interface ToolListResponse extends ToolSchemaIntegrity {
   tools: McpTool[];
   validation: ToolSetValidation;
 }
+
+export type ToolCallResponseState = "completed" | "awaiting_confirmation" | "outcome_unknown";
 
 export interface ToolCallResponse {
   result: unknown;
   isError: boolean;
   policy: PolicyDecision;
+  state: ToolCallResponseState;
 }
 
 export type BridgeResponse<T = unknown> =

@@ -10,12 +10,12 @@ It is an explicit unsigned build with Authenticode status `NotSigned`; Windows
 may display an unknown-publisher warning. Its public reviewer copy is bound to
 the versioned GitHub pre-release and must not be replaced by an older EXE.
 
-Current development successor: `PLwC-Setup-1.0.0-installer-r25.exe`,
+Preserved r25 development predecessor: `PLwC-Setup-1.0.0-installer-r25.exe`,
 5,221,208 bytes, SHA-256
 `e0fdcc548769588ccf23bd7de9e05ce32b3f220be047c63b0ebc46ff5071fa7c`.
-It is also explicitly unsigned. Its source contracts and isolated build gates
-pass, but it does not replace the accepted r24 record until the exact r25 EXE
-has passed the clean-Windows acceptance gate.
+It is also explicitly unsigned and retained as rollback evidence. The r26 source
+is under phased validation; no r26 production or distributable EXE exists until
+the Product Owner explicitly approves that build after the remaining gates.
 
 The end-user artifact is an Inno Setup executable:
 
@@ -165,7 +165,7 @@ as a distributable build. The second command explicitly compiles an unsigned
 installer and marks the launcher, setup EXE and external build identity as
 `NotSigned` / `explicit_unsigned`. Windows may identify its publisher as
 unknown. Its isolated output is written below
-`installer/windows/.unsigned-build-r25/`, preserving the normal `stage/` and
+`installer/windows/.unsigned-build-r26/`, preserving the normal `stage/` and
 `dist/` evidence trees. The third command repeats validation, compiles the setup EXE, signs
 both the Native Messaging launcher and the setup EXE with SHA-256, applies
 SHA-256 RFC 3161 timestamps, and verifies both signatures before writing the

@@ -109,7 +109,9 @@ test("store identity contract keeps development and public Store identities sepa
 
   assert.equal(contract.schemaVersion, 2);
   assert.equal(contract.product, "PLwC Chat Bridge");
-  assert.equal(contract.releaseVersion, packageJson.version);
+  assert.equal(manifest.version, packageJson.version);
+  assert.equal(manifest.version_name, packageJson.version);
+  assert.equal(packageJson.version, "1.0.1");
   assert.deepEqual(Object.keys(contract).sort(), [
     "developmentIdentity",
     "identityContract",
@@ -135,6 +137,7 @@ test("store identity contract keeps development and public Store identities sepa
   assert.equal(extensionIdFromPublicKey(manifest.key as string), contract.developmentIdentity.extensionId);
   assert.equal(nativeIdentity.schemaVersion, 2);
   assert.equal(nativeIdentity.releaseVersion, contract.releaseVersion);
+  assert.equal(contract.releaseVersion, "1.0.0");
   assert.equal(nativeIdentity.extensionId, contract.developmentIdentity.extensionId);
   assert.equal(nativeIdentity.allowedOrigin, contract.developmentIdentity.nativeMessagingOrigin);
   assert.equal(

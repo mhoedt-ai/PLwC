@@ -22,7 +22,6 @@ export async function loadBuildIdentity(projectRoot) {
     throw new Error("PLwC Chat Bridge build identity is inconsistent.");
   }
   const expectedVersions = {
-    browserExtension: extensionPackage.version,
     nodeBridge: bridgePackage.version,
     releaseVersion: workspacePackage.version,
   };
@@ -34,8 +33,13 @@ export async function loadBuildIdentity(projectRoot) {
       throw new Error(`PLwC Chat Bridge ${component} version mismatch: expected ${version}, received ${actual}.`);
     }
   }
-  if (manifest.version_name !== identity.components.browserExtension) {
-    throw new Error("Extension manifest version_name does not match the shared build identity.");
+  if (
+    manifest.version !== extensionPackage.version ||
+    manifest.version_name !== extensionPackage.version ||
+    !/^1\.0\.[0-9]+$/.test(extensionPackage.version) ||
+    identity.components?.browserExtension !== "1.0.0"
+  ) {
+    throw new Error("Extension package version is not compatible with the 1.0.0 browser protocol contract.");
   }
   if (
     typeof identity.components?.nativeLauncher !== "string" ||

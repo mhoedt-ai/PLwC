@@ -35,8 +35,8 @@ import type { CanonicalToolName, McpTool } from "../shared/contracts";
 import {
   localizeBuildIdentityMatch,
   localizeBridgeError,
-  localizeConnectionState,
   localizeLauncherStatus,
+  localizeReadinessState,
   resolveUiLanguage,
   text,
 } from "../shared/i18n";
@@ -66,6 +66,7 @@ import {
   PANEL_GAP,
 } from "./layout";
 import {
+  decideVerifiedToolCacheAction,
   normalizeBridgeStatus,
   shouldOfferSetupDownload,
   shouldRequestNativeAutoStart,
@@ -151,6 +152,7 @@ export class PlwcPanel {
   private activeTab: TabName = "PLwC Tools";
   private userCollapsed: boolean | undefined;
   private tools: McpTool[] = [];
+  private toolListResponse: ToolListResponse | null = null;
   private primer: BridgePrimer | null = null;
   private statusValue: BridgeStatus | null = null;
   private settings: BridgeSettings = {
@@ -174,6 +176,7 @@ export class PlwcPanel {
   private chainRecoveryInProgress = false;
   private chainRecoveriesSinceToolCall = 0;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private toolRefreshPromise: Promise<void> | null = null;
   private readonly hostObserver = new MutationObserver(() => this.scheduleLayout());
   private readonly onResize = () => {
     this.scheduleLayout();
@@ -205,6 +208,16 @@ export class PlwcPanel {
     setInterval(() => void this.refreshConnectionStatus(), 15_000);
     this.client.onStatus((status) => {
       this.statusValue = status;
+      const cacheAction = decideVerifiedToolCacheAction(status, this.toolListResponse !== null);
+      if (cacheAction === "clear") {
+        this.tools = [];
+        this.toolListResponse = null;
+        this.primer = null;
+        this.renderTools();
+        this.renderPrimer();
+      } else if (cacheAction === "reload") {
+        void this.refreshTools().catch((error: unknown) => this.showError("Status", error));
+      }
       this.renderStatus();
     });
 
@@ -437,6 +450,17 @@ export class PlwcPanel {
   }
 
   private async refreshTools(autoStart?: boolean): Promise<void> {
+    if (this.toolRefreshPromise !== null) return this.toolRefreshPromise;
+    const refreshPromise = this.performToolRefresh(autoStart);
+    this.toolRefreshPromise = refreshPromise;
+    try {
+      await refreshPromise;
+    } finally {
+      if (this.toolRefreshPromise === refreshPromise) this.toolRefreshPromise = null;
+    }
+  }
+
+  private async performToolRefresh(autoStart?: boolean): Promise<void> {
     try {
       this.statusValue = await this.client.connect(autoStart ?? shouldRequestNativeAutoStart(this.statusValue));
       const response = await this.client.listTools();
@@ -461,7 +485,7 @@ export class PlwcPanel {
   private async refreshConnectionStatus(): Promise<void> {
     try {
       this.statusValue = await this.client.connect(shouldRequestNativeAutoStart(this.statusValue));
-      if (!this.statusValue.toolSet?.valid) {
+      if (decideVerifiedToolCacheAction(this.statusValue, this.toolListResponse !== null) === "reload") {
         this.acceptToolList(await this.client.listTools());
         this.statusValue = await this.client.status();
       }
@@ -485,7 +509,9 @@ export class PlwcPanel {
   }
 
   private acceptToolList(response: ToolListResponse): void {
-    this.tools = response.validation.valid ? response.tools : [];
+    const integrityValid = response.integrityVerified === true && /^[a-f0-9]{64}$/u.test(response.schemaSha256);
+    this.tools = response.validation.valid && integrityValid ? response.tools : [];
+    this.toolListResponse = response.validation.valid && integrityValid ? response : null;
     this.primer = null;
     this.renderTools(response);
     this.renderPrimer();
@@ -503,7 +529,9 @@ export class PlwcPanel {
     toolbar.append(refresh);
     view.append(toolbar);
 
-    const valid = response?.validation.valid ?? this.tools.length === 8;
+    const valid = response === undefined
+      ? this.tools.length === 8 && this.toolListResponse?.integrityVerified === true
+      : response.validation.valid && response.integrityVerified === true && /^[a-f0-9]{64}$/u.test(response.schemaSha256);
     const contract = element("div", "contract-state");
     contract.append(
       element("div", valid ? "label" : "error-text", valid ? "8 / 8 tools verified" : "Tool contract locked"),
@@ -511,7 +539,7 @@ export class PlwcPanel {
         "div",
         "muted",
         valid
-          ? "Schemas loaded live from the local PLwC Gateway."
+          ? `Schemas loaded live and integrity verified (${response?.schemaSha256 ?? this.toolListResponse?.schemaSha256}).`
           : "Primer and execution stay disabled until exactly eight canonical tools are present.",
       ),
     );
@@ -565,9 +593,10 @@ export class PlwcPanel {
     view.append(preview, hash, insert);
 
     const update = async () => {
-      this.primer = await buildPrimer({ tools: this.tools });
+      if (!this.toolListResponse) throw new Error("Verified PLwC tool schema integrity is unavailable.");
+      this.primer = await buildPrimer(this.toolListResponse);
       preview.value = this.primer.text;
-      hash.textContent = `schema_sha256: ${this.primer.hash}`;
+      hash.textContent = `schema_sha256: ${this.primer.hash} · integrity_verified: ${this.primer.integrityVerified}`;
       insert.disabled = false;
     };
     generate.addEventListener("click", () => void this.runAction(generate, update));
@@ -615,12 +644,17 @@ export class PlwcPanel {
     toolbar.append(reconnect);
     view.append(toolbar);
     const values = normalizeBridgeStatus(this.statusValue);
-    this.statusDot.className = `status-dot ${values.connection}`;
+    const dotState = values.readiness.state === "ready"
+      ? "connected"
+      : ["connecting", "checking_build", "loading_tools"].includes(values.readiness.state)
+        ? "connecting"
+        : values.readiness.state === "disconnected" ? "disconnected" : "error";
+    this.statusDot.className = `status-dot ${dotState}`;
     const grid = element("dl", "status-grid");
     const rows: string[][] = [
-      [text("label_bridge", this.language), localizeConnectionState(values.connection, this.language)],
+      [text("label_bridge", this.language), localizeReadinessState(values.readiness.state, this.language)],
       [text("label_endpoint", this.language), values.endpoint],
-      [text("label_build_id", this.language), EXTENSION_BUILD_IDENTITY.buildId],
+      [text("label_build_id", this.language), values.buildIdentity?.buildId ?? EXTENSION_BUILD_IDENTITY.buildId],
       [
         text("label_build_match", this.language),
         localizeBuildIdentityMatch(
@@ -634,13 +668,22 @@ export class PlwcPanel {
       ],
       [
         text("label_extension_version", this.language),
-        EXTENSION_BUILD_IDENTITY.components.browserExtension,
+        values.extension.packageVersion,
       ],
+      [text("label_extension_id", this.language), values.extension.extensionId],
+      [text("label_browser", this.language), values.extension.browserFamily],
+      [text("label_protocol", this.language), values.extension.protocolVersion],
       [
         text("label_launcher_version", this.language),
         EXTENSION_BUILD_IDENTITY.components.nativeLauncher,
       ],
-      [text("label_tools", this.language), `${this.tools.length} / 8`],
+      [text("label_tools", this.language), `${values.readiness.toolCount} / 8`],
+      [
+        text("label_update", this.language),
+        values.storeUpdate.state === "available"
+          ? `${values.storeUpdate.availableVersion ?? ""} ${this.language === "de" ? "verfügbar" : "available"}`.trim()
+          : (this.language === "de" ? "kein Browserhinweis" : "not reported by browser"),
+      ],
       [
         text("label_launcher", this.language),
         localizeLauncherStatus(values.launcher, this.language),
@@ -666,7 +709,7 @@ export class PlwcPanel {
       view.append(setupHelp);
     }
     const runtime = button(text("runtime_status", this.language), "command-button");
-    runtime.disabled = this.tools.length !== 8;
+    runtime.disabled = values.readiness.state !== "ready";
     const result = element("pre", "", text("no_runtime_status", this.language));
     reconnect.addEventListener("click", () => void this.runAction(reconnect, () => this.refreshTools(true)));
     runtime.addEventListener("click", () =>
@@ -821,19 +864,30 @@ export class PlwcPanel {
             conversationId: record.call.conversationId,
           },
         );
-        record.result = response.result;
-        const prepared = prepareToolResultForChat(record.call.name, response.result);
-        if (!prepared.ok) {
-          this.applyChunkTransportFailure(record, prepared);
+        if (response.state === "awaiting_confirmation") {
+          record.state = "awaiting_confirmation";
+          record.error = response.policy.reason;
+        } else if (response.state === "outcome_unknown") {
+          record.result = response.result;
+          record.chatResult = response.result;
+          record.isError = true;
+          record.error = "Transport outcome unknown. This mutating call is locked and must not be retried automatically.";
+          record.state = "unknown";
         } else {
-          record.chatResult = prepared.result;
-          record.state = classifyToolResult(response.isError, response.result);
-          record.isError = record.state !== "succeeded";
-          if (record.state === "failed") record.error = "PLwC returned an unsuccessful result.";
-        }
-        this.statusValue = await this.client.status();
-        if (shouldAutoSubmitResult(this.settings, policy, confirmed)) {
-          await this.submitToolResult(record);
+          record.result = response.result;
+          const prepared = prepareToolResultForChat(record.call.name, response.result);
+          if (!prepared.ok) {
+            this.applyChunkTransportFailure(record, prepared);
+          } else {
+            record.chatResult = prepared.result;
+            record.state = classifyToolResult(response.isError, response.result);
+            record.isError = record.state !== "succeeded";
+            if (record.state === "failed") record.error = "PLwC returned an unsuccessful result.";
+          }
+          this.statusValue = await this.client.status();
+          if (shouldAutoSubmitResult(this.settings, policy, confirmed)) {
+            await this.submitToolResult(record);
+          }
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Tool call failed.";

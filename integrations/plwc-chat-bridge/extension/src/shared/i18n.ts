@@ -1,4 +1,4 @@
-import type { ConnectionState, LauncherStatus } from "./messages";
+import type { ConnectionState, LauncherStatus, ReadinessState } from "./messages";
 
 export type UiLanguage = "de" | "en";
 
@@ -13,6 +13,10 @@ type TextKey =
   | "label_endpoint"
   | "label_error"
   | "label_extension_version"
+  | "label_extension_id"
+  | "label_browser"
+  | "label_protocol"
+  | "label_update"
   | "label_launcher"
   | "label_launcher_version"
   | "label_log"
@@ -50,6 +54,10 @@ const TEXT: Record<UiLanguage, Record<TextKey, string>> = {
     label_endpoint: "Endpunkt",
     label_error: "Fehler",
     label_extension_version: "Extension-Version",
+    label_extension_id: "Extension-ID",
+    label_browser: "Browser",
+    label_protocol: "Protokollvertrag",
+    label_update: "Store-Update",
     label_launcher: "Nativer Start",
     label_launcher_version: "Launcher-Version",
     label_log: "Protokoll",
@@ -86,6 +94,10 @@ const TEXT: Record<UiLanguage, Record<TextKey, string>> = {
     label_endpoint: "Endpoint",
     label_error: "Error",
     label_extension_version: "Extension version",
+    label_extension_id: "Extension ID",
+    label_browser: "Browser",
+    label_protocol: "Protocol contract",
+    label_update: "Store update",
     label_launcher: "Native start",
     label_launcher_version: "Launcher version",
     label_log: "Log",
@@ -134,6 +146,30 @@ export function localizeConnectionState(state: ConnectionState, language: UiLang
       connecting: "connecting",
       disconnected: "disconnected",
       error: "error",
+    },
+  };
+  return states[language][state];
+}
+
+export function localizeReadinessState(state: ReadinessState, language: UiLanguage): string {
+  const states: Record<UiLanguage, Record<ReadinessState, string>> = {
+    de: {
+      disconnected: "Getrennt",
+      connecting: "Verbindung wird aufgebaut",
+      checking_build: "Build wird geprüft",
+      loading_tools: "Werkzeuge werden geladen",
+      ready: "Bereit – 8/8",
+      incompatible: "Inkompatibel – Update erforderlich",
+      error: "Fehler – konkrete Ursache siehe unten",
+    },
+    en: {
+      disconnected: "Disconnected",
+      connecting: "Connecting",
+      checking_build: "Checking build",
+      loading_tools: "Loading tools",
+      ready: "Ready – 8/8",
+      incompatible: "Incompatible – update required",
+      error: "Error – see the concrete cause below",
     },
   };
   return states[language][state];

@@ -33,10 +33,13 @@ interface PendingRequest {
   timeout: ReturnType<typeof setTimeout> | null;
 }
 
+export type RpcDeliveryState = "not_sent" | "outcome_unknown" | "response_received";
+
 export class RpcRequestError extends Error {
   constructor(
     message: string,
     readonly code: string,
+    readonly deliveryState: RpcDeliveryState = "response_received",
   ) {
     super(message);
     this.name = "RpcRequestError";
@@ -97,10 +100,16 @@ export class JsonRpcWebSocketClient {
         const wasConnecting = this.connectionPromise !== null;
         this.connectionPromise = null;
         this.socket = null;
-        const error = new RpcRequestError("WebSocket connection closed.", "connection_closed");
-        this.rejectAll(error);
-        this.setState("disconnected", error.message);
-        if (wasConnecting) reject(error);
+        const pendingError = new RpcRequestError(
+          "WebSocket connection closed before the response arrived; the remote outcome is unknown.",
+          "connection_closed",
+          "outcome_unknown",
+        );
+        this.rejectAll(pendingError);
+        this.setState("disconnected", pendingError.message);
+        if (wasConnecting) {
+          reject(new RpcRequestError("WebSocket connection closed before the request was sent.", "connection_closed", "not_sent"));
+        }
       };
     });
 
@@ -111,7 +120,7 @@ export class JsonRpcWebSocketClient {
     await this.connect();
     const socket = this.socket;
     if (!socket || socket.readyState !== 1) {
-      throw new RpcRequestError("WebSocket is not connected.", "not_connected");
+      throw new RpcRequestError("WebSocket is not connected.", "not_connected", "not_sent");
     }
 
     const id = this.nextRequestId++;
@@ -123,7 +132,17 @@ export class JsonRpcWebSocketClient {
       };
       this.armRequestTimeout(id, request);
       this.pending.set(id, request);
-      socket.send(JSON.stringify({ id, jsonrpc: "2.0", method, params }));
+      try {
+        socket.send(JSON.stringify({ id, jsonrpc: "2.0", method, params }));
+      } catch (error) {
+        this.pending.delete(id);
+        if (request.timeout !== null) clearTimeout(request.timeout);
+        reject(new RpcRequestError(
+          error instanceof Error ? error.message : "WebSocket rejected the request before sending it.",
+          "send_failed",
+          "not_sent",
+        ));
+      }
     });
   }
 
@@ -171,7 +190,11 @@ export class JsonRpcWebSocketClient {
     if (request.timeout !== null) clearTimeout(request.timeout);
     request.timeout = setTimeout(() => {
       this.pending.delete(id);
-      request.reject(new RpcRequestError(`JSON-RPC request timed out after ${this.requestTimeoutMs} ms.`, "timeout"));
+      request.reject(new RpcRequestError(
+        `JSON-RPC request timed out after ${this.requestTimeoutMs} ms; the remote outcome is unknown.`,
+        "timeout",
+        "outcome_unknown",
+      ));
     }, this.requestTimeoutMs);
   }
 

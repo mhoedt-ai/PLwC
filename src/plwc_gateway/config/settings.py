@@ -161,6 +161,7 @@ def load_gateway_config(
     config_path: str | os.PathLike[str] | None = None,
     *,
     project_root: str | os.PathLike[str] | None = None,
+    create_directories: bool = True,
 ) -> GatewayConfig:
     root = Path(project_root).resolve(strict=False) if project_root else default_app_root()
     setup_warnings: list[str] = []
@@ -314,15 +315,16 @@ def load_gateway_config(
         allowed_roots=allowed_roots,
         profile_root=profile_root,
     )
-    _ensure_runtime_directories(
-        *allowed_roots,
-        profile_root,
-        audit_log_file.parent,
-        active_profile_state_file.parent,
-        state_root,
-        pending_plan_root,
-    )
-    _ensure_workspace_standard_directories(*allowed_roots)
+    if create_directories:
+        _ensure_runtime_directories(
+            *allowed_roots,
+            profile_root,
+            audit_log_file.parent,
+            active_profile_state_file.parent,
+            state_root,
+            pending_plan_root,
+        )
+        _ensure_workspace_standard_directories(*allowed_roots)
 
     binary_max_bytes, binary_max_bytes_source = _workspace_binary_max_bytes(setup_warnings)
     search_max_file_bytes, search_max_file_bytes_source = _positive_int_setting(

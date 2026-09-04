@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "case_id": "r26-clean-windows-11",
+  "classification": "clean",
+  "paths": {
+    "app": "%APPDATA%\\PLwC\\app",
+    "gateway": "%APPDATA%\\PLwC\\app\\gateway",
+    "bridge": "%APPDATA%\\PLwC\\app\\bridge",
+    "legacy_bridge": []
+  },
+  "selection_ini": null,
+  "processes": [],
+  "port_3007": null,
+  "startup_shortcuts": [],
+  "scheduled_tasks": [],
+  "native_messaging": [],
+  "profiles": [],
+  "expected": {
+    "install_mode": "clean",
+    "legacy_paths_detected": 0,
+    "user_data_preserved": true,
+    "foreign_processes_terminated": 0
+  }
+}

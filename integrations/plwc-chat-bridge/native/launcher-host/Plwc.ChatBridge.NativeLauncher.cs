@@ -24,16 +24,26 @@ internal static class Program
 
     private static bool PlainResponseMode;
     private static bool LastResponseSucceeded;
+    private static string CurrentAction = "native_message";
+    private static string LastBridgePath;
+    private static int LastOperationExitCode = 1;
 
     private static readonly string AppDataRoot = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "PLwC");
-    private static readonly string LogRoot = Path.Combine(AppDataRoot, "logs", "chat-bridge");
-    private static readonly string StateRoot = Path.Combine(AppDataRoot, "state", "chat-bridge");
+    private static readonly string ConfigRoot = ResolveInstallerDirectory("ConfigPath", "config");
+    private static readonly string LogRoot = Path.Combine(
+        ResolveInstallerDirectory("LogsPath", "logs"),
+        "chat-bridge");
+    private static readonly string StateRoot = Path.Combine(
+        ResolveInstallerDirectory("StatePath", "state"),
+        "chat-bridge");
     private static readonly string LauncherLogPath = Path.Combine(LogRoot, "native-launcher.log");
     private static readonly string BridgeOutputLogPath = Path.Combine(LogRoot, "bridge.out.log");
     private static readonly string BridgeErrorLogPath = Path.Combine(LogRoot, "bridge.err.log");
     private static readonly string BridgePidPath = Path.Combine(StateRoot, "bridge.pid");
+    private static readonly string LastResultPath = Path.Combine(StateRoot, "launcher-last-result.json");
+    private static readonly string BrowserContactPath = Path.Combine(StateRoot, "browser-extension-last-contact.json");
 
     private sealed class Layout
     {
@@ -119,19 +129,11 @@ internal static class Program
 
     private static int RunNativeHost()
     {
+        CurrentAction = "native_start";
         string request = ReadMessage();
         BuildIdentity buildIdentity = LoadBuildIdentity();
         bool german = Regex.IsMatch(request, "\"language\"\\s*:\\s*\"de(?:-|\\\")", RegexOptions.IgnoreCase);
-        if (!Regex.IsMatch(request, "\"command\"\\s*:\\s*\"start\""))
-        {
-            WriteResponse(
-                false,
-                "failed",
-                "unsupported_command",
-                Text(german, "Der angeforderte Bridge-Befehl wird nicht unterstützt.", "The requested bridge command is not supported."),
-                0);
-            return 0;
-        }
+        string command = JsonStringValue(request, "command");
         string requestedBuildId = JsonStringValue(request, "buildId");
         if (!String.Equals(requestedBuildId, buildIdentity.buildId, StringComparison.Ordinal))
         {
@@ -146,12 +148,37 @@ internal static class Program
                 0);
             return 0;
         }
+        if (String.Equals(command, "record_contact", StringComparison.Ordinal))
+        {
+            string contactError;
+            if (!PersistBrowserContact(request, buildIdentity, out contactError))
+            {
+                WriteNativeJson("{\"ok\":false,\"state\":\"failed\",\"code\":\"extension_contact_invalid\",\"message\":\"" +
+                    EscapeJson(contactError) + "\"}");
+                return 0;
+            }
+            WriteNativeJson("{\"ok\":true,\"state\":\"recorded\",\"code\":\"extension_contact_recorded\"}");
+            return 0;
+        }
+        if (!String.Equals(command, "start", StringComparison.Ordinal))
+        {
+            WriteResponse(
+                false,
+                "failed",
+                "unsupported_command",
+                Text(german, "Der angeforderte Bridge-Befehl wird nicht unterstützt.", "The requested bridge command is not supported."),
+                0);
+            return 0;
+        }
+        string ignoredContactError;
+        PersistBrowserContact(request, buildIdentity, out ignoredContactError);
 
         return StartWithMutex(german, buildIdentity);
     }
 
     private static int StartFromCommandLine(string[] args)
     {
+        CurrentAction = "command_line_start";
         bool german = IsGermanCommandLine(args);
         int delaySeconds = 0;
         string delayValue = ArgumentValue(args, "--delay-seconds");
@@ -222,6 +249,7 @@ internal static class Program
         try
         {
             layout = ResolveLayout();
+            LastBridgePath = layout.IntegrationRoot;
         }
         catch (FileNotFoundException error)
         {
@@ -297,6 +325,7 @@ internal static class Program
             40000,
             out launchOutput,
             out launchError);
+        LastOperationExitCode = launchExitCode;
         AppendLog(
             "launch",
             "node=" + nodePath + "; exit=" + launchExitCode + "; output=" + launchOutput + "; error=" + launchError);
@@ -391,7 +420,7 @@ internal static class Program
 
         if (String.IsNullOrWhiteSpace(configPath) || !File.Exists(configPath))
         {
-            string installedConfig = Path.Combine(AppDataRoot, "config", "chat-bridge.json");
+            string installedConfig = Path.Combine(ConfigRoot, "chat-bridge.json");
             configPath = File.Exists(installedConfig)
                 ? installedConfig
                 : Path.Combine(integrationRoot, "config", "plwc.example.json");
@@ -951,7 +980,27 @@ internal static class Program
 
     private static string NativeHostManifestPath()
     {
-        return Path.Combine(AppDataRoot, "config", "native-messaging", NativeHostName + ".json");
+        return Path.Combine(ConfigRoot, "native-messaging", NativeHostName + ".json");
+    }
+
+    private static string ResolveInstallerDirectory(string valueName, string fallbackName)
+    {
+        try
+        {
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey("Software\\PLwC\\Installer"))
+            {
+                string configured = key == null ? null : key.GetValue(valueName) as string;
+                if (!String.IsNullOrWhiteSpace(configured) && Path.IsPathRooted(configured))
+                {
+                    return Path.GetFullPath(configured);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Fall back to the stable per-user PLwC root if installer state is unavailable.
+        }
+        return Path.Combine(AppDataRoot, fallbackName);
     }
 
     private static bool HasArgument(string[] args, string expected)
@@ -1099,6 +1148,17 @@ internal static class Program
         return String.Equals(JsonStringValue(json, property), expected, StringComparison.Ordinal);
     }
 
+    private static int? JsonIntegerValue(string json, string property)
+    {
+        Match match = Regex.Match(
+            json,
+            "\"" + Regex.Escape(property) + "\"\\s*:\\s*(?<value>-?[0-9]+)");
+        int value;
+        return match.Success && Int32.TryParse(match.Groups["value"].Value, out value)
+            ? (int?)value
+            : null;
+    }
+
     private static void AppendLog(string state, string message)
     {
         try
@@ -1123,6 +1183,14 @@ internal static class Program
         int toolCount)
     {
         LastResponseSucceeded = ok;
+        if (ok)
+        {
+            LastOperationExitCode = 0;
+        }
+        else if (LastOperationExitCode == 0)
+        {
+            LastOperationExitCode = 1;
+        }
         string json = "{\"ok\":" + (ok ? "true" : "false") +
             ",\"state\":\"" + EscapeJson(state) +
             "\",\"code\":\"" + EscapeJson(code) +
@@ -1131,17 +1199,145 @@ internal static class Program
             "\",\"toolCount\":" + toolCount +
             ",\"buildIdentity\":" + SerializeBuildIdentity(LoadBuildIdentity()) +
             "}";
+        PersistLastResult(ok, state, code, message, toolCount);
         if (PlainResponseMode)
         {
             Console.WriteLine(json);
             return;
         }
+        WriteNativeJson(json);
+    }
+
+    private static void WriteNativeJson(string json)
+    {
         byte[] payload = Encoding.UTF8.GetBytes(json);
         byte[] length = BitConverter.GetBytes(payload.Length);
         Stream output = Console.OpenStandardOutput();
         output.Write(length, 0, length.Length);
         output.Write(payload, 0, payload.Length);
         output.Flush();
+    }
+
+    private static bool PersistBrowserContact(
+        string request,
+        BuildIdentity buildIdentity,
+        out string error)
+    {
+        string packageVersion = JsonStringValue(request, "packageVersion") ?? JsonStringValue(request, "extensionVersion");
+        string extensionId = JsonStringValue(request, "extensionId");
+        string browserFamily = JsonStringValue(request, "browserFamily");
+        string protocolVersion = JsonStringValue(request, "protocolVersion");
+        string reportedAt = JsonStringValue(request, "reportedAt");
+        int? toolCount = JsonIntegerValue(request, "toolCount");
+        DateTimeOffset parsedReportedAt;
+        if (String.IsNullOrWhiteSpace(packageVersion) ||
+            !Regex.IsMatch(packageVersion, "^[0-9]+\\.[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$") ||
+            String.IsNullOrWhiteSpace(extensionId) ||
+            !ApprovedExtensionIds().Contains(extensionId) ||
+            !Regex.IsMatch(browserFamily ?? String.Empty, "^(?:brave|chrome|edge|chromium)$") ||
+            !String.Equals(protocolVersion, "1.0.0", StringComparison.Ordinal) ||
+            !DateTimeOffset.TryParse(reportedAt, out parsedReportedAt) ||
+            toolCount != ExpectedToolCount)
+        {
+            error = "Browser extension contact metadata is incomplete or invalid.";
+            return false;
+        }
+        string temporary = BrowserContactPath + "." + Process.GetCurrentProcess().Id + ".tmp";
+        try
+        {
+            Directory.CreateDirectory(StateRoot);
+            string payload = "{\"schemaVersion\":1" +
+                ",\"packageVersion\":\"" + EscapeJson(packageVersion) +
+                "\",\"extensionId\":\"" + EscapeJson(extensionId) +
+                "\",\"browserFamily\":\"" + EscapeJson(browserFamily) +
+                "\",\"protocolVersion\":\"" + EscapeJson(protocolVersion) +
+                "\",\"reportedAt\":\"" + EscapeJson(parsedReportedAt.ToUniversalTime().ToString("o")) +
+                "\",\"receivedAt\":\"" + EscapeJson(DateTimeOffset.UtcNow.ToString("o")) +
+                "\",\"toolCount\":" + toolCount.Value +
+                ",\"buildIdentity\":" + SerializeBuildIdentity(buildIdentity) +
+                "}";
+            File.WriteAllText(temporary, payload + Environment.NewLine, new UTF8Encoding(false));
+            if (File.Exists(BrowserContactPath))
+            {
+                File.Replace(temporary, BrowserContactPath, null);
+            }
+            else
+            {
+                File.Move(temporary, BrowserContactPath);
+            }
+            error = null;
+            return true;
+        }
+        catch (Exception contactError)
+        {
+            error = contactError.Message;
+            return false;
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporary)) File.Delete(temporary);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static void PersistLastResult(
+        bool ok,
+        string state,
+        string code,
+        string message,
+        int toolCount)
+    {
+        string temporary = LastResultPath + "." + Process.GetCurrentProcess().Id + ".tmp";
+        try
+        {
+            Directory.CreateDirectory(StateRoot);
+            string bridgePathJson = String.IsNullOrWhiteSpace(LastBridgePath)
+                ? "null"
+                : "\"" + EscapeJson(LastBridgePath) + "\"";
+            string persisted = "{\"schemaVersion\":1" +
+                ",\"timestamp\":\"" + EscapeJson(DateTimeOffset.UtcNow.ToString("o")) +
+                "\",\"action\":\"" + EscapeJson(CurrentAction) +
+                "\",\"ok\":" + (ok ? "true" : "false") +
+                ",\"state\":\"" + EscapeJson(state) +
+                "\",\"statusCode\":\"" + EscapeJson(code) +
+                "\",\"operationExitCode\":" + LastOperationExitCode +
+                ",\"message\":\"" + EscapeJson(message) +
+                "\",\"bridgePath\":" + bridgePathJson +
+                ",\"toolCount\":" + toolCount +
+                ",\"logPath\":\"" + EscapeJson(LauncherLogPath) +
+                "\",\"buildIdentity\":" + SerializeBuildIdentity(LoadBuildIdentity()) +
+                "}";
+            File.WriteAllText(temporary, persisted + Environment.NewLine, new UTF8Encoding(false));
+            if (File.Exists(LastResultPath))
+            {
+                File.Replace(temporary, LastResultPath, null);
+            }
+            else
+            {
+                File.Move(temporary, LastResultPath);
+            }
+        }
+        catch
+        {
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporary))
+                {
+                    File.Delete(temporary);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 
     private static string EscapeJson(string value)

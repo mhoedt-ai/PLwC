@@ -4,6 +4,21 @@ This guide covers the selectable PLwC Windows setup executable. It is written
 for end users. PowerShell scripts and repository commands are not part of the
 normal installation flow.
 
+The current repository revision is `installer-r26`, but no final r26 Setup has
+been authorized or built. Do not treat an r24/r25 executable or an isolated
+`ValidateOnly` payload as the r26 release candidate. The exact r26 SHA-256 will
+be published only in its acceptance record after the final build gate.
+
+r26 installs active runtime code only at the versionless paths `app\gateway`
+and `app\bridge`. Existing user workspace, profiles, configuration, state, logs,
+and backups remain outside those replaceable runtime trees. Setup records one
+immutable migration plan, backs up the previous application tree, protects
+foreign port owners, and reports success only after the shared hard postflight.
+
+The installed configuration page contains the one PLwC Doctor and the signed
+Update Center. Doctor diagnosis is read-only; repairs, downloads, and installer
+starts each require their documented confirmation gates.
+
 ## Deutsch
 
 ### Vor dem Start
@@ -398,11 +413,14 @@ if it still displays the previous path.
 
 ### Chat Bridge browser extension
 
-The normal release path is the matching browser Store package. On 2026-08-30,
-Chrome was submitted as private for the approved trusted tester with automatic
-publication disabled, and Edge was submitted as hidden/link-only. Both contain
-version 1.0.0 and remain under review, so neither Store-signed package is
-installable yet.
+The normal release path is the matching browser Store package. The Chrome
+dashboard was rechecked on 2026-09-03: version 1.0.0 was accepted and ready for
+publication, but active visibility remained Private with no trusted-tester group
+selected. That is not an installable link channel. The intended Chrome model is
+Unlisted/link-only. Its visibility must be confirmed before any publication and
+any new review caused by the change must finish first. The current Edge dashboard
+state must be rechecked rather than inferred from its older hidden/link-only
+submission record.
 
 An unpacked extension uses the separate development identity. It must not be
 reported as Chrome or Edge Store-ID acceptance evidence.

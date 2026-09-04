@@ -1736,6 +1736,49 @@ def plwc_compile_profile(
     return payload
 
 
+def clu_doctor_diagnose(
+    *,
+    profile: str = "",
+    doctor_scope: str = "general",
+    task_context: str = "",
+    query: str = "",
+    config: GatewayConfig | None = None,
+) -> dict[str, Any]:
+    """Run the deterministic CLU Doctor without audit or any persistent change.
+
+    This internal configuration-UI entry point is intentionally not registered
+    as a public MCP tool. Public ``plwc_profile(operation="doctor")`` keeps its
+    existing metadata-audit behavior and the eight-tool facade remains fixed.
+    """
+
+    loaded = _load_config(config)
+    normalized_scope = _normalize_dispatch_value(doctor_scope)
+    if normalized_scope not in SUPPORTED_DOCTOR_SCOPES:
+        raise ValueError(f"Unsupported CLU Doctor scope: {doctor_scope!r}.")
+    return _clu_doctor_payload(
+        loaded,
+        profile=_selected_profile(profile, loaded),
+        doctor_scope=normalized_scope,
+        task_context=task_context,
+        query=query,
+    )
+
+
+def runtime_status_diagnose(*, config: GatewayConfig | None = None) -> dict[str, Any]:
+    """Return the policy-checked runtime snapshot without an audit append.
+
+    This is reserved for the local read-only configuration Doctor. It is not a
+    public MCP tool and does not change the audited behavior of ``plwc_status``.
+    """
+
+    loaded = _load_config(config)
+    payload = _runtime_status_result(loaded)
+    payload["facade"] = PUBLIC_STATUS_TOOL
+    payload["scope"] = "runtime"
+    _attach_effective_governance_policy(payload, loaded)
+    return payload
+
+
 def plwc_profile(
     operation: str = "",
     profile: str = "",

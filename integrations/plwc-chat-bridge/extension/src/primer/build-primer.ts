@@ -1,8 +1,9 @@
 import {
   BRIDGE_VERSION,
+  computeToolSchemaIntegrity,
+  isJsonObject,
   type JsonObject,
   type McpTool,
-  sha256,
   stableStringify,
   validateToolSet,
 } from "../shared/contracts";
@@ -10,6 +11,7 @@ import { EXTENSION_BUILD_IDENTITY } from "../shared/build-identity";
 
 export interface BridgePrimer {
   hash: string;
+  integrityVerified: true;
   text: string;
   tools: McpTool[];
 }
@@ -122,12 +124,16 @@ export async function buildPrimer(value: unknown): Promise<BridgePrimer> {
     throw new Error(`PLwC tool contract mismatch: ${issues.join("; ") || "invalid tools/list payload"}`);
   }
 
-  const schemaPayload = validation.tools.map((tool) => ({
-    description: tool.description ?? "",
-    inputSchema: tool.inputSchema,
-    name: tool.name,
-  }));
-  const hash = await sha256(stableStringify(schemaPayload));
+  const integrity = await computeToolSchemaIntegrity(validation);
+  if (isJsonObject(value)) {
+    if (value.integrityVerified !== undefined && value.integrityVerified !== true) {
+      throw new Error("PLwC tool schema integrity was not verified by the extension background.");
+    }
+    if (typeof value.schemaSha256 === "string" && value.schemaSha256 !== integrity.schemaSha256) {
+      throw new Error("PLwC tool schema integrity changed in transit.");
+    }
+  }
+  const hash = integrity.schemaSha256;
   const lines = [
     "# PLwC Bridge Primer",
     `bridge_version: ${BRIDGE_VERSION}`,
@@ -136,12 +142,14 @@ export async function buildPrimer(value: unknown): Promise<BridgePrimer> {
     `browser_extension_version: ${EXTENSION_BUILD_IDENTITY.components.browserExtension}`,
     `native_launcher_version: ${EXTENSION_BUILD_IDENTITY.components.nativeLauncher}`,
     `schema_sha256: ${hash}`,
+    `integrity_verified: ${integrity.integrityVerified}`,
     "data_flow: Chat content selected for a tool call is sent through the local browser extension and loopback bridge to the local PLwC Gateway. The chat itself is processed by ChatGPT and is not claimed to remain local.",
     "confirmation_rules:",
     "- Read-only status, describe, profile, and recognized inspection operations may run without mutation confirmation.",
-    "- Recognized workspace, document, reflection, and Governor writes require confirmation. The bridge may satisfy it only when the user enabled standing write confirmation in Settings.",
+    "- Recognized workspace, document, reflection, and Governor writes require confirmation. The bridge may satisfy it only when the user enabled standing write confirmation in Settings, except for profile creation and activation.",
     "- Sandbox execution and unknown operations always require individual confirmation and are never covered by standing write confirmation.",
-    "- plwc_governor with operation=apply requires confirmed=true after individual or enabled standing write confirmation.",
+    "- Profile creation and activation always require individual confirmation and are never covered by standing confirmation.",
+    "- plwc_governor with operation=apply requires confirmed=true after individual or eligible enabled standing write confirmation.",
     "- Unknown tools or operations must not run. Never retry a mutating call after an ambiguous timeout.",
     "tool_call_format: Emit each requested tool call as one fenced json code block containing exactly one PLwC wrapper object.",
     "tool_call_protocol:",
@@ -229,5 +237,5 @@ export async function buildPrimer(value: unknown): Promise<BridgePrimer> {
     lines.push(`  input_schema: ${stableStringify(tool.inputSchema)}`);
   }
 
-  return { hash, text: `${lines.join("\n")}\n`, tools: validation.tools };
+  return { hash, integrityVerified: true, text: `${lines.join("\n")}\n`, tools: validation.tools };
 }

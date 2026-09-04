@@ -1,14 +1,28 @@
 # PLwC Chat Bridge Store Submission Checklist
 
-Status: `SUBMITTED FOR CONTROLLED REVIEW / HOLD`
+Status: `CHROME ACCEPTED BUT PRIVATE / STORE ACTION HOLD`
 
 This record binds the completed draft preparation and controlled review
 submission. It is not authorization for a later Chrome publication, a change
 to public visibility, or any broader distribution of either extension.
 
-## Bound identities and packages
+## Current dashboard recheck - 2026-09-03
 
-| Target | Existing draft ID | Upload candidate | SHA-256 |
+- Chrome item `feceodobnhefdbfgmbinkndhogpfkicb`, version `1.0.0`, was accepted
+  and showed `Bereit zur Veröffentlichung`. Google displayed 2026-10-01 as the
+  latest publication date.
+- Active Chrome visibility was still **Private**, with no selected trusted-tester
+  group. The accepted item is therefore not a usable link distribution.
+- The intended Chrome distribution is **Unlisted**, reachable only through the
+  official Store link. Before any publication action, recheck active visibility;
+  if changing it triggers another review, wait for that review to finish.
+- The live Edge dashboard state was not reverified in this r26 source pass. Do
+  not infer it from the dated submission history below.
+- No Store publication or package update is authorized by this checklist.
+
+## Previously review-bound identities and packages
+
+| Target | Existing draft ID | Review-bound package | SHA-256 |
 | --- | --- | --- | --- |
 | Chrome / Brave | `feceodobnhefdbfgmbinkndhogpfkicb` | `store/out/PLwC-Chat-Bridge-1.0.0-chrome-brave-store.zip` | `62d4b78f0787b0ce22134e4426dfdea90282e0d3245afbf48f0c6f11b4427936` |
 | Microsoft Edge | `nncomjknhhlgcmkmlaljhkiojcnpmflb` | `store/out/PLwC-Chat-Bridge-1.0.0-edge-store.zip` | `62d4b78f0787b0ce22134e4426dfdea90282e0d3245afbf48f0c6f11b4427936` |
@@ -17,6 +31,24 @@ The identical ZIP bytes are intentional. Each store signs the keyless runtime
 for its own public identity. Upload only the ZIP for the matching existing
 draft. Do not create another item, and do not upload the adjacent
 `*-store-build-identity.json` evidence file.
+
+## Prepared r26 extension update
+
+The current r26 source produces extension package version `1.0.1` while the
+shared PLwC/Bridge protocol release remains `1.0.0`. The Store builder records
+both versions separately and has passed its reproducibility, four-entry
+allowlist, identity, development-key-removal, source-map-exclusion, and secret
+scan tests.
+
+| Target | Existing item ID | Prepared package | Bytes | SHA-256 |
+| --- | --- | --- | ---: | --- |
+| Chrome / Brave | `feceodobnhefdbfgmbinkndhogpfkicb` | `store/out/PLwC-Chat-Bridge-1.0.1-chrome-brave-store.zip` | 281.201 | `6412dcc2ea32f2d99fc34a7402423326e99ee683c5a192014be4fb93f621ce7f` |
+| Microsoft Edge | `nncomjknhhlgcmkmlaljhkiojcnpmflb` | `store/out/PLwC-Chat-Bridge-1.0.1-edge-store.zip` | 281.201 | `6412dcc2ea32f2d99fc34a7402423326e99ee683c5a192014be4fb93f621ce7f` |
+
+These are prepared update packages, not proof of dashboard upload, review, or
+publication. Before an upload, re-read the live item ID, version, review state,
+and visibility. Upload only to the matching existing item and never create a
+replacement item.
 
 ## Saved draft result - 2026-08-15
 
@@ -69,7 +101,9 @@ draft. Do not create another item, and do not upload the adjacent
 
 - Re-run `npm run test:store:windows` from the extension directory.
 - Confirm both ZIP hashes against the table above and their identity sidecars.
-- Confirm manifest version and version name are both `1.0.0`.
+- Confirm manifest version and version name are both `1.0.1`; confirm the
+  adjacent identity sidecar separately binds shared release `1.0.0` and build
+  `plwc-chat-bridge@1.0.0`.
 - Confirm the existing dashboard item ID matches the target row before upload.
 - Keep the privacy and support pages publicly reachable over HTTPS.
 - Keep publisher account, legal, payment, recovery, and Partner Center data out
@@ -115,14 +149,15 @@ the order has no release or priority meaning.
   r24 candidate, stable fresh-install runtime paths, update behavior and saved
   Store-draft state. Historical rc and installer evidence remains unchanged.
 
-## HOLD conditions before public publication
+## HOLD conditions before Store availability or publication
 
-- Wait for an installable, review-approved Store channel. Chrome is pending
-  private review with automatic publication disabled; Edge is in review as
-  hidden/link-only. Submission alone does not make either real-ID package
-  installable.
-- After Chrome approval, complete the controlled availability decision and
-  real-ID acceptance before the 30-day deferred-publication window expires.
+- Recheck both live dashboards. Chrome is review-accepted but remains Private
+  without a selected tester group and is not link-installable. The current Edge
+  state is not established by this dated repository record.
+- Change Chrome to the authorized Unlisted/link-only model only after explicit
+  approval. If the change triggers a new review, wait for that review to finish.
+- Complete the controlled availability decision and real-ID acceptance before
+  the dashboard's 2026-10-01 Chrome deadline.
 - Install the review-approved packages under their real Chrome and Edge Store
   identities and complete live Native Messaging, loopback, tool-contract,
   confirmation, restart, and missing-native-host acceptance.

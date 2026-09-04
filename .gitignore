@@ -14,6 +14,7 @@ dist/
 integrations/plwc-chat-bridge/extension/store/out/
 installer/windows/stage/
 installer/windows/.test-build/
+installer/windows/.validate-build/
 installer/windows/.unsigned-build/
 installer/windows/.unsigned-build-r*/
 logs/
@@ -30,6 +31,11 @@ docs/briefings/
 docs/ARBEITSAUFTRAG_*.md
 docs/evidence/screenshots/
 integrations/plwc-chat-bridge/SESSION_NOTES_*.md
+/screen1.png
+/screen2.png
+/screen3.png
+/screen4.png
+/screen5.png
 profiles/*/
 !profiles/template/
 docker/document-worker/wheelhouse/*

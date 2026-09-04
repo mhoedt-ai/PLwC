@@ -4,10 +4,13 @@ import argparse
 import configparser
 import hashlib
 import hmac
+import importlib.metadata as importlib_metadata
 import json
 import os
 import re
 import secrets
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -32,6 +35,7 @@ def _bootstrap_gateway_import_path() -> None:
     if configured:
         candidates.append(Path(configured))
     app_root = Path(__file__).resolve().parent.parent
+    candidates.append(app_root / "gateway")
     candidates.extend(sorted(app_root.glob("gateway-*"), reverse=True))
     for root in candidates:
         source_root = root.expanduser().resolve(strict=False) / "src"
@@ -43,18 +47,35 @@ def _bootstrap_gateway_import_path() -> None:
 _bootstrap_gateway_import_path()
 
 from plwc_gateway import __version__
+from plwc_gateway.adapters.docker_cli import resolve_docker_executable
+from plwc_gateway.adapters.document_worker import DOCUMENT_WORKER_IMAGE
 from plwc_gateway.config.settings import SHARED_SETTINGS_FILE_NAME, default_app_root, load_gateway_config
-from plwc_gateway.mcp.server import plwc_governor, plwc_status
+from plwc_gateway.installation.component_inventory import (
+    InventoryContractError,
+    build_component_inventory,
+    load_compatibility_matrix,
+)
+from plwc_gateway.installation.doctor import DoctorContractError, InstallationDoctor
+from plwc_gateway.installation.update_center import (
+    UpdateCenter,
+    UpdateContractError,
+    load_trusted_release_keys,
+)
+from plwc_gateway.mcp.server import (
+    clu_doctor_diagnose,
+    plwc_governor,
+    runtime_status_diagnose,
+)
 
 
 EDITABLE_SETTING_KEYS = {
-    "workspace_path",
     "memory_write_threshold",
     "persona_write_threshold",
     "temperament_write_threshold",
     "qdrant_enabled",
     "persona_layer_enabled",
 }
+INSTALLATION_SETTING_KEYS = EDITABLE_SETTING_KEYS | {"workspace_path"}
 SHARED_SETTING_KEYS = {
     "workspace_path",
     "profiles_path",
@@ -87,6 +108,9 @@ ONBOARDING_FIELD_KEYS = (
 )
 MAX_JSON_BYTES = 64 * 1024
 SESSION_COOKIE = "plwc_config_session"
+DEFAULT_RELEASE_MANIFEST_URL = (
+    "https://github.com/mhoedt-ai/PLwC/releases/latest/download/plwc-release-manifest.json"
+)
 
 
 class ConfigurationError(ValueError):
@@ -164,12 +188,10 @@ def _normalize_workspace_path(value: Any) -> Path:
     return path.resolve(strict=False)
 
 
-def _normalize_settings(value: Any) -> dict[str, int | bool | str]:
+def _normalize_settings(value: Any) -> dict[str, int | bool]:
     if not isinstance(value, dict) or set(value) != EDITABLE_SETTING_KEYS:
         raise ConfigurationError("Settings must contain exactly the supported PLwC controls.")
-    normalized: dict[str, int | bool | str] = {
-        "workspace_path": str(_normalize_workspace_path(value.get("workspace_path"))),
-    }
+    normalized: dict[str, int | bool] = {}
     for key in THRESHOLD_KEYS:
         raw = value.get(key)
         if type(raw) is not int or raw < 1 or raw > 1_000_000:
@@ -183,9 +205,204 @@ def _normalize_settings(value: Any) -> dict[str, int | bool | str]:
     return normalized
 
 
+def _normalize_installation_settings(value: Any) -> dict[str, int | bool | str]:
+    if not isinstance(value, dict) or set(value) != INSTALLATION_SETTING_KEYS:
+        raise ConfigurationError("Installation settings must contain exactly the supported PLwC controls.")
+    normalized: dict[str, int | bool | str] = {
+        **_normalize_settings({key: value.get(key) for key in EDITABLE_SETTING_KEYS}),
+        "workspace_path": str(_normalize_workspace_path(value.get("workspace_path"))),
+    }
+    return normalized
+
+
 def _canonical_digest(value: Any) -> str:
     content = json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _workspace_plan_digest(data: dict[str, Any]) -> str:
+    return _canonical_digest(
+        {
+            "plan_type": data.get("plan_type"),
+            "current_workspace_path": data.get("current_workspace_path"),
+            "requested_workspace_path": data.get("requested_workspace_path"),
+            "path_exists": data.get("path_exists"),
+            "nearest_existing_parent": data.get("nearest_existing_parent"),
+            "writable": data.get("writable"),
+            "valid": data.get("valid"),
+            "planned_writes": list(data.get("planned_writes") or []),
+            "data_migration": data.get("data_migration"),
+        }
+    )
+
+
+def _sha256_file(path: Path) -> str | None:
+    try:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return None
+
+
+def _observed_source(kind: str, detail: str | None = None) -> dict[str, Any]:
+    source: dict[str, Any] = {
+        "kind": kind,
+        "trust": "observed_local",
+        "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+    }
+    if detail:
+        source["detail"] = detail
+    return source
+
+
+def _unavailable_source(kind: str, detail: str | None = None) -> dict[str, Any]:
+    source: dict[str, Any] = {
+        "kind": kind,
+        "trust": "unavailable",
+        "observed_at": None,
+    }
+    if detail:
+        source["detail"] = detail
+    return source
+
+
+def _run_local_probe(
+    args: list[str],
+    *,
+    runner: Any = None,
+    timeout: int = 5,
+) -> subprocess.CompletedProcess[str] | None:
+    command_runner = runner or subprocess.run
+    try:
+        return command_runner(
+            args,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _docker_component_observations(
+    docker_path: str | None,
+    *,
+    installer_selected: bool,
+    runner: Any = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Observe Docker and the prepared worker image without changing local state."""
+
+    if not docker_path:
+        docker_source = (
+            _unavailable_source("docker_cli", "installer selection reports Docker")
+            if installer_selected
+            else _observed_source("docker_cli", "not detected")
+        )
+        docker_observation = {
+            "present": None if installer_selected else False,
+            "source": docker_source,
+        }
+        worker_observation = {
+            "present": None if installer_selected else False,
+            "source": (
+                _unavailable_source("docker_image_inspect", DOCUMENT_WORKER_IMAGE)
+                if installer_selected
+                else _observed_source("docker_image_inspect", "Docker CLI not detected")
+            ),
+        }
+        return docker_observation, worker_observation
+
+    cli_result = _run_local_probe([docker_path, "--version"], runner=runner)
+    cli_text = "\n".join(
+        part for part in ((cli_result.stdout if cli_result else ""), (cli_result.stderr if cli_result else "")) if part
+    )
+    cli_match = re.search(r"\bDocker version\s+([0-9]+\.[0-9]+\.[0-9]+)", cli_text)
+    cli_version = cli_match.group(1) if cli_match else None
+
+    daemon_result = _run_local_probe(
+        [docker_path, "version", "--format", "{{.Server.Version}}"],
+        runner=runner,
+    )
+    daemon_version = (
+        daemon_result.stdout.strip()
+        if daemon_result is not None and daemon_result.returncode == 0
+        else ""
+    )
+    daemon_ready = bool(
+        daemon_version
+        and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?", daemon_version)
+    )
+    docker_observation = {
+        "present": True,
+        "semantic_version": cli_version or (daemon_version if daemon_ready else None),
+        "postflight_verified": daemon_ready,
+        "source": _observed_source(
+            "docker_cli",
+            f"{docker_path}; daemon={'running' if daemon_ready else 'unavailable'}",
+        ),
+    }
+
+    if not daemon_ready:
+        return docker_observation, {
+            "present": None,
+            "source": _unavailable_source("docker_image_inspect", DOCUMENT_WORKER_IMAGE),
+        }
+
+    inspect_result = _run_local_probe(
+        [docker_path, "image", "inspect", DOCUMENT_WORKER_IMAGE, "--format", "{{.Id}}"],
+        runner=runner,
+    )
+    if inspect_result is None:
+        return docker_observation, {
+            "present": None,
+            "source": _unavailable_source("docker_image_inspect", DOCUMENT_WORKER_IMAGE),
+        }
+    if inspect_result.returncode != 0:
+        return docker_observation, {
+            "present": False,
+            "source": _observed_source("docker_image_inspect", DOCUMENT_WORKER_IMAGE),
+        }
+
+    image_id = inspect_result.stdout.strip()
+    image_version = DOCUMENT_WORKER_IMAGE.rpartition(":")[2] or None
+    return docker_observation, {
+        "present": True,
+        "semantic_version": image_version,
+        "build_id": image_id or None,
+        "postflight_verified": bool(image_id),
+        "source": _observed_source(
+            "docker_image_inspect",
+            f"{DOCUMENT_WORKER_IMAGE}@{image_id}" if image_id else DOCUMENT_WORKER_IMAGE,
+        ),
+    }
+
+
+def _python_distribution_observation(distribution: str, *, enabled: bool) -> dict[str, Any]:
+    """Report the package installed in the configuration UI's active Python runtime."""
+
+    detail = f"{distribution}; enabled={'true' if enabled else 'false'}"
+    try:
+        version = importlib_metadata.version(distribution)
+    except importlib_metadata.PackageNotFoundError:
+        return {
+            "present": False,
+            "source": _observed_source("python_distribution", detail),
+        }
+    except (OSError, ValueError):
+        return {
+            "present": None,
+            "source": _unavailable_source("python_distribution", detail),
+        }
+    return {
+        "present": True,
+        "semantic_version": version,
+        "source": _observed_source("python_distribution", detail),
+    }
 
 
 def _normalize_onboarding_answers(value: Any) -> dict[str, str]:
@@ -268,7 +485,10 @@ class PlwcConfigurationService:
         project_root: Path,
         *,
         installer_config_root: Path | None = None,
+        gateway_root: Path | None = None,
         language: str = "en",
+        doctor_system_probes: bool = True,
+        update_center: UpdateCenter | None = None,
     ) -> None:
         self.project_root = project_root.resolve(strict=False)
         self.installer_config_root = (
@@ -276,13 +496,346 @@ class PlwcConfigurationService:
             if installer_config_root is not None
             else self.project_root / "config"
         )
+        self.gateway_root = gateway_root.resolve(strict=False) if gateway_root is not None else None
         self.language = "de" if language.casefold().startswith("de") else "en"
+        self.doctor_system_probes = doctor_system_probes
         self.settings_path = self.project_root / "config" / SHARED_SETTINGS_FILE_NAME
         self.selection_path = self.installer_config_root / "installer" / "selection.ini"
         self._write_lock = threading.Lock()
+        self._doctor_diagnoses: dict[str, dict[str, Any]] = {}
+        self._doctor_plans: dict[str, dict[str, Any]] = {}
+        self.update_center = update_center or self._create_update_center()
 
-    def _config(self):
-        return load_gateway_config(project_root=self.project_root)
+    def _compatibility_matrix_path(self) -> Path | None:
+        candidates: list[Path] = []
+        if self.gateway_root is not None:
+            candidates.append(self.gateway_root / "config" / "compatibility-matrix.json")
+        candidates.extend(
+            (
+                self.project_root / "app" / "gateway" / "config" / "compatibility-matrix.json",
+                self.project_root / "config" / "compatibility-matrix.json",
+                Path(__file__).resolve().parents[4] / "config" / "compatibility-matrix.json",
+            )
+        )
+        return next((path for path in candidates if path.is_file()), None)
+
+    def _release_trust_path(self) -> Path | None:
+        candidates: list[Path] = []
+        if self.gateway_root is not None:
+            candidates.append(self.gateway_root / "config" / "release-trust.json")
+        candidates.extend(
+            (
+                self.project_root / "app" / "gateway" / "config" / "release-trust.json",
+                self.project_root / "config" / "release-trust.json",
+                Path(__file__).resolve().parents[4] / "config" / "release-trust.json",
+            )
+        )
+        return next((path for path in candidates if path.is_file()), None)
+
+    def _create_update_center(self) -> UpdateCenter:
+        trust_path = self._release_trust_path()
+        trusted_keys = load_trusted_release_keys(trust_path) if trust_path is not None else {}
+        return UpdateCenter(
+            state_root=self.project_root / "state",
+            manifest_url=DEFAULT_RELEASE_MANIFEST_URL,
+            trusted_keys=trusted_keys,
+        )
+
+    @staticmethod
+    def _read_json_object(path: Path) -> dict[str, Any] | None:
+        try:
+            value = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            return None
+        return dict(value) if isinstance(value, dict) else None
+
+    def _last_launcher_result(self, selection: configparser.ConfigParser | None = None) -> dict[str, Any] | None:
+        parser = selection or self._read_installer_selection()
+        candidates = [self.project_root / "state" / "chat-bridge" / "launcher-last-result.json"]
+        state_root = parser.get("PLwC", "StatePath", fallback="").strip()
+        if state_root:
+            candidates.insert(0, Path(state_root) / "chat-bridge" / "launcher-last-result.json")
+        for path in candidates:
+            result = self._read_json_object(path)
+            if result is not None:
+                result["state_file"] = str(path)
+                return result
+        return None
+
+    def _browser_extension_contact(
+        self,
+        selection: configparser.ConfigParser | None = None,
+    ) -> dict[str, Any] | None:
+        parser = selection or self._read_installer_selection()
+        candidates = [self.project_root / "state" / "chat-bridge" / "browser-extension-last-contact.json"]
+        state_root = parser.get("PLwC", "StatePath", fallback="").strip()
+        if state_root:
+            candidates.insert(0, Path(state_root) / "chat-bridge" / "browser-extension-last-contact.json")
+        for path in candidates:
+            contact = self._read_json_object(path)
+            if contact is None:
+                continue
+            received_at = contact.get("receivedAt")
+            age_seconds: int | None = None
+            if isinstance(received_at, str):
+                try:
+                    observed = datetime.fromisoformat(received_at.replace("Z", "+00:00"))
+                    if observed.tzinfo is None:
+                        observed = observed.replace(tzinfo=timezone.utc)
+                    age_seconds = max(0, int((datetime.now(timezone.utc) - observed).total_seconds()))
+                except ValueError:
+                    age_seconds = None
+            contact["age_seconds"] = age_seconds
+            contact["stale"] = age_seconds is None or age_seconds > 24 * 60 * 60
+            contact["state_file"] = str(path)
+            return contact
+        return None
+
+    @staticmethod
+    def _component_version_from_build_id(build_id: str) -> str | None:
+        match = re.search(r"@(?P<version>[0-9]+\.[0-9]+\.[0-9]+)(?:[/#]|$)", build_id)
+        return match.group("version") if match else None
+
+    @staticmethod
+    def _command_version(command: str, pattern: str) -> str | None:
+        try:
+            completed = subprocess.run(
+                [command, "--version"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=4,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        match = re.search(pattern, f"{completed.stdout}\n{completed.stderr}")
+        return match.group(1) if match else None
+
+    def _component_inventory(self, status: dict[str, Any], config: Any) -> dict[str, Any]:
+        matrix_path = self._compatibility_matrix_path()
+        if matrix_path is None:
+            return {
+                "schema_version": "1.0.0",
+                "matrix_version": None,
+                "release_family": None,
+                "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                "components": [],
+                "summary": {"unknown": 0},
+                "error": "compatibility_matrix_missing",
+            }
+        try:
+            matrix = load_compatibility_matrix(matrix_path)
+        except InventoryContractError as exc:
+            return {
+                "schema_version": "1.0.0",
+                "matrix_version": None,
+                "release_family": None,
+                "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                "components": [],
+                "summary": {"unknown": 0},
+                "error": str(exc),
+            }
+
+        selection = self._read_installer_selection()
+        build_id = selection.get("BuildIdentity", "BuildId", fallback="").strip()
+        installer_revision = selection.get("BuildIdentity", "InstallerRevision", fallback="").strip()
+        setup_sha256 = selection.get("BuildIdentity", "SetupExeSha256", fallback="").strip().casefold()
+        installed_version = self._component_version_from_build_id(build_id)
+        source = _observed_source("installer_selection", str(self.selection_path))
+        app_path = selection.get("PLwC", "AppPath", fallback="").strip()
+        gateway_path = selection.get("PLwC", "GatewayPath", fallback="").strip()
+        bridge_path_value = selection.get("PLwC", "BridgePath", fallback="").strip()
+        bridge_root = Path(bridge_path_value).resolve(strict=False) if bridge_path_value else None
+        bridge_identity_path = bridge_root / "build-identity.json" if bridge_root is not None else None
+        bridge_identity = (
+            self._read_json_object(bridge_identity_path)
+            if bridge_identity_path is not None and bridge_identity_path.is_file()
+            else None
+        )
+        bridge_components = (
+            bridge_identity.get("components")
+            if isinstance(bridge_identity, dict) and isinstance(bridge_identity.get("components"), dict)
+            else {}
+        )
+        launcher_result = self._last_launcher_result(selection)
+        extension_contact = self._browser_extension_contact(selection)
+        launcher_ready = bool(launcher_result and launcher_result.get("ok") is True)
+        launcher_tool_count = launcher_result.get("toolCount") if isinstance(launcher_result, dict) else None
+        canonical_tools = list(matrix["contracts"]["gateway_facade"]["canonical_tools"])
+        actual_tools = [str(tool) for tool in status.get("public_tools", [])]
+        ui_sha256 = _sha256_file(Path(__file__).resolve())
+        ui_build_id = f"plwc-configuration-ui@1.0.0#sha256:{ui_sha256}" if ui_sha256 else None
+        bridge_entry = bridge_root / "bridge" / "dist" / "src" / "index.js" if bridge_root is not None else None
+        launcher_path = (
+            bridge_root / "native" / "bin" / "plwc-chat-bridge-launcher.exe"
+            if bridge_root is not None
+            else None
+        )
+
+        node_path = selection.get("Diagnostics", "NodePath", fallback="").strip() or shutil.which("node")
+        node_version = self._command_version(node_path, r"v?([0-9]+\.[0-9]+\.[0-9]+)") if node_path else None
+        docker_path = resolve_docker_executable()
+        docker_selected = selection.get("Diagnostics", "DockerDesktopInstalled", fallback="").strip().casefold()
+        docker_observation, document_worker_observation = _docker_component_observations(
+            docker_path,
+            installer_selected=docker_selected == "true",
+        )
+        qdrant_observation = _python_distribution_observation(
+            "qdrant-client",
+            enabled=bool(config.qdrant_enabled),
+        )
+        observations: dict[str, dict[str, Any]] = {
+            "product": {
+                "present": True,
+                "semantic_version": installed_version or __version__,
+                "build_revision": installer_revision or None,
+                "build_identity_schema": 1 if build_id else None,
+                "build_id": build_id or None,
+                "sha256": setup_sha256 or None,
+                "source": source if build_id else _observed_source("gateway_runtime"),
+            },
+            "windows_installer": {
+                "present": bool(build_id and setup_sha256),
+                "semantic_version": installed_version,
+                "build_revision": installer_revision or None,
+                "build_identity_schema": 1 if build_id else None,
+                "build_id": build_id or None,
+                "sha256": setup_sha256 or None,
+                "source": source,
+            },
+            "gateway": {
+                "present": True,
+                "semantic_version": str(status.get("version") or __version__),
+                "protocol_version": str(matrix["contracts"]["gateway_facade"]["version"]),
+                "tool_count": status.get("registered_public_tool_count"),
+                "canonical_tools_valid": actual_tools == canonical_tools,
+                "postflight_verified": status.get("registered_public_tool_count") == len(canonical_tools)
+                and actual_tools == canonical_tools,
+                "active_paths": [path for path in (gateway_path, str(self.gateway_root or "")) if path],
+                "source": _observed_source("gateway_runtime"),
+            },
+            "node_bridge": {
+                "present": bool(bridge_entry and bridge_entry.is_file() and bridge_identity),
+                "semantic_version": bridge_components.get("nodeBridge"),
+                "protocol_version": "1.0.0" if launcher_ready else None,
+                "build_identity_schema": bridge_identity.get("schemaVersion") if bridge_identity else None,
+                "build_id": bridge_identity.get("buildId") if bridge_identity else None,
+                "sha256": _sha256_file(bridge_entry) if bridge_entry and bridge_entry.is_file() else None,
+                "tool_count": launcher_tool_count,
+                "canonical_tools_valid": True if launcher_ready and launcher_tool_count == 8 else None,
+                "postflight_verified": launcher_ready and launcher_tool_count == 8,
+                "active_paths": [bridge_path_value] if bridge_path_value else [],
+                "source": _observed_source("installed_bridge", str(bridge_identity_path)) if bridge_identity_path else None,
+            },
+            "native_launcher": {
+                "present": bool(launcher_path and launcher_path.is_file()),
+                "semantic_version": bridge_components.get("nativeLauncher"),
+                "protocol_version": "1.0.0" if launcher_path and launcher_path.is_file() else None,
+                "build_identity_schema": bridge_identity.get("schemaVersion") if bridge_identity else None,
+                "build_id": bridge_identity.get("buildId") if bridge_identity else None,
+                "sha256": _sha256_file(launcher_path) if launcher_path and launcher_path.is_file() else None,
+                "postflight_verified": launcher_ready,
+                "source": _observed_source("installed_launcher", str(launcher_path)) if launcher_path else None,
+            },
+            "configuration_ui": {
+                "present": True,
+                "semantic_version": "1.0.0",
+                "build_identity_schema": 1,
+                "build_id": ui_build_id,
+                "sha256": ui_sha256,
+                "postflight_verified": True,
+                "source": _observed_source("configuration_ui", str(Path(__file__).resolve())),
+            },
+            "browser_extension": (
+                {
+                    "present": True,
+                    "semantic_version": extension_contact.get("packageVersion"),
+                    "protocol_version": extension_contact.get("protocolVersion"),
+                    "build_identity_schema": (
+                        (extension_contact.get("buildIdentity") or {}).get("schemaVersion")
+                        if isinstance(extension_contact.get("buildIdentity"), dict)
+                        else None
+                    ),
+                    "build_id": (
+                        (extension_contact.get("buildIdentity") or {}).get("buildId")
+                        if isinstance(extension_contact.get("buildIdentity"), dict)
+                        else None
+                    ),
+                    "tool_count": extension_contact.get("toolCount"),
+                    "canonical_tools_valid": extension_contact.get("toolCount") == 8,
+                    "postflight_verified": extension_contact.get("toolCount") == 8
+                    and extension_contact.get("stale") is False,
+                    "source": _observed_source("native_messaging_contact", str(extension_contact.get("state_file"))),
+                }
+                if extension_contact is not None
+                else {
+                    "present": None,
+                    "source": {"kind": "browser_handshake", "trust": "unavailable", "observed_at": None},
+                }
+            ),
+            "python_runtime": {
+                "present": True,
+                "semantic_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+                "postflight_verified": True,
+                "source": _observed_source("running_process", sys.executable),
+            },
+            "node_runtime": {
+                "present": bool(node_path and node_version),
+                "semantic_version": node_version,
+                "source": _observed_source("runtime_probe", node_path) if node_path else None,
+            },
+            "docker": docker_observation,
+            "qdrant": qdrant_observation,
+            "document_worker": document_worker_observation,
+        }
+        inventory = build_component_inventory(matrix, observations)
+        inventory["matrix_path"] = str(matrix_path)
+        inventory["installation_paths"] = {
+            "app": app_path or None,
+            "gateway": gateway_path or str(self.gateway_root) if self.gateway_root else gateway_path or None,
+            "bridge": bridge_path_value or None,
+        }
+        return inventory
+
+    @staticmethod
+    def _profile_inventory(status: dict[str, Any], active: str) -> list[dict[str, Any]]:
+        profiles: list[dict[str, Any]] = []
+        raw_profiles = status.get("available_profiles")
+        for raw in raw_profiles if isinstance(raw_profiles, list) else []:
+            if not isinstance(raw, dict) or not str(raw.get("name") or "").strip():
+                continue
+            name = str(raw["name"]).strip()
+            profile_path = str(raw.get("profile_directory") or "")
+            valid = raw.get("valid") is True
+            missing = [str(item) for item in raw.get("missing_files", []) if str(item).strip()]
+            reason = str(raw.get("validation_reason") or ("valid" if valid else "invalid_profile"))
+            profiles.append(
+                {
+                    "name": name,
+                    "path": profile_path,
+                    "exists": bool(profile_path and Path(profile_path).is_dir()),
+                    "valid": valid,
+                    "status": "valid" if valid else reason,
+                    "reason": reason,
+                    "missing_files": missing,
+                    "active": raw.get("active") is True or name.casefold() == active.casefold(),
+                    "activatable": valid and name.casefold() != active.casefold(),
+                    "schema_errors": list(
+                        (raw.get("profile_schema_validation") or {}).get("errors", [])
+                        if isinstance(raw.get("profile_schema_validation"), dict)
+                        else []
+                    ),
+                }
+            )
+        profiles.sort(key=lambda profile: str(profile["name"]).casefold())
+        return profiles
+
+    def _config(self, *, read_only: bool = False):
+        return load_gateway_config(
+            project_root=self.project_root,
+            create_directories=not read_only,
+        )
 
     def _read_shared_settings(self) -> dict[str, Any]:
         if not self.settings_path.exists():
@@ -300,15 +853,12 @@ class PlwcConfigurationService:
 
     def snapshot(self) -> dict[str, Any]:
         config = self._config()
-        status = plwc_status(scope="runtime", config=config)
+        status = runtime_status_diagnose(config=config)
         if not isinstance(status, dict) or status.get("ok") is not True:
             raise ConfigurationError("PLwC runtime status is unavailable.")
         governance = config.governance
-        profile_names = [str(name) for name in status.get("available_profile_names", []) if str(name).strip()]
         active = str(status.get("active_profile_name") or config.active_profile_name)
-        if active and all(active.casefold() != name.casefold() for name in profile_names):
-            profile_names.append(active)
-        profile_names.sort(key=str.casefold)
+        profiles = self._profile_inventory(status, active)
         return {
             "ok": True,
             "language": self.language,
@@ -318,7 +868,7 @@ class PlwcConfigurationService:
                 "active_profile_source": status.get("active_profile_source"),
                 "active_profile_status": status.get("active_profile_status"),
                 "profile_valid": bool(status.get("profile_valid")),
-                "available_profiles": profile_names,
+                "available_profiles": profiles,
                 "profiles_path": str(config.profile_root),
                 "workspace_path": str(config.allowed_roots[0]) if config.allowed_roots else None,
             },
@@ -340,7 +890,91 @@ class PlwcConfigurationService:
                 "active_profile_state": str(config.active_profile_state_file),
             },
             "setup_warnings": list(config.setup_warnings),
+            "component_inventory": self._component_inventory(status, config),
+            "launcher_last_result": self._last_launcher_result(),
+            "browser_extension_last_contact": self._browser_extension_contact(),
+            "update_center": self.update_center.snapshot(),
         }
+
+    def check_updates(self) -> dict[str, Any]:
+        return self.update_center.check(force=True)
+
+    def plan_update_download(self, artifact_id: Any) -> dict[str, Any]:
+        if not isinstance(artifact_id, str) or not artifact_id.strip():
+            raise ConfigurationError("Choose a release artifact before requesting a download plan.")
+        return self.update_center.plan_download(artifact_id.strip())
+
+    def download_update(self, plan_id: Any, confirmed: Any) -> dict[str, Any]:
+        if not isinstance(plan_id, str) or not plan_id.strip():
+            raise ConfigurationError("Choose a valid update download plan.")
+        return self.update_center.download(plan_id.strip(), confirmed=confirmed is True)
+
+    def install_update(self, plan_id: Any, confirmed: Any) -> dict[str, Any]:
+        if not isinstance(plan_id, str) or not plan_id.strip():
+            raise ConfigurationError("Choose a verified update before installation.")
+        return self.update_center.install(plan_id.strip(), confirmed=confirmed is True)
+
+    def _installation_doctor(self, config: Any) -> InstallationDoctor:
+        workspace = Path(config.allowed_roots[0]) if config.allowed_roots else None
+        return InstallationDoctor(
+            self.project_root,
+            workspace_root=workspace,
+            profile_root=Path(config.profile_root),
+            enable_system_probes=self.doctor_system_probes,
+        )
+
+    def run_doctor_diagnosis(self) -> dict[str, Any]:
+        config = self._config(read_only=True)
+        status = runtime_status_diagnose(config=config)
+        if not isinstance(status, dict) or status.get("ok") is not True:
+            raise ConfigurationError("PLwC runtime status is unavailable for Doctor diagnosis.")
+        inventory = self._component_inventory(status, config)
+        try:
+            clu = clu_doctor_diagnose(doctor_scope="general", config=config)
+            report = self._installation_doctor(config).diagnose(
+                component_inventory=inventory,
+                clu_diagnostic=clu,
+            )
+        except (DoctorContractError, ValueError) as exc:
+            raise ConfigurationError(str(exc)) from exc
+        self._doctor_diagnoses = {str(report["snapshot_id"]): report}
+        return report
+
+    def plan_doctor_repair(self, snapshot_id: Any) -> dict[str, Any]:
+        if not isinstance(snapshot_id, str) or len(snapshot_id) != 64:
+            raise ConfigurationError("Doctor repair planning requires a valid diagnosis snapshot ID.")
+        diagnosis = self._doctor_diagnoses.get(snapshot_id)
+        if diagnosis is None:
+            raise ConfigurationError("Doctor diagnosis is no longer available. Run diagnosis again.")
+        try:
+            plan = InstallationDoctor.build_repair_plan(diagnosis)
+        except DoctorContractError as exc:
+            raise ConfigurationError(str(exc)) from exc
+        self._doctor_plans = {str(plan["plan_id"]): plan}
+        return plan
+
+    def apply_doctor_repair(self, plan_id: Any, confirmed: Any) -> dict[str, Any]:
+        if confirmed is not True:
+            raise ConfigurationError("Doctor repair requires explicit confirmation.")
+        if not isinstance(plan_id, str) or len(plan_id) != 64:
+            raise ConfigurationError("Doctor repair plan ID is invalid.")
+        plan = self._doctor_plans.get(plan_id)
+        if plan is None:
+            raise ConfigurationError("Doctor repair plan is no longer available. Review a new plan.")
+        current = self.run_doctor_diagnosis()
+        config = self._config()
+        doctor = self._installation_doctor(config)
+        try:
+            result = doctor.apply_repair_plan(
+                plan,
+                confirmed_plan_id=plan_id,
+                current_diagnosis=current,
+                postflight=self.run_doctor_diagnosis,
+            )
+        except DoctorContractError as exc:
+            raise ConfigurationError(str(exc)) from exc
+        self._doctor_plans.clear()
+        return result
 
     def update_settings(self, value: Any) -> dict[str, Any]:
         normalized = _normalize_settings(value)
@@ -348,7 +982,6 @@ class PlwcConfigurationService:
             current = self._read_shared_settings()
             current.update(
                 {
-                    "workspace_path": normalized["workspace_path"],
                     "memory_write_threshold": normalized["memory_write_threshold"],
                     "persona_write_threshold": normalized["persona_write_threshold"],
                     "temperament_write_threshold": normalized["temperament_write_threshold"],
@@ -360,7 +993,125 @@ class PlwcConfigurationService:
             if unsupported:
                 names = ", ".join(sorted(unsupported))
                 raise ConfigurationError(f"Shared settings contain unsupported keys: {names}.")
-            workspace = Path(str(normalized["workspace_path"]))
+            _atomic_write_json(
+                self.settings_path,
+                {
+                    "schema_version": 1,
+                    "settings": current,
+                    "updated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                    "updated_by": "plwc-local-configuration",
+                },
+                root=self.project_root / "config",
+            )
+            workspace_value = current.get("workspace_path")
+            if isinstance(workspace_value, str) and workspace_value.strip():
+                self._synchronize_workspace_references(Path(workspace_value), settings=current)
+        return self.snapshot()
+
+    def plan_workspace_change(self, workspace_path: Any) -> dict[str, Any]:
+        workspace = _normalize_workspace_path(workspace_path)
+        config = self._config()
+        current_workspace = str(config.allowed_roots[0]) if config.allowed_roots else None
+        nearest_parent = workspace
+        while not nearest_parent.exists() and nearest_parent != nearest_parent.parent:
+            nearest_parent = nearest_parent.parent
+        path_exists = workspace.exists()
+        path_is_directory = not path_exists or workspace.is_dir()
+        parent_exists = nearest_parent.exists() and nearest_parent.is_dir()
+        writable = parent_exists and os.access(nearest_parent, os.W_OK)
+        unchanged = current_workspace is not None and workspace == Path(current_workspace).resolve(strict=False)
+        valid = bool(path_is_directory and writable and not unchanged)
+        if unchanged:
+            reason = "workspace_unchanged"
+        elif path_exists and not path_is_directory:
+            reason = "workspace_path_is_not_a_directory"
+        elif not parent_exists:
+            reason = "workspace_parent_unavailable"
+        elif not writable:
+            reason = "workspace_parent_not_writable"
+        else:
+            reason = "workspace_change_ready"
+        planned_writes = [
+            {"path": str(workspace / name) if name else str(workspace), "purpose": purpose}
+            for name, purpose in (
+                ("", "workspace_root"),
+                ("Tagebuch", "standard_directory"),
+                ("Temp", "standard_directory"),
+                ("Trashcan", "standard_directory"),
+            )
+        ]
+        planned_writes.extend(
+            (
+                {"path": str(self.settings_path), "purpose": "shared_settings_reference"},
+                {"path": str(self.selection_path), "purpose": "installer_selection_reference"},
+            )
+        )
+        selection = self._read_installer_selection()
+        reference_candidates = (
+            self.installer_config_root / "clients" / "codex" / "plwc-gateway.generated.toml",
+            self.installer_config_root / "clients" / "odysseus" / "plwc-gateway.generated.json",
+        )
+        for path in reference_candidates:
+            if path.is_file():
+                planned_writes.append({"path": str(path), "purpose": "client_workspace_reference"})
+        app_path = selection.get("PLwC", "AppPath", fallback="").strip()
+        bridge_path = selection.get("PLwC", "BridgePath", fallback="").strip()
+        if app_path and bridge_path:
+            app_root = Path(app_path).resolve(strict=False)
+            bridge_root = Path(bridge_path).resolve(strict=False)
+            if _is_inside(bridge_root, app_root):
+                for filename in ("plwc.example.json", "plwc.json"):
+                    path = bridge_root / "config" / filename
+                    if path.is_file():
+                        planned_writes.append({"path": str(path), "purpose": "bridge_workspace_reference"})
+        if os.name == "nt":
+            planned_writes.append(
+                {
+                    "path": r"HKCU\Software\PLwC\Installer\WorkspacePath",
+                    "purpose": "installer_registry_reference",
+                }
+            )
+        plan: dict[str, Any] = {
+            "ok": valid,
+            "plan_type": "workspace_change",
+            "current_workspace_path": current_workspace,
+            "requested_workspace_path": str(workspace),
+            "path_exists": path_exists,
+            "nearest_existing_parent": str(nearest_parent),
+            "writable": writable,
+            "valid": valid,
+            "reason": reason,
+            "planned_writes": planned_writes,
+            "data_migration": False,
+            "data_migration_note": "Existing workspace data is not moved, copied, or deleted.",
+            "confirmation_required": True,
+        }
+        plan["plan_digest"] = _workspace_plan_digest(plan)
+        return plan
+
+    def apply_workspace_change(
+        self,
+        workspace_path: Any,
+        plan_digest: Any,
+        confirmed: Any,
+    ) -> dict[str, Any]:
+        if confirmed is not True:
+            raise ConfigurationError("Workspace change requires explicit confirmation.")
+        if not isinstance(plan_digest, str) or len(plan_digest) != 64:
+            raise ConfigurationError("Workspace change plan digest is invalid.")
+        with self._write_lock:
+            current_plan = self.plan_workspace_change(workspace_path)
+            if current_plan["valid"] is not True:
+                raise ConfigurationError(str(current_plan.get("reason") or "Workspace change is not valid."))
+            if not hmac.compare_digest(current_plan["plan_digest"], plan_digest):
+                raise ConfigurationError("Workspace change plan changed. Review the new plan before applying it.")
+            workspace = Path(str(current_plan["requested_workspace_path"]))
+            current = self._read_shared_settings()
+            current["workspace_path"] = str(workspace)
+            unsupported = set(current) - SHARED_SETTING_KEYS
+            if unsupported:
+                names = ", ".join(sorted(unsupported))
+                raise ConfigurationError(f"Shared settings contain unsupported keys: {names}.")
             self._ensure_workspace_structure(workspace)
             _atomic_write_json(
                 self.settings_path,
@@ -373,7 +1124,7 @@ class PlwcConfigurationService:
                 root=self.project_root / "config",
             )
             self._synchronize_workspace_references(workspace, settings=current)
-        return self.snapshot()
+        return {"ok": True, "applied_plan_digest": plan_digest, "state": self.snapshot()}
 
     @staticmethod
     def _ensure_workspace_structure(workspace: Path) -> None:
@@ -485,7 +1236,7 @@ class PlwcConfigurationService:
     def sync_installation(self, value: Any) -> None:
         if not isinstance(value, dict):
             raise ConfigurationError("Installation settings must be a JSON object.")
-        normalized = _normalize_settings({key: value.get(key) for key in EDITABLE_SETTING_KEYS})
+        normalized = _normalize_installation_settings({key: value.get(key) for key in INSTALLATION_SETTING_KEYS})
         workspace = Path(str(normalized["workspace_path"]))
         profiles = _normalize_workspace_path(value.get("profiles_path"))
         with self._write_lock:
@@ -790,6 +1541,14 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
                 raise ConfigurationError("Configuration request must be a JSON object.")
             if self.path == "/api/settings":
                 result = self.server.service.update_settings(payload.get("settings"))
+            elif self.path == "/api/workspace/plan":
+                result = self.server.service.plan_workspace_change(payload.get("workspace_path"))
+            elif self.path == "/api/workspace/apply":
+                result = self.server.service.apply_workspace_change(
+                    payload.get("workspace_path"),
+                    payload.get("plan_digest"),
+                    payload.get("confirmed"),
+                )
             elif self.path == "/api/profile/plan":
                 result = self.server.service.plan_profile_activation(payload.get("profile_name"))
             elif self.path == "/api/profile/apply":
@@ -806,10 +1565,33 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
                     payload.get("plan_digest"),
                     payload.get("confirmed"),
                 )
+            elif self.path == "/api/doctor/diagnose":
+                result = self.server.service.run_doctor_diagnosis()
+            elif self.path == "/api/doctor/plan":
+                result = self.server.service.plan_doctor_repair(payload.get("snapshot_id"))
+            elif self.path == "/api/doctor/apply":
+                result = self.server.service.apply_doctor_repair(
+                    payload.get("plan_id"),
+                    payload.get("confirmed"),
+                )
+            elif self.path == "/api/update/check":
+                result = self.server.service.check_updates()
+            elif self.path == "/api/update/download/plan":
+                result = self.server.service.plan_update_download(payload.get("artifact_id"))
+            elif self.path == "/api/update/download":
+                result = self.server.service.download_update(
+                    payload.get("plan_id"),
+                    payload.get("confirmed"),
+                )
+            elif self.path == "/api/update/install":
+                result = self.server.service.install_update(
+                    payload.get("plan_id"),
+                    payload.get("confirmed"),
+                )
             else:
                 self._reject(HTTPStatus.NOT_FOUND, "Not found.")
                 return
-        except (ConfigurationError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        except (ConfigurationError, UpdateContractError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             self._reject(HTTPStatus.BAD_REQUEST, str(exc))
             return
         except OSError:
@@ -825,13 +1607,16 @@ def create_http_server(
     session_token: str | None = None,
 ) -> ConfigurationHttpServer:
     token = session_token or secrets.token_urlsafe(32)
-    return ConfigurationHttpServer(
+    server = ConfigurationHttpServer(
         ("127.0.0.1", 0),
         ConfigurationRequestHandler,
         service=service,
         static_root=static_root,
         session_token=token,
     )
+    if service.update_center.trusted_keys:
+        threading.Thread(target=service.update_center.check, daemon=True, name="plwc-update-check").start()
+    return server
 
 
 def _apply_launch_overrides(args: argparse.Namespace) -> None:
@@ -882,6 +1667,7 @@ def main(argv: list[str] | None = None) -> int:
     service = PlwcConfigurationService(
         args.project_root,
         installer_config_root=args.installer_config_root,
+        gateway_root=args.gateway_root,
         language=args.language,
     )
     if args.sync_installation:

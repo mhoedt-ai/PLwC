@@ -9,12 +9,15 @@ import {
   parseNativeLauncherResponse,
 } from "./native-launcher";
 import {
+  BROWSER_EXTENSION_PROTOCOL_VERSION,
   BRIDGE_ENDPOINT,
   CANONICAL_TOOL_NAMES,
+  computeToolSchemaIntegrity,
   type CanonicalToolName,
   type JsonObject,
   validateToolSet,
 } from "../shared/contracts";
+import { AtomicBridgeReadiness } from "./readiness";
 import {
   EXTENSION_BUILD_IDENTITY,
   parseBuildIdentity,
@@ -27,9 +30,11 @@ import type {
   BridgeResponse,
   BridgeSettings,
   BridgeStatus,
+  BrowserExtensionRuntimeIdentity,
   GatewaySettingsSnapshot,
   GatewaySettingsUpdate,
   LauncherStatus,
+  StoreUpdateStatus,
   ToolCallResponse,
   ToolListResponse,
 } from "../shared/messages";
@@ -52,6 +57,7 @@ import {
   type ToolCallClaimOutcome,
 } from "../shared/tool-call-execution-registry";
 import { createToolCallIdentity, type ToolCallIdentity } from "../shared/tool-call-identity";
+import { awaitingConfirmationResponse, outcomeUnknownResponse } from "../shared/tool-call-protocol";
 
 const transport = new JsonRpcWebSocketClient(BRIDGE_ENDPOINT);
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -61,7 +67,33 @@ let currentBuildIdentity: BuildIdentity | null = null;
 let currentBuildIdentityValidation: BuildIdentityValidation | null = null;
 let currentToolSet: ReturnType<typeof validateToolSet> | null = null;
 let launcherStatus = INITIAL_LAUNCHER_STATUS;
+const readiness = new AtomicBridgeReadiness();
+let readinessPromise: Promise<void> | null = null;
+let storeUpdateStatus: StoreUpdateStatus = {
+  availableVersion: null,
+  reportedAt: null,
+  source: "not_reported",
+  state: "unknown",
+};
 let toolCallClaimLock: Promise<void> = Promise.resolve();
+
+function browserFamily(): BrowserExtensionRuntimeIdentity["browserFamily"] {
+  const userAgent = globalThis.navigator?.userAgent ?? "";
+  if (/Edg\//u.test(userAgent)) return "edge";
+  if (/Brave/u.test(userAgent) || "brave" in (globalThis.navigator ?? {})) return "brave";
+  if (/Chrome\//u.test(userAgent)) return "chrome";
+  return "chromium";
+}
+
+function extensionIdentity(): BrowserExtensionRuntimeIdentity {
+  return {
+    browserFamily: browserFamily(),
+    extensionId: chrome.runtime.id,
+    packageVersion: chrome.runtime.getManifest().version,
+    protocolVersion: BROWSER_EXTENSION_PROTOCOL_VERSION,
+    reportedAt: new Date().toISOString(),
+  };
+}
 
 function uiLanguage(): UiLanguage {
   return resolveUiLanguage(chrome.i18n?.getUILanguage?.());
@@ -83,8 +115,31 @@ function status(): BridgeStatus {
     lastError: transport.lastError,
     launcher: launcherStatus,
     pendingRequests: transport.pendingCount,
+    readiness: readiness.current,
+    extension: extensionIdentity(),
+    storeUpdate: storeUpdateStatus,
     toolSet: currentToolSet,
   };
+}
+
+function invalidateConnectionCaches(): void {
+  currentBuildIdentity = null;
+  currentBuildIdentityValidation = null;
+  currentToolSet = null;
+}
+
+function invalidateToolReadiness(): void {
+  currentToolSet = null;
+  const generation = readiness.begin();
+  if (transport.state !== "connected") return;
+  readiness.connected(generation);
+  if (currentBuildIdentityValidation?.valid === true) readiness.buildVerified(generation);
+}
+
+function assertCurrentGeneration(generation: number): void {
+  if (!readiness.isCurrent(generation)) {
+    throw new RpcRequestError("Bridge connection changed while readiness was being verified.", "connection_replaced");
+  }
 }
 
 function isCanonicalToolName(name: string): name is CanonicalToolName {
@@ -182,15 +237,20 @@ async function getSettings(): Promise<BridgeSettings> {
   return settings;
 }
 
-async function loadToolSet(): Promise<ToolListResponse> {
-  await verifyConnectedBuildIdentity();
+async function loadToolSet(generation: number): Promise<ToolListResponse> {
+  await verifyConnectedBuildIdentity(generation);
   await applySavedGatewaySettings();
   const payload = await transport.request("tools/list", {});
-  currentToolSet = validateToolSet(payload);
-  return { tools: currentToolSet.tools, validation: currentToolSet };
+  assertCurrentGeneration(generation);
+  const validation = validateToolSet(payload);
+  currentToolSet = validation;
+  const integrity = currentToolSet.valid
+    ? await computeToolSchemaIntegrity(currentToolSet)
+    : { algorithm: "sha256" as const, integrityVerified: false, schemaSha256: "" };
+  return { ...integrity, tools: currentToolSet.tools, validation: currentToolSet };
 }
 
-async function verifyConnectedBuildIdentity(): Promise<BuildIdentity> {
+async function verifyConnectedBuildIdentity(generation: number): Promise<BuildIdentity> {
   if (currentBuildIdentity !== null && currentBuildIdentityValidation?.valid === true) {
     return currentBuildIdentity;
   }
@@ -205,6 +265,7 @@ async function verifyConnectedBuildIdentity(): Promise<BuildIdentity> {
       "build_identity_invalid",
     );
   }
+  assertCurrentGeneration(generation);
   const validation = validateBuildIdentity(buildIdentity);
   currentBuildIdentity = buildIdentity;
   currentBuildIdentityValidation = validation;
@@ -262,7 +323,12 @@ function requestNativeBridgeStart(): Promise<LauncherStatus> {
         buildId: EXTENSION_BUILD_IDENTITY.buildId,
         command: "start",
         endpoint: BRIDGE_ENDPOINT,
-        extensionVersion: EXTENSION_BUILD_IDENTITY.components.browserExtension,
+        extensionVersion: chrome.runtime.getManifest().version,
+        extensionId: chrome.runtime.id,
+        browserFamily: browserFamily(),
+        protocolVersion: BROWSER_EXTENSION_PROTOCOL_VERSION,
+        reportedAt: new Date().toISOString(),
+        toolCount: 8,
         language: uiLanguage(),
         port: NATIVE_LAUNCHER_PORT,
       },
@@ -293,10 +359,9 @@ function requestNativeBridgeStart(): Promise<LauncherStatus> {
   });
 }
 
-async function connectBridge(autoStart: boolean): Promise<void> {
+async function connectTransport(autoStart: boolean): Promise<void> {
   try {
     await transport.connect();
-    await verifyConnectedBuildIdentity();
     return;
   } catch (error) {
     if (!autoStart || !isRecoverableConnectionError(error)) {
@@ -308,7 +373,6 @@ async function connectBridge(autoStart: boolean): Promise<void> {
     launcherStatus = await connectAfterNativeStart(
       async () => {
         await transport.connect();
-        await verifyConnectedBuildIdentity();
       },
       requestNativeBridgeStart,
       wait,
@@ -326,17 +390,94 @@ async function connectBridge(autoStart: boolean): Promise<void> {
   }
 }
 
+function reportExtensionContact(): void {
+  if (typeof chrome.runtime.sendNativeMessage !== "function") return;
+  const identity = extensionIdentity();
+  chrome.runtime.sendNativeMessage(
+    NATIVE_LAUNCHER_HOST,
+    {
+      buildId: EXTENSION_BUILD_IDENTITY.buildId,
+      command: "record_contact",
+      toolCount: readiness.current.toolCount,
+      ...identity,
+    },
+    () => {
+      void chrome.runtime.lastError;
+    },
+  );
+}
+
+async function ensureBridgeReady(autoStart: boolean): Promise<void> {
+  if (
+    transport.state === "connected" &&
+    readiness.current.state === "ready" &&
+    currentBuildIdentityValidation?.valid === true &&
+    currentToolSet?.valid === true
+  ) {
+    return;
+  }
+  if (readinessPromise !== null) return readinessPromise;
+
+  readinessPromise = (async () => {
+    invalidateConnectionCaches();
+    readiness.begin();
+    try {
+      await connectTransport(autoStart);
+      let generation = readiness.generation;
+      if (readiness.current.state !== "checking_build") {
+        generation = readiness.begin();
+        readiness.connected(generation);
+      }
+      await verifyConnectedBuildIdentity(generation);
+      assertCurrentGeneration(generation);
+      readiness.buildVerified(generation);
+      const tools = await loadToolSet(generation);
+      assertCurrentGeneration(generation);
+      if (!tools.validation.valid) {
+        readiness.fail(generation, "incompatible");
+        throw new RpcRequestError("Bridge did not expose the exact eight-tool contract.", "tool_contract_mismatch");
+      }
+      readiness.toolsVerified(generation, tools.tools.length);
+      reportExtensionContact();
+    } catch (error) {
+      const generation = readiness.generation;
+      if (readiness.current.state !== "disconnected") {
+        const code = error instanceof RpcRequestError ? error.code : "";
+        readiness.fail(
+          generation,
+          code.includes("mismatch") || code.includes("invalid") || code === "tool_contract_mismatch"
+            ? "incompatible"
+            : "error",
+        );
+      }
+      throw error;
+    }
+  })().finally(() => {
+    readinessPromise = null;
+    void chrome.runtime.sendMessage({ type: "bridge.status.changed", value: status() }).catch(() => undefined);
+  });
+  return readinessPromise;
+}
+
 async function handleRequest(request: BridgeRequest): Promise<unknown> {
   switch (request.type) {
     case "bridge.connect":
-      await connectBridge(request.autoStart === true);
+      await ensureBridgeReady(request.autoStart === true);
       return status();
     case "bridge.status":
       return status();
     case "bridge.tools.list":
-      return loadToolSet();
+      await ensureBridgeReady(false);
+      if (currentToolSet === null) {
+        throw new RpcRequestError("Tool contract is unavailable after readiness verification.", "contract_locked");
+      }
+      return {
+        ...(await computeToolSchemaIntegrity(currentToolSet)),
+        tools: currentToolSet.tools,
+        validation: currentToolSet,
+      };
     case "bridge.tools.call": {
-      if (!currentToolSet?.valid) await loadToolSet();
+      if (!currentToolSet?.valid) await ensureBridgeReady(false);
       if (!currentToolSet?.valid) {
         throw new RpcRequestError("Tool execution is locked until the exact eight-tool contract is loaded.", "contract_locked");
       }
@@ -345,10 +486,17 @@ async function handleRequest(request: BridgeRequest): Promise<unknown> {
       }
       const policy = decidePolicy(request.name, request.arguments);
       if (policy.requiresConfirmation && !request.confirmed) {
-        throw new RpcRequestError(policy.reason, "confirmation_required");
+        return awaitingConfirmationResponse(policy);
       }
       const forwardedArguments = withConfirmedToolArguments(request.name, request.arguments, request.confirmed);
       const identity = requestToolCallIdentity(request);
+      if (!policy.readOnly && identity === null) {
+        throw new RpcRequestError(
+          "Mutating PLwC tool calls require conversation_id and call_id for exactly-once protection.",
+          "mutating_tool_call_identity_required",
+          "not_sent",
+        );
+      }
       if (identity) {
         const claim = await claimPersistedToolCall(identity);
         if (claim.kind === "duplicate") {
@@ -370,12 +518,21 @@ async function handleRequest(request: BridgeRequest): Promise<unknown> {
           );
         }
       }
-      const rawResult = await transport.request("tools/call", {
-        arguments: forwardedArguments,
-        name: request.name,
-      });
+      let rawResult: unknown;
+      try {
+        rawResult = await transport.request("tools/call", {
+          arguments: forwardedArguments,
+          name: request.name,
+        });
+      } catch (error) {
+        if (error instanceof RpcRequestError) {
+          const uncertain = outcomeUnknownResponse(policy, error);
+          if (uncertain) return uncertain;
+        }
+        throw error;
+      }
       const { isError, result } = normalizeToolResult(rawResult);
-      return { isError, policy, result } satisfies ToolCallResponse;
+      return { isError, policy, result, state: "completed" } satisfies ToolCallResponse;
     }
     case "bridge.gateway.settings.get": {
       const applied = await applySavedGatewaySettings();
@@ -385,13 +542,13 @@ async function handleRequest(request: BridgeRequest): Promise<unknown> {
       const settings = parseGatewaySettingsUpdate(request.settings);
       const updated = parseGatewaySettings(await transport.request("settings/update", { settings }));
       await chrome.storage.local.set({ [GATEWAY_SETTINGS_STORAGE_KEY]: settings });
-      currentToolSet = null;
+      invalidateToolReadiness();
       return updated;
     }
     case "bridge.gateway.settings.reset": {
       const reset = parseGatewaySettings(await transport.request("settings/reset", {}));
       await chrome.storage.local.remove(GATEWAY_SETTINGS_STORAGE_KEY);
-      currentToolSet = null;
+      invalidateToolReadiness();
       return reset;
     }
     case "bridge.settings.get":
@@ -452,9 +609,14 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
 });
 
 transport.onStateChange(() => {
-  if (transport.state !== "connected") {
-    currentBuildIdentity = null;
-    currentToolSet = null;
+  if (transport.state === "connecting") {
+    invalidateConnectionCaches();
+    if (readiness.current.state !== "connecting") readiness.begin();
+  } else if (transport.state === "connected") {
+    if (readiness.current.state === "connecting") readiness.connected(readiness.generation);
+  } else {
+    invalidateConnectionCaches();
+    readiness.disconnect();
   }
   void chrome.runtime.sendMessage({ type: "bridge.status.changed", value: status() }).catch(() => undefined);
 });
@@ -465,3 +627,15 @@ setInterval(() => {
 }, HEARTBEAT_INTERVAL_MS);
 
 void getSettings().then((settings) => chrome.storage.local.set(settings));
+
+chrome.runtime.onUpdateAvailable.addListener((details) => {
+  storeUpdateStatus = {
+    availableVersion: details.version,
+    reportedAt: new Date().toISOString(),
+    source: "browser_event",
+    state: "available",
+  };
+  void chrome.action.setBadgeBackgroundColor({ color: "#b56a00" });
+  void chrome.action.setBadgeText({ text: "UP" });
+  void chrome.runtime.sendMessage({ type: "bridge.status.changed", value: status() }).catch(() => undefined);
+});

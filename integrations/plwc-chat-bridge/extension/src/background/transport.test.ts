@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { JsonRpcWebSocketClient, type WebSocketLike } from "./transport";
+import { JsonRpcWebSocketClient, RpcRequestError, type WebSocketLike } from "./transport";
 
 class FakeWebSocket implements WebSocketLike {
   readyState = 0;
@@ -58,5 +58,39 @@ test("keeps a long request alive when request-scoped heartbeats arrive", async (
   socket.receive({ jsonrpc: "2.0", id: sent.id, result: { ok: true } });
 
   assert.deepEqual(await request, { ok: true });
+  assert.equal(client.pendingCount, 0);
+});
+
+test("does not resend a request whose response times out after dispatch", async () => {
+  const socket = new FakeWebSocket();
+  const client = new JsonRpcWebSocketClient("ws://127.0.0.1:3007/message", 20, () => socket);
+  const request = client.request("tools/call", { name: "plwc_workspace_operation" });
+  socket.open();
+
+  await assert.rejects(request, (error: unknown) => {
+    assert.ok(error instanceof RpcRequestError);
+    assert.equal(error.code, "timeout");
+    assert.equal(error.deliveryState, "outcome_unknown");
+    return true;
+  });
+  assert.equal(socket.sent.length, 1);
+  assert.equal(client.pendingCount, 0);
+});
+
+test("marks a closed connection after dispatch as outcome unknown without resending", async () => {
+  const socket = new FakeWebSocket();
+  const client = new JsonRpcWebSocketClient("ws://127.0.0.1:3007/message", 1_000, () => socket);
+  const request = client.request("tools/call", { name: "plwc_governor" });
+  socket.open();
+  await wait(0);
+  socket.close();
+
+  await assert.rejects(request, (error: unknown) => {
+    assert.ok(error instanceof RpcRequestError);
+    assert.equal(error.code, "connection_closed");
+    assert.equal(error.deliveryState, "outcome_unknown");
+    return true;
+  });
+  assert.equal(socket.sent.length, 1);
   assert.equal(client.pendingCount, 0);
 });

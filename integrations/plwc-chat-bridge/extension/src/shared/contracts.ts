@@ -1,6 +1,7 @@
 import { EXTENSION_BUILD_IDENTITY } from "./build-identity";
 
 export const BRIDGE_VERSION = EXTENSION_BUILD_IDENTITY.releaseVersion;
+export const BROWSER_EXTENSION_PROTOCOL_VERSION = "1.0.0";
 export const BRIDGE_ENDPOINT = "ws://127.0.0.1:3007/message";
 
 export const CANONICAL_TOOL_NAMES = [
@@ -30,6 +31,12 @@ export interface ToolSetValidation {
   extra: string[];
   duplicates: string[];
   invalidSchemas: string[];
+}
+
+export interface ToolSchemaIntegrity {
+  algorithm: "sha256";
+  integrityVerified: boolean;
+  schemaSha256: string;
 }
 
 export function isJsonObject(value: unknown): value is JsonObject {
@@ -97,4 +104,22 @@ export async function sha256(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export async function computeToolSchemaIntegrity(
+  validation: ToolSetValidation,
+): Promise<ToolSchemaIntegrity> {
+  if (!validation.valid) {
+    throw new Error("Cannot verify schema integrity for an invalid PLwC tool contract.");
+  }
+  const schemaPayload = validation.tools.map((tool) => ({
+    description: tool.description ?? "",
+    inputSchema: tool.inputSchema,
+    name: tool.name,
+  }));
+  return {
+    algorithm: "sha256",
+    integrityVerified: true,
+    schemaSha256: await sha256(stableStringify(schemaPayload)),
+  };
 }

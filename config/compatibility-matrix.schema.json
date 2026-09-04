@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "compatibility-matrix.schema.json",
+  "title": "PLwC component compatibility matrix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "matrix_version",
+    "release_family",
+    "product",
+    "status_model",
+    "trust_model",
+    "contracts",
+    "components"
+  ],
+  "properties": {
+    "$schema": { "const": "./compatibility-matrix.schema.json" },
+    "schema_version": { "const": "1.0.0" },
+    "matrix_version": { "$ref": "#/$defs/semver" },
+    "release_family": { "type": "string", "minLength": 1 },
+    "product": { "type": "object" },
+    "status_model": {
+      "type": "object",
+      "minProperties": 8,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["action"],
+        "properties": { "action": { "type": "string", "minLength": 1 } },
+        "additionalProperties": false
+      }
+    },
+    "trust_model": {
+      "type": "array",
+      "minItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["verified_local", "observed_local", "trusted_release", "unverified", "unavailable"]
+      }
+    },
+    "contracts": { "type": "object" },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/component" }
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "versionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "minimum": { "$ref": "#/$defs/semver" },
+        "maximum_exclusive": { "$ref": "#/$defs/semver" }
+      }
+    },
+    "protocolPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "required", "supported_versions"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "required": { "type": "boolean" },
+        "supported_versions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/semver" }
+        }
+      }
+    },
+    "buildIdentityPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "supported_schema_versions", "build_id_required", "sha256_required"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "supported_schema_versions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "build_id_required": { "type": "boolean" },
+        "sha256_required": { "type": "boolean" }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required_tool_count": { "type": "integer", "minimum": 1 },
+        "canonical_tools_required": { "type": "boolean" }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "display_name", "required"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "display_name": { "type": "string", "minLength": 1 },
+        "required": { "type": "boolean" },
+        "semantic_version": { "$ref": "#/$defs/versionPolicy" },
+        "protocol": { "$ref": "#/$defs/protocolPolicy" },
+        "build_identity": { "$ref": "#/$defs/buildIdentityPolicy" },
+        "readiness": { "$ref": "#/$defs/readiness" }
+      }
+    }
+  }
+}

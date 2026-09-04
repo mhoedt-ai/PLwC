@@ -5,6 +5,28 @@ It mirrors the security-notes section of the v1.0.0 release notes
 and is kept consistent with the source. Release notes pin the model
 to a specific artifact; this file states it in general terms.
 
+## r26 installation and update boundary
+
+The r26 installer and PLwC Doctor share one deterministic hard postflight. An
+installer success requires exact payload hashes, versionless active paths,
+eight canonical Gateway tools, valid Native Messaging origins, owned shortcuts,
+preserved configuration/profile hashes, and the expected build identity. A
+foreign process on port 3007 is never terminated.
+
+Update metadata is trusted only after RSA/SHA-256 verification of a canonical
+release manifest against a pinned public key. Artifact URL, byte size, SHA-256,
+and build identity are signed together. Size, hash, and identity are checked
+again before an interactive installer start. Update check, download, and
+installation transmit no profile or workspace content; downloads and installs
+are never silent. See [UPDATE_CENTER.md](UPDATE_CENTER.md).
+
+The r26 source trust store pins only public release key
+`plwc-release-r1-6bc3b440c598c407`. Its public-key SHA-256 is
+`6bc3b440c598c407f1b685b136ad89cccb344f25c6b02d5d10fe72c3bfa8dcda`.
+The private key is kept outside the repository and protected for the release
+operator by Windows DPAPI. A missing, empty, unknown, or mismatched trust source
+still fails closed; a test key or unsigned manifest is never promoted implicitly.
+
 > PLwC is designed as a governed MCP gateway with fail-closed
 > boundaries, protected profile/governance files, workspace-scoped
 > operations and Docker-based sandboxing. It has been tested against

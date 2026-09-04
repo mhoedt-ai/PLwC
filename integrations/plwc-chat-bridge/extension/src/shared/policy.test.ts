@@ -30,6 +30,24 @@ test("always confirms Governor apply and treats unknown operations as mutating",
   assert.equal(decidePolicy("plwc_sandbox_run", { lang: "python", code: "print(1)" }).automaticSandboxConfirmationAllowed, true);
 });
 
+test("never covers profile creation or activation with standing write confirmation", () => {
+  for (const planType of ["profile_creation", "profile_activation"]) {
+    const decision = decidePolicy("plwc_governor", { operation: "apply", plan_type: planType });
+    assert.equal(decision.readOnly, false);
+    assert.equal(decision.requiresConfirmation, true);
+    assert.equal(decision.automaticConfirmationAllowed, undefined);
+    assert.match(decision.reason, /individual confirmation/u);
+  }
+  assert.equal(
+    decidePolicy("plwc_governor", { operation: "plan", plan_type: "profile_creation" }).readOnly,
+    true,
+  );
+  assert.equal(
+    decidePolicy("plwc_governor", { operation: "plan", plan_type: "profile_activation" }).readOnly,
+    true,
+  );
+});
+
 test("never marks unknown public operations as automatically executable", () => {
   for (const [toolName, argumentsValue] of [
     ["plwc_profile", { operation: "future_operation" }],

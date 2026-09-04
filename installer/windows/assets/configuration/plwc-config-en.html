@@ -63,6 +63,7 @@
         </div>
       </div>
       <p class="path-line"><strong>Profiles folder:</strong> <span id="profiles-path"></span></p>
+      <p id="profile-details" class="profile-details" aria-live="polite"></p>
     </section>
 
     <section aria-labelledby="workspace-title">
@@ -78,6 +79,9 @@
         <input id="workspace-input" type="text" autocomplete="off" spellcheck="false" placeholder="F:\USER\PLWC_Workspace">
         <small>Saving creates the folder and its <code>Tagebuch</code>, <code>Temp</code> and <code>Trashcan</code> directories when needed. Existing files are not moved or deleted.</small>
       </label>
+      <div class="workspace-actions">
+        <button id="review-workspace-button" class="button secondary" type="button">Review workspace change</button>
+      </div>
     </section>
 
     <section aria-labelledby="threshold-title">
@@ -148,6 +152,62 @@
       </div>
     </section>
 
+    <section aria-labelledby="components-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Compatibility</p>
+          <h2 id="components-title">Installed components</h2>
+          <p>Actually observed local versions are shown separately from contracts, build identities, and source trust.</p>
+        </div>
+      </div>
+      <div class="component-table-wrap">
+        <table class="component-table">
+          <thead><tr><th>Component</th><th>Installed</th><th>Status</th><th>Source</th></tr></thead>
+          <tbody id="component-table-body"></tbody>
+        </table>
+      </div>
+      <p id="component-inventory-note" class="path-line"></p>
+    </section>
+
+    <section aria-labelledby="update-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Signed releases</p>
+          <h2 id="update-title">PLwC Update Center</h2>
+          <p>PLwC checks only at a bounded interval. Download and installation never occur without separate explicit confirmations.</p>
+        </div>
+      </div>
+      <div class="update-actions">
+        <button id="update-check-button" class="button secondary" type="button">Check for updates now</button>
+        <button id="update-review-button" class="button primary" type="button" disabled>Review download plan</button>
+      </div>
+      <dl class="detail-list update-details">
+        <div><dt>Status</dt><dd id="update-state">Never checked</dd></div>
+        <div><dt>Kind</dt><dd id="update-kind">-</dd></div>
+        <div><dt>Last checked</dt><dd id="update-last-checked">-</dd></div>
+        <div><dt>Last valid check</dt><dd id="update-last-valid">-</dd></div>
+        <div><dt>Release notes</dt><dd id="update-notes">-</dd></div>
+      </dl>
+      <p id="update-error" class="error-text" hidden></p>
+    </section>
+
+    <section aria-labelledby="doctor-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">CLU diagnosis</p>
+          <h2 id="doctor-title">PLwC Doctor</h2>
+          <p>The single PLwC Doctor checks the installation without making any change. Repairs are prepared only as an explained plan with a plan ID and run only after your explicit confirmation.</p>
+        </div>
+      </div>
+      <div class="doctor-actions">
+        <button id="doctor-diagnose-button" class="button secondary" type="button">Run diagnosis</button>
+        <button id="doctor-plan-button" class="button secondary" type="button" disabled>Show repair plan</button>
+        <button id="doctor-export-button" class="button secondary" type="button" disabled>Export diagnosis report</button>
+      </div>
+      <p id="doctor-summary" class="doctor-summary" aria-live="polite">No diagnosis has been run yet.</p>
+      <ol id="doctor-findings" class="doctor-findings"></ol>
+    </section>
+
     <section class="technical" aria-labelledby="technical-title">
       <details>
         <summary id="technical-title">Configuration files and diagnostics</summary>
@@ -155,11 +215,104 @@
           <div><dt>Shared settings</dt><dd id="settings-file"></dd></div>
           <div><dt>Profile state</dt><dd id="profile-state-file"></dd></div>
           <div><dt>Workspace</dt><dd id="workspace-path"></dd></div>
+          <div><dt>Last launcher result</dt><dd id="launcher-result"></dd></div>
+          <div><dt>Last extension contact</dt><dd id="browser-extension-contact"></dd></div>
         </dl>
         <div id="setup-warnings" class="warnings" hidden></div>
       </details>
     </section>
   </main>
+
+  <dialog id="update-dialog" aria-labelledby="update-dialog-title">
+    <form method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Verified download plan</p>
+          <h2 id="update-dialog-title">Download and install update</h2>
+        </div>
+        <button class="close-button" value="cancel" aria-label="Close" title="Close" type="submit" formnovalidate>×</button>
+      </div>
+      <dl class="plan-details">
+        <div><dt>Plan ID</dt><dd id="update-plan-id"></dd></div>
+        <div><dt>File</dt><dd id="update-plan-file"></dd></div>
+        <div><dt>Size / SHA-256</dt><dd id="update-plan-integrity"></dd></div>
+        <div><dt>Build identity</dt><dd id="update-plan-build"></dd></div>
+      </dl>
+      <label class="confirmation" for="update-download-confirmation">
+        <input id="update-download-confirmation" type="checkbox">
+        <span>I confirm the download of exactly this signed and hashed artifact.</span>
+      </label>
+      <div class="dialog-actions">
+        <button id="update-download-button" class="button primary" type="button" disabled>Download update</button>
+      </div>
+      <div id="update-install-step" hidden>
+        <p id="update-download-result" class="path-line"></p>
+        <label class="confirmation" for="update-install-confirmation">
+          <input id="update-install-confirmation" type="checkbox">
+          <span>I separately confirm that the verified r26 installer may now start interactively.</span>
+        </label>
+        <div class="dialog-actions">
+          <button id="update-install-button" class="button primary" type="button" disabled>Start installer</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="workspace-dialog" aria-labelledby="workspace-dialog-title">
+    <form method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Change plan</p>
+          <h2 id="workspace-dialog-title">Review workspace change</h2>
+        </div>
+        <button class="close-button" value="cancel" aria-label="Close" title="Close" type="submit" formnovalidate>×</button>
+      </div>
+      <div class="plan-flow" aria-label="Workspace change">
+        <div><span>Current</span><strong id="workspace-plan-current"></strong></div>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <div><span>Requested</span><strong id="workspace-plan-requested"></strong></div>
+      </div>
+      <dl class="plan-details">
+        <div><dt>Validation</dt><dd id="workspace-plan-validation"></dd></div>
+        <div><dt>Planned writes</dt><dd id="workspace-plan-writes"></dd></div>
+        <div><dt>Data migration</dt><dd id="workspace-plan-migration"></dd></div>
+      </dl>
+      <label class="confirmation" for="workspace-confirmation">
+        <input id="workspace-confirmation" type="checkbox">
+        <span>I reviewed the plan and want to change the workspace references. Existing data will not be moved.</span>
+      </label>
+      <div class="dialog-actions">
+        <button class="button secondary" value="cancel" type="submit" formnovalidate>Cancel</button>
+        <button id="apply-workspace-button" class="button primary" type="button" disabled>Change workspace</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="doctor-dialog" aria-labelledby="doctor-dialog-title">
+    <form method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Deterministic repair plan</p>
+          <h2 id="doctor-dialog-title">PLwC Doctor: perform repair</h2>
+        </div>
+        <button class="close-button" value="cancel" aria-label="Close" title="Close" type="submit" formnovalidate>×</button>
+      </div>
+      <dl class="plan-details">
+        <div><dt>Plan ID</dt><dd id="doctor-plan-id"></dd></div>
+        <div><dt>Diagnosis snapshot</dt><dd id="doctor-snapshot-id"></dd></div>
+        <div><dt>Planned changes</dt><dd id="doctor-plan-actions"></dd></div>
+        <div><dt>Backup and audit</dt><dd>Replaced files are backed up; every step is logged and followed by postflight checks.</dd></div>
+      </dl>
+      <label class="confirmation" for="doctor-confirmation">
+        <input id="doctor-confirmation" type="checkbox">
+        <span>I reviewed this exact plan and its plan ID and confirm the listed repair actions.</span>
+      </label>
+      <div class="dialog-actions">
+        <button class="button secondary" value="cancel" type="submit" formnovalidate>Cancel</button>
+        <button id="doctor-apply-button" class="button primary" type="button" disabled>Perform repair</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="profile-dialog" aria-labelledby="profile-dialog-title">
     <form method="dialog">

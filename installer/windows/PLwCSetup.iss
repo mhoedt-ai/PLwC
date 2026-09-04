@@ -13,7 +13,7 @@
 #define AppVersion "1.0.0"
 #endif
 #ifndef InstallerRevision
-#define InstallerRevision "installer-r25"
+#define InstallerRevision "installer-r26"
 #endif
 #ifndef GatewayVersion
 #define GatewayVersion "1.0.0"
@@ -22,7 +22,7 @@
 #define NodeBridgeVersion "1.0.0"
 #endif
 #ifndef BrowserExtensionVersion
-#define BrowserExtensionVersion "1.0.0"
+#define BrowserExtensionVersion "1.0.1"
 #endif
 #ifndef NativeLauncherVersion
 #define NativeLauncherVersion "1.0.0"
@@ -657,6 +657,14 @@ english.ReadyUpdateMode=Existing PLwC installation detected. Stored folders and 
 german.ReadyUpdateMode=Vorhandene PLwC-Installation erkannt. Gespeicherte Ordner und Einstellungen werden für dieses Update wiederverwendet.
 english.ErrorSharedSync=Setup could not synchronize the shared PLwC settings. Exit code:
 german.ErrorSharedSync=Setup konnte die gemeinsamen PLwC-Einstellungen nicht synchronisieren. Rückgabecode:
+english.InstallerMigrationStatus=Securing the existing PLwC runtime and checking the migration plan...
+german.InstallerMigrationStatus=Vorhandene PLwC-Laufzeit wird gesichert und der Migrationsplan geprüft...
+english.InstallerPostflightStatus=Verifying the complete r26 installation...
+german.InstallerPostflightStatus=Die vollständige r26-Installation wird geprüft...
+english.ErrorInstallerPreflight=The r26 preflight or migration preparation failed. No foreign process was stopped. Review the diagnostic report:
+german.ErrorInstallerPreflight=Der r26-Preflight oder die Migrationsvorbereitung ist fehlgeschlagen. Es wurde kein fremder Prozess beendet. Prüfen Sie den Diagnosebericht:
+english.ErrorInstallerPostflight=The mandatory r26 postflight failed; Setup will not report success and attempted to restore the previous application runtime. Review the diagnostic report:
+german.ErrorInstallerPostflight=Der verbindliche r26-Postflight ist fehlgeschlagen; Setup meldet keinen Erfolg und hat versucht, die vorherige Anwendungslaufzeit wiederherzustellen. Prüfen Sie den Diagnosebericht:
 
 [Types]
 Name: "compact"; Description: "{cm:TypeGatewayOnly}"
@@ -675,6 +683,9 @@ Name: "chatbridge"; Description: "{cm:ComponentChatBridge}"; Types: full
 [Files]
 Source: "assets\mcp-runtime-lock.txt"; Flags: dontcopy
 Source: "assets\python-runtime-probe.py"; Flags: dontcopy
+Source: "assets\installer-maintenance.py"; Flags: dontcopy
+Source: "..\..\src\plwc_gateway\installation\installer_state.py"; Flags: dontcopy
+Source: "..\..\src\plwc_gateway\installation\doctor.py"; Flags: dontcopy
 Source: "{#StageDir}\common\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Components: gateway
 Source: "{#StageDir}\gateway\*"; DestDir: "{code:GetGatewayPath}"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Components: gateway
 #if McpbAvailable == "1"
@@ -683,6 +694,7 @@ Source: "{#StageDir}\claude\*"; DestDir: "{app}\packages"; Flags: ignoreversion 
 Source: "{#StageDir}\codex\*"; DestDir: "{app}\clients\codex"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Components: codex
 Source: "{#StageDir}\odysseus\*"; DestDir: "{app}\clients\odysseus"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Components: odysseus
 Source: "{#StageDir}\chat-bridge\*"; DestDir: "{code:GetBridgePath}"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Components: chatbridge
+Source: "{#StageDir}\payload-manifest.json"; DestDir: "{app}\installation"; Flags: ignoreversion
 
 [Dirs]
 Name: "{code:GetWorkspacePath}"; Flags: uninsneveruninstall
@@ -724,6 +736,8 @@ const
   WaitObject0 = 0;
   WaitTimeout = 258;
   SeeMaskNoCloseProcess = 64;
+  { Cold imports of onnxruntime/fastembed exceeded 30 seconds in the clean-VM gate. }
+  PythonRuntimeProbeTimeoutMilliseconds = 120000;
 #ifdef UiSmokeDownloadFixture
   PythonInstallerUrl = '{#UiSmokeDownloadUrl}';
   PythonInstallerFileName = '{#UiSmokeDownloadFileName}';
@@ -844,6 +858,15 @@ var
   SetupExeSha256: String;
   ExistingInstallDetected: Boolean;
   ExistingSettingsComplete: Boolean;
+  LegacyBridgePath: String;
+  InstallerMigrationTransactionPath: String;
+  InstallerPreflightReportPath: String;
+  InstallerPostflightReportPath: String;
+  InstallerRollbackReportPath: String;
+  InstallerMigrationPrepared: Boolean;
+  InstallerRollbackAttempted: Boolean;
+  InstallerInstallationCompleted: Boolean;
+  InstallerFailureExitCode: Integer;
 
 function GetDataRoot: String;
 begin
@@ -951,10 +974,7 @@ end;
 
 function GetBridgePath(Param: String): String;
 begin
-  if RuntimeDirsPage <> nil then
-    Result := RuntimeDirsPage.Values[2]
-  else
-    Result := ReadStoredPath('BridgePath', ExpandConstant('{app}\{#BridgeDirectoryName}'));
+  Result := RemoveBackslashUnlessRoot(GetAppPath) + '\{#BridgeDirectoryName}';
 end;
 
 function GetWorkspacePath(Param: String): String;
@@ -1430,11 +1450,13 @@ begin
   Parameters := '-u "' + ProbeScriptPath + '" "' + LogPath + '"';
   Log('Running PLwC Python runtime probe with interpreter=' + PythonPath +
     ' diagnostic_log=' + LogPath);
-  Result := RunProbeWithTimeout(PythonPath, Parameters, 30000);
+  Result := RunProbeWithTimeout(
+    PythonPath, Parameters, PythonRuntimeProbeTimeoutMilliseconds);
   Log('PLwC Python runtime probe result=' + BooleanIniValue(Result));
   if not Result then
     Log(
-      'PLwC Python runtime probe failed or timed out after 30000 ms; ' +
+      'PLwC Python runtime probe failed or timed out after ' +
+      IntToStr(PythonRuntimeProbeTimeoutMilliseconds) + ' ms; ' +
       'see diagnostic_log=' + LogPath);
 end;
 
@@ -1459,7 +1481,7 @@ begin
     if RunProbeWithTimeout(
          Candidate,
          '-c "import mcp, qdrant_client, onnxruntime, fastembed"',
-         30000) then
+         PythonRuntimeProbeTimeoutMilliseconds) then
       PythonRuntimeOK := True;
   end;
 end;
@@ -2338,6 +2360,139 @@ begin
     BuildInstallerDiagnosticRecord(EventName, AdditionalText),
     True) then
     RaiseException(CustomMessage('ErrorDiagnostic'));
+end;
+
+function QuoteMaintenanceArgument(Value: String): String;
+begin
+  Result := '"' + Value + '"';
+end;
+
+function GetInstallerSelectionPath: String;
+begin
+  Result := GetConfigPath('') + '\installer\selection.ini';
+end;
+
+function GetInstalledPayloadManifestPath: String;
+begin
+  Result := GetAppPath + '\installation\payload-manifest.json';
+end;
+
+function GetInstallerMaintenanceReportPath(ActionName: String): String;
+begin
+  if ActionName = 'preflight-prepare' then
+    Result := InstallerPreflightReportPath
+  else if ActionName = 'rollback' then
+    Result := InstallerRollbackReportPath
+  else
+    Result := InstallerPostflightReportPath;
+end;
+
+function BuildInstallerMaintenanceArguments(ActionName: String): String;
+begin
+  Result :=
+    QuoteMaintenanceArgument(ExpandConstant('{tmp}\installer-maintenance.py')) +
+    ' ' + ActionName +
+    ' --installation-root ' + QuoteMaintenanceArgument(GetDataRoot) +
+    ' --app-root ' + QuoteMaintenanceArgument(GetAppPath) +
+    ' --gateway-root ' + QuoteMaintenanceArgument(GetGatewayPath('')) +
+    ' --bridge-root ' + QuoteMaintenanceArgument(GetBridgePath('')) +
+    ' --workspace-root ' + QuoteMaintenanceArgument(GetWorkspacePath('')) +
+    ' --profile-root ' + QuoteMaintenanceArgument(GetProfilesPath('')) +
+    ' --config-root ' + QuoteMaintenanceArgument(GetConfigPath('')) +
+    ' --state-root ' + QuoteMaintenanceArgument(GetStatePath('')) +
+    ' --logs-root ' + QuoteMaintenanceArgument(GetLogsPath('')) +
+    ' --backups-root ' + QuoteMaintenanceArgument(GetBackupsPath('')) +
+    ' --selection-path ' + QuoteMaintenanceArgument(GetInstallerSelectionPath) +
+    ' --transaction-path ' + QuoteMaintenanceArgument(InstallerMigrationTransactionPath) +
+    ' --report-path ' + QuoteMaintenanceArgument(GetInstallerMaintenanceReportPath(ActionName));
+  if ActionName = 'postflight' then
+    Result := Result +
+      ' --payload-manifest ' + QuoteMaintenanceArgument(GetInstalledPayloadManifestPath) +
+      ' --extension-id ' + ChatBridgeExtensionId;
+end;
+
+function RunInstallerMaintenance(ActionName: String; var ResultCode: Integer): Boolean;
+var
+  Parameters: String;
+  Started: Boolean;
+begin
+  ResultCode := -1;
+  Parameters := BuildInstallerMaintenanceArguments(ActionName);
+  Log('Executing r26 installer maintenance action: ' + ActionName);
+  Started := Exec(
+    ResolvePythonPath,
+    Parameters,
+    ExpandConstant('{tmp}'),
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode);
+  Result := Started and (ResultCode = 0);
+  Log(
+    'r26 installer maintenance action=' + ActionName +
+    '; started=' + IntToStr(Ord(Started)) +
+    '; exit=' + IntToStr(ResultCode) +
+    '; report=' + GetInstallerMaintenanceReportPath(ActionName));
+end;
+
+procedure PrepareInstallerMigration;
+var
+  ResultCode: Integer;
+begin
+  WizardForm.StatusLabel.Caption := CustomMessage('InstallerMigrationStatus');
+  InstallerMigrationTransactionPath := GetStatePath('') +
+    '\installation\r26-installer-transaction.json';
+  InstallerPreflightReportPath := GetLogsPath('') +
+    '\setup\r26-installer-preflight.json';
+  InstallerPostflightReportPath := GetLogsPath('') +
+    '\setup\r26-installer-postflight.json';
+  InstallerRollbackReportPath := GetLogsPath('') +
+    '\setup\r26-installer-rollback.json';
+  EnsureDirectory(ExtractFileDir(InstallerMigrationTransactionPath));
+  EnsureDirectory(ExtractFileDir(InstallerPostflightReportPath));
+  ExtractTemporaryFile('installer-maintenance.py');
+  ExtractTemporaryFile('installer_state.py');
+  ExtractTemporaryFile('doctor.py');
+  if not RunInstallerMaintenance('preflight-prepare', ResultCode) then
+  begin
+    AppendInstallerDiagnosticRecord(
+      'installer_preflight',
+      'status=failure' + #13#10 +
+      'exit_code=' + IntToStr(ResultCode) + #13#10 +
+      'report=' + InstallerPreflightReportPath + #13#10);
+    RaiseException(
+      CustomMessage('ErrorInstallerPreflight') + #13#10 +
+      InstallerPreflightReportPath + #13#10 +
+      'Exit code: ' + IntToStr(ResultCode));
+  end;
+  AppendInstallerDiagnosticRecord(
+    'installer_preflight',
+    'status=prepared' + #13#10 +
+    'transaction=' + InstallerMigrationTransactionPath + #13#10 +
+    'legacy_bridge=' + LegacyBridgePath + #13#10 +
+    'target_bridge=' + GetBridgePath('') + #13#10);
+  InstallerMigrationPrepared := True;
+end;
+
+function RollbackInstallerMigration: Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := RunInstallerMaintenance('rollback', ResultCode);
+  InstallerRollbackAttempted := True;
+  if not Result then
+    Log('r26 installer rollback failed with exit code ' + IntToStr(ResultCode));
+end;
+
+procedure RunHardInstallerPostflight;
+var
+  ResultCode: Integer;
+begin
+  WizardForm.StatusLabel.Caption := CustomMessage('InstallerPostflightStatus');
+  if not RunInstallerMaintenance('postflight', ResultCode) then
+    RaiseException(
+      CustomMessage('ErrorInstallerPostflight') + #13#10 +
+      InstallerPostflightReportPath + #13#10 +
+      'Exit code: ' + IntToStr(ResultCode));
 end;
 
 procedure SetPrerequisitePhase(Phase: String);
@@ -3680,6 +3835,11 @@ begin
   Result := DependencyRestartRequired;
 end;
 
+function GetCustomSetupExitCode: Integer;
+begin
+  Result := InstallerFailureExitCode;
+end;
+
 procedure InitializeWizard;
 var
   ActionButtonWidth: Integer;
@@ -3689,6 +3849,15 @@ var
 begin
   ExistingInstallDetected := DetectExistingInstall;
   ExistingSettingsComplete := ExistingInstallDetected and HasCompleteExistingSettings;
+  LegacyBridgePath := ReadStoredPath('BridgePath', '');
+  InstallerMigrationTransactionPath := GetDataRoot +
+    '\state\installation\r26-installer-transaction.json';
+  InstallerPreflightReportPath := GetDataRoot +
+    '\logs\setup\r26-installer-preflight.json';
+  InstallerPostflightReportPath := GetLogsPath('') +
+    '\setup\r26-installer-postflight.json';
+  InstallerRollbackReportPath := GetDataRoot +
+    '\logs\setup\r26-installer-rollback.json';
   if ExistingInstallDetected then
     LastAppRoot := NormalizePath(ReadStoredPath('AppPath', WizardDirValue))
   else
@@ -3702,6 +3871,10 @@ begin
   PrerequisiteBatchActive := False;
   PrerequisiteBatchPlan := '';
   CurrentPrerequisitePhase := '';
+  InstallerMigrationPrepared := False;
+  InstallerRollbackAttempted := False;
+  InstallerInstallationCompleted := False;
+  InstallerFailureExitCode := 0;
 
 #ifdef UiSmokeTimedProbeFixture
   if WaitNamedPipe('\\.\pipe\docker_engine', 2000) then
@@ -3834,7 +4007,8 @@ begin
   RuntimeDirsPage.Add(CustomMessage('FieldChatBridge'));
   RuntimeDirsPage.Values[0] := ReadStoredPath('AppPath', LastAppRoot);
   RuntimeDirsPage.Values[1] := ReadStoredPath('GatewayPath', LastAppRoot + '\gateway');
-  RuntimeDirsPage.Values[2] := ReadStoredPath('BridgePath', LastAppRoot + '\{#BridgeDirectoryName}');
+  RuntimeDirsPage.Values[2] := LastAppRoot + '\{#BridgeDirectoryName}';
+  RuntimeDirsPage.Edits[2].ReadOnly := True;
 
   DataDirsPage := CreateInputDirPage(
     RuntimeDirsPage.ID,
@@ -3954,8 +4128,7 @@ begin
     CurrentAppRoot := NormalizePath(RuntimeDirsPage.Values[0]);
     if CompareText(NormalizePath(RuntimeDirsPage.Values[1]), LastAppRoot + '\gateway') = 0 then
       RuntimeDirsPage.Values[1] := CurrentAppRoot + '\gateway';
-    if CompareText(NormalizePath(RuntimeDirsPage.Values[2]), LastAppRoot + '\{#BridgeDirectoryName}') = 0 then
-      RuntimeDirsPage.Values[2] := CurrentAppRoot + '\{#BridgeDirectoryName}';
+    RuntimeDirsPage.Values[2] := CurrentAppRoot + '\{#BridgeDirectoryName}';
     LastAppRoot := CurrentAppRoot;
   end;
 end;
@@ -4171,7 +4344,8 @@ begin
     if (CompareText(GatewayPath, AppPath) = 0) or
        (not IsSameOrChildPath(GatewayPath, AppPath)) or
        (CompareText(BridgePath, AppPath) = 0) or
-       (not IsSameOrChildPath(BridgePath, AppPath)) then
+       (not IsSameOrChildPath(BridgePath, AppPath)) or
+       (CompareText(BridgePath, AppPath + '\{#BridgeDirectoryName}') <> 0) then
     begin
       MsgBox(CustomMessage('ErrorRuntimeChildren'), mbError, MB_OK);
       Result := False;
@@ -4328,15 +4502,53 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ErrorText: String;
+  RollbackComplete: Boolean;
 begin
+  if CurStep = ssInstall then
+    PrepareInstallerMigration;
+
   if CurStep = ssPostInstall then
   begin
-    StoreInstallerRoots;
-    SaveGeneratedFiles;
-    StartDockerDesktopAfterSetup;
-    ConfigureChatBridgeWindowsIntegration;
-    AppendInstallerDiagnosticRecord(
-      'installation_completed', 'status=success' + #13#10);
+    try
+      StoreInstallerRoots;
+      SaveGeneratedFiles;
+      StartDockerDesktopAfterSetup;
+      ConfigureChatBridgeWindowsIntegration;
+      RunHardInstallerPostflight;
+      AppendInstallerDiagnosticRecord(
+        'installation_completed',
+        'status=success' + #13#10 +
+        'postflight_report=' + InstallerPostflightReportPath + #13#10);
+      InstallerInstallationCompleted := True;
+    except
+      ErrorText := GetExceptionMessage;
+      RollbackComplete := RollbackInstallerMigration;
+      if RollbackComplete then
+        InstallerFailureExitCode := 30
+      else
+        InstallerFailureExitCode := 50;
+      AppendInstallerDiagnosticRecord(
+        'installation_completed',
+        'status=failure' + #13#10 +
+        'error=' + ErrorText + #13#10 +
+        'rollback_complete=' + IntToStr(Ord(RollbackComplete)) + #13#10 +
+        'rollback_report=' + InstallerRollbackReportPath + #13#10 +
+        'postflight_report=' + InstallerPostflightReportPath + #13#10);
+      RaiseException(ErrorText);
+    end;
+  end;
+end;
+
+procedure DeinitializeSetup;
+begin
+  if InstallerMigrationPrepared and
+     (not InstallerInstallationCompleted) and
+     (not InstallerRollbackAttempted) then
+  begin
+    Log('Setup ended before r26 postflight success; attempting installer rollback.');
+    RollbackInstallerMigration;
   end;
 end;
 
