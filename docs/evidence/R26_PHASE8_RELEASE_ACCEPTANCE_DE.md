@@ -111,12 +111,13 @@ Der aktuelle Store-Zustand wurde live gelesen. Chrome `1.0.0` war akzeptiert,
 aber privat ohne Trusted-Tester-Gruppe und keine Linkveröffentlichung.
 Der Product Owner brach die wartende Veröffentlichung ab; `1.0.0` wurde nicht
 veröffentlicht. Das geprüfte Chrome-Paket `1.0.1` wurde in derselben ID
-gespeichert und am 2026-09-04 zur Prüfung eingereicht. Der live gelesene Status
-ist **Überprüfung ausstehend**, weiterhin **Privat**, ohne Testergruppe und ohne
-veröffentlichte Version. Damit ist Chrome noch keine nutzbare
-Linkveröffentlichung; für das beabsichtigte Modell bleibt der kontrollierte
-Wechsel auf **Nicht gelistet** mit gegebenenfalls erneuter Prüfung offen. Edge
-`1.0.0` ist bereits live und hidden. Das
+gespeichert und am 2026-09-04 zunächst privat zur Prüfung eingereicht. Diese
+Prüfung wurde danach kontrolliert abgebrochen, die Sichtbarkeit auf **Nicht
+gelistet** geändert und gespeichert und Version `1.0.1` erneut zur Prüfung
+eingereicht. Die automatische Veröffentlichung nach bestandener Prüfung blieb
+deaktiviert. Der abschließend live gelesene Status ist **Überprüfung
+ausstehend**, Sichtbarkeit **Nicht gelistet** und keine veröffentlichte Version.
+Edge `1.0.0` ist bereits live und hidden. Das
 geprüfte `1.0.1`-Paket wurde dort in derselben CRX-Identität als
 Hidden-Aktualisierung gespeichert und steht **In draft**; die bestehende
 `1.0.0` bleibt live. Edge `1.0.1` wurde nicht zur Prüfung eingereicht. Keine
