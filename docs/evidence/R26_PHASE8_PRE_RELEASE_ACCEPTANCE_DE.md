@@ -7,14 +7,17 @@ saubere Windows-Systemmatrix noch unvollständig**
 
 ## Freigabegrenzen
 
-Der Benutzer hat mit `los` den endgültigen r26-Build freigegeben. Diese
-Freigabe umfasste keine Browser-Store-Einreichung oder -Veröffentlichung. Der
-Build wurde mangels Authenticode-Zertifikat ausschließlich über den
-ausdrücklichen Schalter `-Unsigned` erzeugt. Windows darf deshalb
-`Unbekannter Herausgeber` anzeigen.
+Der Benutzer hat mit `los` den damaligen r26-Build freigegeben. Später wurden
+die geprüften Extension-Pakete `1.0.1` in die vorhandenen Chrome- und
+Edge-Identitäten geladen. Der Product Owner reichte den privaten
+Chrome-Entwurf anschließend zur Prüfung ein. Diese Handlungen umfassten keine
+Store-Veröffentlichung und keine Freigabe eines neuen endgültigen
+Produktionsbuilds. Der damalige Build wurde mangels Authenticode-Zertifikat
+ausschließlich über den ausdrücklichen Schalter `-Unsigned` erzeugt. Windows
+darf deshalb `Unbekannter Herausgeber` anzeigen.
 
-Keine Store-Datei wurde hochgeladen, kein Entwurf verändert, keine Prüfung
-ausgelöst und keine Veröffentlichung vorgenommen.
+Keine Store-Veröffentlichung und kein Sichtbarkeitswechsel wurden vorgenommen.
+Edge `1.0.1` wurde nicht zur Prüfung eingereicht.
 
 ## Repository- und Releaseidentität
 
@@ -147,9 +150,11 @@ das Menü bietet nur den Abbruch dieser Veröffentlichung. Dieser potenziell
 review-verwerfende Schritt wurde anschließend durch den Product Owner
 ausgeführt; `1.0.0` wurde dabei nicht veröffentlicht. Das reproduzierbar
 geprüfte Paket `PLwC-Chat-Bridge-1.0.1-chrome-brave-store.zip` wurde danach in
-dieselbe Artikel-ID geladen und gespeichert. Chrome zeigt Version `1.0.1`,
-Status **Entwurf**, weiterhin **Privat**, keine Trusted-Tester-Gruppe und keine
-veröffentlichte Version. `Prüfen lassen` wurde nicht betätigt.
+dieselbe Artikel-ID geladen und gespeichert. Der Product Owner reichte diesen
+Entwurf am 2026-09-04 zur Prüfung ein. Die erneute Live-Prüfung zeigt Version
+`1.0.1`, Status **Überprüfung ausstehend**, weiterhin **Privat**, keine
+Trusted-Tester-Gruppe und keine veröffentlichte Version. Diese Einreichung ist
+deshalb noch keine nutzbare Linkveröffentlichung.
 
 Edge wurde am 2026-09-04 ebenfalls live verifiziert: Version `1.0.0` war
 **Live**, Sichtbarkeit **Hidden**, CRX-ID
@@ -177,8 +182,9 @@ Extension `1.0.1`, passender Buildidentität und 8/8 bestanden. Noch offen sind:
    `%APPDATA%\PLwC\app\bridge\extension` bestanden (`1.0.1`, passender Build,
    `8/8`, erfolgreicher `plwc_status`);
 3. Aktualisierung dieses Nachweises auf vollständiges PASS;
-4. ausdrückliche Entscheidung über Chrome-Sichtbarkeit und die getrennte
-   Einreichung des gespeicherten `1.0.1`-Entwurfs zur Prüfung;
+4. Abschluss der laufenden privaten Chrome-Prüfung und eine ausdrückliche
+   Entscheidung über den Wechsel auf **Nicht gelistet**; falls dieser Wechsel
+   eine weitere Prüfung auslöst, ist deren Abschluss erneut abzuwarten;
 5. ausdrückliche Freigabe eines endgültigen Produktionsbuilds.
 
 Auf dem Abnahmehost sind Windows Sandbox, VirtualBox, VMware und QEMU nicht

@@ -1,6 +1,6 @@
 # PLwC Chat Bridge Store Submission Checklist
 
-Status: `CHROME 1.0.1 PRIVATE DRAFT / EDGE 1.0.1 HIDDEN UPDATE DRAFT / PUBLICATION HOLD`
+Status: `CHROME 1.0.1 PRIVATE REVIEW PENDING / EDGE 1.0.1 HIDDEN UPDATE DRAFT / PUBLICATION HOLD`
 
 This record binds the completed draft preparation and controlled review
 submission. It is not authorization for a later Chrome publication, a change
@@ -19,9 +19,10 @@ to public visibility, or any broader distribution of either extension.
   uploaded. The Product Owner used that action, returning the item to an
   editable draft without publishing `1.0.0`.
 - The verified `PLwC-Chat-Bridge-1.0.1-chrome-brave-store.zip` package was then
-  uploaded to the same Chrome item and saved. Chrome shows version `1.0.1`,
-  status **Draft**, visibility **Private**, no trusted-tester group, and no
-  published version. `Submit for review` was not used.
+  uploaded to the same Chrome item and saved. The Product Owner subsequently
+  submitted it for review. A live recheck shows version `1.0.1`, status
+  **Review pending** (`Überprüfung ausstehend`), visibility **Private**, no
+  trusted-tester group, and no published version.
 - The intended Chrome distribution is **Unlisted**, reachable only through the
   official Store link. Before any publication action, recheck active visibility;
   if changing it triggers another review, wait for that review to finish.
@@ -33,8 +34,9 @@ to public visibility, or any broader distribution of either extension.
   Edge identity. Partner Center verified version `1.0.1`; the resulting update
   is **In draft** and remains **Hidden** while live version `1.0.0` continues to
   be available. The `Publish` action was not used.
-- No Store publication, review submission, or Chrome visibility change is
-  authorized by this checklist.
+- No Store publication, Edge review submission, or Chrome visibility change is
+  authorized by this checklist. The already executed private Chrome review
+  submission is recorded as observed state, not as publication authorization.
 
 ## Previously review-bound identities and packages
 
@@ -61,11 +63,11 @@ scan tests.
 | Chrome / Brave | `feceodobnhefdbfgmbinkndhogpfkicb` | `store/out/PLwC-Chat-Bridge-1.0.1-chrome-brave-store.zip` | 281.201 | `6412dcc2ea32f2d99fc34a7402423326e99ee683c5a192014be4fb93f621ce7f` |
 | Microsoft Edge | `nncomjknhhlgcmkmlaljhkiojcnpmflb` | `store/out/PLwC-Chat-Bridge-1.0.1-edge-store.zip` | 281.201 | `6412dcc2ea32f2d99fc34a7402423326e99ee683c5a192014be4fb93f621ce7f` |
 
-Both rows are now bound to the verified drafts recorded above: Chrome `1.0.1`
-is a private draft and Edge `1.0.1` is a hidden update draft. Neither row is
-proof of a new review or publication. Before any further upload, re-read the
-live item ID, version, review state, and visibility. Upload only to the matching
-existing item and never create a replacement item.
+Both rows are now bound to the verified dashboard states recorded above:
+Chrome `1.0.1` is a private submission with review pending and Edge `1.0.1` is
+a hidden update draft. Neither row is proof of publication. Before any further
+upload, re-read the live item ID, version, review state, and visibility. Upload
+only to the matching existing item and never create a replacement item.
 
 ## Saved draft result - 2026-08-15
 
@@ -168,9 +170,10 @@ the order has no release or priority meaning.
 
 ## HOLD conditions before Store availability or publication
 
-- Recheck both live dashboards. Chrome is review-accepted but remains Private
-  without a selected tester group and is not link-installable. The current Edge
-  state is not established by this dated repository record.
+- Recheck both live dashboards. On 2026-09-04 Chrome `1.0.1` was review-pending
+  but remained Private without a selected tester group and was not
+  link-installable. Edge `1.0.1` was still a Hidden update draft while `1.0.0`
+  remained Live.
 - Change Chrome to the authorized Unlisted/link-only model only after explicit
   approval. If the change triggers a new review, wait for that review to finish.
 - Complete the controlled availability decision and real-ID acceptance before
