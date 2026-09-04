@@ -1,24 +1,35 @@
 # PLwC Chat Bridge Store Submission Checklist
 
-Status: `CHROME ACCEPTED BUT PRIVATE / STORE ACTION HOLD`
+Status: `CHROME ACCEPTED BUT PRIVATE / EDGE 1.0.1 UPDATE IN DRAFT / PUBLICATION HOLD`
 
 This record binds the completed draft preparation and controlled review
 submission. It is not authorization for a later Chrome publication, a change
 to public visibility, or any broader distribution of either extension.
 
-## Current dashboard recheck - 2026-09-03
+## Current dashboard recheck and Edge update - 2026-09-04
 
 - Chrome item `feceodobnhefdbfgmbinkndhogpfkicb`, version `1.0.0`, was accepted
   and showed `Bereit zur Veröffentlichung`. Google displayed 2026-10-01 as the
   latest publication date.
 - Active Chrome visibility was still **Private**, with no selected trusted-tester
   group. The accepted item is therefore not a usable link distribution.
+- Chrome disabled package upload while the accepted deferred-publication draft
+  is pending. Its menu offers `Cancel publication`; using that action would
+  discard the accepted publication state before a `1.0.1` update can be
+  uploaded. No Chrome state was changed.
 - The intended Chrome distribution is **Unlisted**, reachable only through the
   official Store link. Before any publication action, recheck active visibility;
   if changing it triggers another review, wait for that review to finish.
-- The live Edge dashboard state was not reverified in this r26 source pass. Do
-  not infer it from the dated submission history below.
-- No Store publication or package update is authorized by this checklist.
+- Edge was reverified as version `1.0.0`, status **Live**, visibility **Hidden**,
+  with CRX ID `nncomjknhhlgcmkmlaljhkiojcnpmflb` and the expected direct Store
+  link. This is the intended link-only distribution model.
+- After Product Owner authorization to renew the extensions, the verified
+  `PLwC-Chat-Bridge-1.0.1-edge-store.zip` package was uploaded to the existing
+  Edge identity. Partner Center verified version `1.0.1`; the resulting update
+  is **In draft** and remains **Hidden** while live version `1.0.0` continues to
+  be available. The `Publish` action was not used.
+- No Store publication or Chrome visibility change is authorized by this
+  checklist.
 
 ## Previously review-bound identities and packages
 
@@ -45,10 +56,11 @@ scan tests.
 | Chrome / Brave | `feceodobnhefdbfgmbinkndhogpfkicb` | `store/out/PLwC-Chat-Bridge-1.0.1-chrome-brave-store.zip` | 281.201 | `6412dcc2ea32f2d99fc34a7402423326e99ee683c5a192014be4fb93f621ce7f` |
 | Microsoft Edge | `nncomjknhhlgcmkmlaljhkiojcnpmflb` | `store/out/PLwC-Chat-Bridge-1.0.1-edge-store.zip` | 281.201 | `6412dcc2ea32f2d99fc34a7402423326e99ee683c5a192014be4fb93f621ce7f` |
 
-These are prepared update packages, not proof of dashboard upload, review, or
-publication. Before an upload, re-read the live item ID, version, review state,
-and visibility. Upload only to the matching existing item and never create a
-replacement item.
+The Chrome package is prepared but has not been uploaded. The Edge row is now
+also bound to the verified **In draft** upload recorded above. Neither row is
+proof of a new review or publication. Before any further upload, re-read the
+live item ID, version, review state, and visibility. Upload only to the matching
+existing item and never create a replacement item.
 
 ## Saved draft result - 2026-08-15
 

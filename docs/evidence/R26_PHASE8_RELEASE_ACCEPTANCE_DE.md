@@ -107,7 +107,11 @@ Produktionskandidaten und die ausdrückliche Freigabe für diesen endgültigen
 Build. Die Einzelheiten stehen in
 `docs/R26_WINDOWS_TEST_MATRIX.md`.
 
-Es wurde keine Browser-Store-Aktion ausgeführt. Chrome bleibt nach dem letzten
-tatsächlichen Dashboardbefund privat und ist keine Linkveröffentlichung; Edge
-wurde nicht geraten. Veröffentlichung, Sichtbarkeitswechsel und Upload bleiben
-separate menschliche Gates.
+Der aktuelle Store-Zustand wurde live gelesen. Chrome `1.0.0` bleibt akzeptiert,
+aber privat ohne Trusted-Tester-Gruppe und ist keine Linkveröffentlichung. Ein
+neuer Chrome-Upload ist gesperrt, bis die wartende Veröffentlichung abgebrochen
+wird; dieser Schritt wurde nicht ausgeführt. Edge `1.0.0` ist bereits live und
+hidden. Das geprüfte `1.0.1`-Paket wurde dort in derselben CRX-Identität als
+Hidden-Aktualisierung gespeichert und steht **In draft**; die bestehende
+`1.0.0` bleibt live. Keine Veröffentlichung und kein Sichtbarkeitswechsel wurden
+ausgeführt.

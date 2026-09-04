@@ -140,11 +140,19 @@ Der Chrome-Entwurf wurde in diesem Arbeitsablauf tatsächlich gelesen:
 
 Der Entwurf ist deshalb keine nutzbare Linkveröffentlichung. Das vorgesehene
 Modell ist **Nicht gelistet / Unlisted**. Ein erneuter Leseversuch am 2026-09-04
-endete an Googles Passwort-Reauth; es wurden keine Zugangsdaten eingegeben und
-keine Store-Einstellung verändert. Vor jeder späteren Store-Aktion muss die
-aktive Sichtbarkeit erneut bestätigt und ein gegebenenfalls neuer Review
-vollständig abgewartet werden. Der aktuelle Edge-Dashboardstatus wurde nicht
-erneut verifiziert und wird nicht geraten.
+endete zunächst an Googles Passwort-Reauth. Nach der später erfolgreichen
+Anmeldung wurde derselbe Zustand live bestätigt. Der Paketbereich sperrt einen
+neuen Upload, solange der akzeptierte Entwurf auf die Veröffentlichung wartet;
+das Menü bietet nur den Abbruch dieser Veröffentlichung. Dieser potenziell
+review-verwerfende Schritt wurde nicht ausgeführt.
+
+Edge wurde am 2026-09-04 ebenfalls live verifiziert: Version `1.0.0` war
+**Live**, Sichtbarkeit **Hidden**, CRX-ID
+`nncomjknhhlgcmkmlaljhkiojcnpmflb`, und der offizielle Direktlink war
+vorhanden. Anschließend wurde das reproduzierbar geprüfte Paket
+`PLwC-Chat-Bridge-1.0.1-edge-store.zip` in dieselbe Identität geladen. Partner
+Center verifizierte Version `1.0.1`; sie steht nun **In draft** und weiterhin
+**Hidden**, während `1.0.0` live bleibt. `Publish` wurde nicht verwendet.
 
 ## Phasenergebnis und offene Bedingungen
 
@@ -164,7 +172,9 @@ Extension `1.0.1`, passender Buildidentität und 8/8 bestanden. Noch offen sind:
    `%APPDATA%\PLwC\app\bridge\extension` bestanden (`1.0.1`, passender Build,
    `8/8`, erfolgreicher `plwc_status`);
 3. Aktualisierung dieses Nachweises auf vollständiges PASS;
-4. nachvollziehbarer Release-Commit und Push ohne Force-Push;
+4. ausdrückliche Entscheidung, ob der akzeptierte private Chrome-Entwurf
+   abgebrochen und durch das vorbereitete `1.0.1`-Paket mit neuem Review ersetzt
+   werden soll;
 5. ausdrückliche Freigabe eines endgültigen Produktionsbuilds.
 
 Auf dem Abnahmehost sind Windows Sandbox, VirtualBox, VMware und QEMU nicht
