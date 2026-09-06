@@ -172,7 +172,7 @@ def _known_shortcut_path(path: Path) -> bool:
 
 
 class InstallerStateEngine:
-    """Shared r26 preflight, migration, rollback, and hard-postflight engine."""
+    """Shared r27 preflight, migration, rollback, and hard-postflight engine."""
 
     def __init__(
         self,
@@ -201,7 +201,7 @@ class InstallerStateEngine:
         if not _inside(self.gateway_root, self.app_root) or not _inside(self.bridge_root, self.app_root):
             raise InstallerStateError("Gateway and Bridge targets must stay below the PLwC app root.")
         if self.bridge_root.name.casefold() != "bridge":
-            raise InstallerStateError("r26 requires the versionless app\\bridge runtime target.")
+            raise InstallerStateError("r27 requires the versionless app\\bridge runtime target.")
         if _inside(self.gateway_root, self.bridge_root) or _inside(self.bridge_root, self.gateway_root):
             raise InstallerStateError("Gateway and Bridge runtime targets must not overlap.")
         data_roots = {
@@ -373,7 +373,7 @@ class InstallerStateEngine:
                 {
                     "type": "backup_application_tree",
                     "path": str(self.app_root),
-                    "explanation": "Back up the complete existing PLwC application tree before r26 replaces runtime files.",
+                    "explanation": "Back up the complete existing PLwC application tree before r27 replaces runtime files.",
                 }
             )
         for process in proven:
@@ -390,7 +390,7 @@ class InstallerStateEngine:
                 {
                     "type": "archive_legacy_after_postflight",
                     "path": str(path),
-                    "explanation": "Keep the legacy runtime as recovery evidence until the r26 8/8 postflight succeeds.",
+                    "explanation": "Keep the legacy runtime as recovery evidence until the r27 8/8 postflight succeeds.",
                 }
             )
         core = {
@@ -439,8 +439,8 @@ class InstallerStateEngine:
             raise InstallerStateError("Port 3007 is owned by an unverified process; no process was stopped.")
         if current_preflight.get("snapshot_id") != plan.get("snapshot_id"):
             raise InstallerStateError("Installer state changed after preflight; review a new migration plan.")
-        backup_root = self.backups_root / "installer-r26" / str(plan["snapshot_id"])
-        target_backup = backup_root / "app-before-r26"
+        backup_root = self.backups_root / "installer-r27" / str(plan["snapshot_id"])
+        target_backup = backup_root / "app-before-r27"
         applied: list[dict[str, Any]] = []
         current_system = dict(current_system_facts) if isinstance(current_system_facts, Mapping) else collect_windows_system_facts()
         current_processes = current_system.get("processes") if isinstance(current_system.get("processes"), list) else []
@@ -449,7 +449,7 @@ class InstallerStateEngine:
         current_foreign = self._foreign_port_owners(current_system, approved_roots)
         if current_foreign:
             raise InstallerStateError("Port 3007 is now owned by an unverified process; no process was stopped.")
-        integration_backup_root = backup_root / "windows-integration-before-r26"
+        integration_backup_root = backup_root / "windows-integration-before-r27"
         config_file_backups: list[dict[str, Any]] = []
         for index, relative in enumerate(INSTALLER_MANAGED_CONFIG_PATHS):
             source = (self.config_root / relative).resolve(strict=False)
@@ -600,8 +600,8 @@ class InstallerStateEngine:
         app_backup_value = prepare_result.get("target_backup")
         snapshot_id = str(prepare_result.get("snapshot_id") or "unknown")
         suffix = snapshot_id[:12] if snapshot_id else "unknown"
-        failed_runtime = self.app_root.with_name(f"{self.app_root.name}-r26-failed-{suffix}")
-        restore_staging = self.app_root.with_name(f"{self.app_root.name}-r26-restore-{suffix}")
+        failed_runtime = self.app_root.with_name(f"{self.app_root.name}-r27-failed-{suffix}")
+        restore_staging = self.app_root.with_name(f"{self.app_root.name}-r27-restore-{suffix}")
         if failed_runtime.exists() or restore_staging.exists():
             raise InstallerStateError("Installer rollback quarantine or restore staging already exists.")
         if not isinstance(app_backup_value, str) or not app_backup_value:
@@ -610,9 +610,9 @@ class InstallerStateEngine:
                 runtime_result = "quarantined_new_application"
         else:
             backup = Path(app_backup_value).resolve(strict=False)
-            allowed_backup_root = (self.backups_root / "installer-r26").resolve(strict=False)
+            allowed_backup_root = (self.backups_root / "installer-r27").resolve(strict=False)
             if not _inside(backup, allowed_backup_root) or not backup.is_dir():
-                raise InstallerStateError("Installer rollback backup is outside the r26 backup root.")
+                raise InstallerStateError("Installer rollback backup is outside the r27 backup root.")
             self.app_root.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(backup, restore_staging, copy_function=shutil.copy2)
             if _tree_hashes(backup) != _tree_hashes(restore_staging):
@@ -645,8 +645,8 @@ class InstallerStateEngine:
                 backup_value = item.get("backup")
                 if item.get("existed") is True and isinstance(backup_value, str):
                     backup = Path(backup_value).resolve(strict=False)
-                    if not _inside(backup, (self.backups_root / "installer-r26").resolve(strict=False)):
-                        raise InstallerStateError("Config rollback backup escaped the r26 backup root.")
+                    if not _inside(backup, (self.backups_root / "installer-r27").resolve(strict=False)):
+                        raise InstallerStateError("Config rollback backup escaped the r27 backup root.")
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(backup, target)
             except (OSError, InstallerStateError) as exc:
@@ -664,8 +664,8 @@ class InstallerStateEngine:
                 backup_value = item.get("backup")
                 if item.get("existed") is True and isinstance(backup_value, str):
                     backup = Path(backup_value).resolve(strict=False)
-                    if not _inside(backup, (self.backups_root / "installer-r26").resolve(strict=False)):
-                        raise InstallerStateError("Shortcut rollback backup escaped the r26 backup root.")
+                    if not _inside(backup, (self.backups_root / "installer-r27").resolve(strict=False)):
+                        raise InstallerStateError("Shortcut rollback backup escaped the r27 backup root.")
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(backup, target)
             except (OSError, InstallerStateError) as exc:
@@ -677,7 +677,7 @@ class InstallerStateEngine:
                     continue
                 task_name = str(item.get("task_name") or "")
                 backup = Path(str(item.get("backup") or "")).resolve(strict=False)
-                if not task_name or not _inside(backup, (self.backups_root / "installer-r26").resolve(strict=False)):
+                if not task_name or not _inside(backup, (self.backups_root / "installer-r27").resolve(strict=False)):
                     errors.append(f"scheduled_task:unsafe:{task_name}")
                     continue
                 completed = subprocess.run(
@@ -752,7 +752,7 @@ class InstallerStateEngine:
             if completed.returncode != 0:
                 detail = (completed.stderr or completed.stdout).strip()
                 raise InstallerStateError(
-                    f"The verified r26 Bridge process could not be stopped before rollback: {detail}"
+                    f"The verified r27 Bridge process could not be stopped before rollback: {detail}"
                 )
             stopped.append(process_id)
         return stopped
@@ -937,9 +937,9 @@ class InstallerStateEngine:
         manifest_installer = manifest.get("installer") if isinstance(manifest.get("installer"), Mapping) else {}
         bridge_identity = _read_json(self.bridge_root / "build-identity.json")
         identity_ok = (
-            selection.get("BuildIdentity", "InstallerRevision", fallback="") == "installer-r26"
+            selection.get("BuildIdentity", "InstallerRevision", fallback="") == "installer-r27"
             and len(selection.get("BuildIdentity", "SetupExeSha256", fallback="")) == 64
-            and manifest_installer.get("revision") == "installer-r26"
+            and manifest_installer.get("revision") == "installer-r27"
             and isinstance(bridge_identity, Mapping)
             and bridge_identity.get("buildId") == "plwc-chat-bridge@1.0.0"
         )
@@ -966,7 +966,7 @@ class InstallerStateEngine:
         self._verify_plan(plan)
         if postflight.get("ok") is not True:
             raise InstallerStateError("Legacy paths may be archived only after a successful postflight.")
-        recovery_root = self.backups_root / "installer-r26" / str(plan["snapshot_id"]) / "legacy-recovery"
+        recovery_root = self.backups_root / "installer-r27" / str(plan["snapshot_id"]) / "legacy-recovery"
         archived: list[dict[str, str]] = []
         for action in plan["actions"]:
             if action.get("type") != "archive_legacy_after_postflight":

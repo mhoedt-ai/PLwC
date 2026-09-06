@@ -570,18 +570,39 @@ async function applyDoctorRepair() {
   }
 }
 
-function exportDoctorDiagnosis() {
+async function exportDoctorDiagnosis() {
   if (!currentDoctorDiagnosis) return;
-  const blob = new Blob([`${JSON.stringify(currentDoctorDiagnosis, null, 2)}\n`], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `plwc-doctor-${currentDoctorDiagnosis.snapshot_id || "diagnosis"}.json`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  showNotice(text.doctorExported);
+  clearNotice();
+  setBusy(true);
+  try {
+    const response = await fetch("/api/doctor/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-PLwC-Config": "1" },
+      body: JSON.stringify({ snapshot_id: currentDoctorDiagnosis.snapshot_id })
+    });
+    if (!response.ok) {
+      let payload = null;
+      try { payload = await response.json(); } catch (_error) { /* use HTTP status */ }
+      throw new Error(structuredErrorMessage(payload, response.status));
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get("Content-Disposition") || "";
+    const filename = disposition.match(/filename="([^"]+)"/)?.[1]
+      || `plwc-doctor-${currentDoctorDiagnosis.snapshot_id || "diagnosis"}.zip`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showNotice(text.doctorExported);
+  } catch (error) {
+    displayError(error, text.doctorDiagnosisError);
+  } finally {
+    setBusy(false);
+  }
 }
 
 function selectedProfile() {

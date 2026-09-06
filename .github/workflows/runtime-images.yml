@@ -1,0 +1,114 @@
+name: PLwC r27 runtime image staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_private_staging:
+        description: "Push the verified images to private GHCR staging"
+        required: true
+        type: boolean
+        default: false
+      confirmation:
+        description: "Enter PUBLISH_PRIVATE_R27_STAGING after Product Owner approval"
+        required: true
+        type: string
+
+concurrency:
+  group: plwc-r27-runtime-image-staging
+  cancel-in-progress: false
+
+jobs:
+  build-verify-stage:
+    if: ${{ inputs.publish_private_staging && inputs.confirmation == 'PUBLISH_PRIVATE_R27_STAGING' }}
+    runs-on: ubuntu-latest
+    environment: r27-runtime-images-staging
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PYTHONHASHSEED: "0"
+      SOURCE_DATE_EPOCH: "0"
+    steps:
+      - name: Checkout approved commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.13"
+          cache: pip
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          install: true
+
+      - name: Install pinned Docker Scout CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          scout_installer=/tmp/install-docker-scout.sh
+          curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/docker/scout-cli/48f3372dc714a91f8ec2635913d9b9ad1c299ada/install.sh \
+            --output "$scout_installer"
+          echo "3d350aa78a4bf01b5ba27211a0bbb69441fe05d46202ab1694c8921877176d19  $scout_installer" | sha256sum --check --strict
+          DOWNLOAD_TAG_INSTALL_SCRIPT=false sh "$scout_installer" -b "$HOME/.docker/cli-plugins" v1.20.3
+          docker scout version
+
+      - name: Authenticate Docker Scout
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKER_SCOUT_HUB_USER }}
+          password: ${{ secrets.DOCKER_SCOUT_HUB_PAT }}
+
+      - name: Authenticate private GHCR staging
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build verified offline wheelhouse
+        run: python scripts/build_document_worker_wheelhouse.py --clean --download
+
+      - name: Build every image twice and create security evidence
+        run: python scripts/build_runtime_images.py --output-root build/runtime-images
+
+      - name: Verify reproducibility and security evidence
+        run: python scripts/verify_runtime_images.py --build-report build/runtime-images/image-build-report.json
+
+      - name: Push only commit-scoped staging tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          staging_tag="r27-staging-${GITHUB_SHA::12}"
+          for repository in \
+            ghcr.io/mhoedt-ai/plwc-document-worker \
+            ghcr.io/mhoedt-ai/plwc-node-runner \
+            ghcr.io/mhoedt-ai/plwc-python-runner
+          do
+            docker image tag "${repository}:0.1.0" "${repository}:${staging_tag}"
+            docker image push "${repository}:${staging_tag}"
+          done
+
+      - name: Bind exact staged GHCR digests into the installer lock
+        run: >-
+          python scripts/finalize_runtime_image_manifest.py
+          --build-report build/runtime-images/image-build-report.json
+          --output build/runtime-images/runtime-images.json
+          --staging-suffix r27-staging-${GITHUB_SHA::12}
+
+      - name: Reverify final digest lock and evidence
+        run: python scripts/verify_runtime_images.py --manifest build/runtime-images/runtime-images.json
+
+      - name: Upload immutable gate evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: plwc-r27-runtime-images-${{ github.sha }}
+          path: build/runtime-images/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9

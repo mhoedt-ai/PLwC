@@ -244,8 +244,8 @@ class DockerSandboxAdapter:
                 audit_log_writable=audit_ok,
                 audit_log_reason=audit_reason,
                 next_action=(
-                    f"Prepare the sandbox image manually with 'docker pull {self.docker.image}'. "
-                    "PLwC will not pull images automatically because runtime pulls are disabled."
+                    "Run PLwC Setup r27 again and explicitly select the verified runtime-image download, "
+                    "or continue in Safe Mode. Gateway execution never pulls images at runtime."
                 ),
             )
         try:
@@ -529,9 +529,8 @@ class DockerSandboxAdapter:
                     node_image=self.docker.node_image,
                     node_image_available=False,
                     next_action=(
-                        f"Build the Node runner image with "
-                        f"'docker build -t {self.docker.node_image} docker/node-runner/'. "
-                        "PLwC will not pull images automatically."
+                        "Run PLwC Setup r27 again and explicitly select the verified runtime-image download, "
+                        "or continue in Safe Mode. Gateway execution never pulls images at runtime."
                     ),
                 )
             workspace_root = self._workspace_mount_root()

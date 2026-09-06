@@ -8769,10 +8769,10 @@ def _describe_data(scope: str, detail: str, config: GatewayConfig) -> dict[str, 
                 "shell": "Shell command string evaluated with 'sh -lc'.",
                 "node": "Workspace-relative path to a .js script file (e.g. 'scripts/build.js') run with 'node'.",
             },
-            "node_image": "plwc-node-runner:0.1.0",
+            "node_image": config.docker.node_image if config.runtime_images_locked else None,
             "node_image_note": (
-                "Build locally: 'docker build -t plwc-node-runner:0.1.0 docker/node-runner/'. "
-                "PLwC never pulls images at runtime. "
+                "The r27 installer can download and verify the locked GHCR image only after explicit user consent. "
+                "Gateway execution never pulls images at runtime. "
                 "Supply node_modules in the workspace mount; 'npm install' cannot reach a registry inside the sandbox."
             ),
             "node_tmp_noexec": "/tmp is mounted noexec; scripts that execute temp files will fail — this is expected.",
@@ -9140,6 +9140,8 @@ def _filesystem_adapter(config: GatewayConfig) -> SafeFilesystemAdapter:
 def _document_worker_adapter(config: GatewayConfig) -> DocumentWorkerAdapter:
     return DocumentWorkerAdapter(
         workspace_roots=config.allowed_roots,
+        worker_image=config.document_worker_image,
+        runtime_image_locked=config.runtime_images_locked,
     )
 
 

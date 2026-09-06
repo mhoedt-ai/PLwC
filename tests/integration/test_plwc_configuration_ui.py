@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import http.client
 import importlib.util
+import io
 import json
 import subprocess
 import threading
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
@@ -794,6 +796,35 @@ def _request(
     return response.status, payload, response_headers
 
 
+def _download_request(
+    server,
+    path: str,
+    *,
+    cookie: str,
+    origin: str,
+    body: dict[str, object],
+) -> tuple[int, bytes, dict[str, str]]:
+    connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=5)
+    encoded = json.dumps(body).encode("utf-8")
+    connection.request(
+        "POST",
+        path,
+        body=encoded,
+        headers={
+            "Host": f"127.0.0.1:{server.server_port}",
+            "Cookie": cookie,
+            "Origin": origin,
+            "X-PLwC-Config": "1",
+            "Content-Type": "application/json",
+        },
+    )
+    response = connection.getresponse()
+    raw = response.read()
+    response_headers = {key.lower(): value for key, value in response.getheaders()}
+    connection.close()
+    return response.status, raw, response_headers
+
+
 def test_loopback_http_session_requires_bootstrap_cookie_and_same_origin_posts(
     configuration_module: ModuleType,
     configured_root: Path,
@@ -837,6 +868,22 @@ def test_loopback_http_session_requires_bootstrap_cookie_and_same_origin_posts(
         )
         assert status == 200
         assert diagnosis is not None and diagnosis["read_only"] is True
+        diagnostic_log = configured_root / "logs" / "setup" / "installer-diagnostic.log"
+        diagnostic_log.parent.mkdir(parents=True, exist_ok=True)
+        diagnostic_log.write_text("phase=fixture\n", encoding="utf-8")
+        status, diagnostic_bundle, headers = _download_request(
+            server,
+            "/api/doctor/export",
+            cookie=cookie,
+            origin=server.origin,
+            body={"snapshot_id": diagnosis["snapshot_id"]},
+        )
+        assert status == 200
+        assert headers["content-type"] == "application/zip"
+        assert headers["content-disposition"].endswith(f'{diagnosis["snapshot_id"]}.zip"')
+        with zipfile.ZipFile(io.BytesIO(diagnostic_bundle)) as archive:
+            assert "diagnosis.json" in archive.namelist()
+            assert "artifacts/logs/setup/installer-diagnostic.log" in archive.namelist()
         status, doctor_plan, _ = _request(
             server,
             "POST",
@@ -1113,6 +1160,7 @@ def test_static_configuration_ui_is_bilingual_local_and_feature_complete() -> No
         "/api/profile/create/plan",
         "/api/profile/create/apply",
         "/api/doctor/diagnose",
+        "/api/doctor/export",
         "/api/doctor/plan",
         "/api/doctor/apply",
         "/api/update/check",
@@ -1121,6 +1169,8 @@ def test_static_configuration_ui_is_bilingual_local_and_feature_complete() -> No
         "/api/update/install",
     ):
         assert endpoint in javascript
+    assert "new Blob([`${JSON.stringify(currentDoctorDiagnosis" not in javascript
+    assert 'response.blob()' in javascript
 
     source = CONFIGURATION_SCRIPT.read_text(encoding="utf-8")
     assert '"/getting-started"' in source

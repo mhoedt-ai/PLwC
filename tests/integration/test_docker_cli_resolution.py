@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 from plwc_gateway.adapters import docker_cli
@@ -224,6 +225,7 @@ def test_first_run_continues_when_daemon_probe_times_out(
         lambda: docker_executable,
     )
     config = load_gateway_config(project_root=tmp_path)
+    config = replace(config, docker=replace(config.docker, enabled=True))
     adapter = DockerSandboxAdapter(
         config.docker,
         workspace_roots=config.allowed_roots,
@@ -292,7 +294,12 @@ def test_document_worker_uses_resolved_cli(
         "resolve_docker_executable",
         lambda: docker_executable,
     )
-    adapter = DocumentWorkerAdapter(workspace_roots=[tmp_path], runner=runner)
+    adapter = DocumentWorkerAdapter(
+        workspace_roots=[tmp_path],
+        worker_image="plwc-document-worker:0.1.0",
+        runtime_image_locked=True,
+        runner=runner,
+    )
 
     assert adapter.status().ok is True
     assert calls[0][0] == docker_executable

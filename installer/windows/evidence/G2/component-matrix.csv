@@ -1,0 +1,17 @@
+mask,claude,codex,odysseus,bridge,gateway_required,claude_result,codex_result,odysseus_result,bridge_result
+0000,0,0,0,0,1,not_selected,not_selected,not_selected,not_selected
+0001,0,0,0,1,1,not_selected,not_selected,not_selected,installed_and_registered
+0010,0,0,1,0,1,not_selected,not_selected,prepared_snippet,not_selected
+0011,0,0,1,1,1,not_selected,not_selected,prepared_snippet,installed_and_registered
+0100,0,1,0,0,1,not_selected,prepared_snippet,not_selected,not_selected
+0101,0,1,0,1,1,not_selected,prepared_snippet,not_selected,installed_and_registered
+0110,0,1,1,0,1,not_selected,prepared_snippet,prepared_snippet,not_selected
+0111,0,1,1,1,1,not_selected,prepared_snippet,prepared_snippet,installed_and_registered
+1000,1,0,0,0,1,assisted_mcpb,not_selected,not_selected,not_selected
+1001,1,0,0,1,1,assisted_mcpb,not_selected,not_selected,installed_and_registered
+1010,1,0,1,0,1,assisted_mcpb,not_selected,prepared_snippet,not_selected
+1011,1,0,1,1,1,assisted_mcpb,not_selected,prepared_snippet,installed_and_registered
+1100,1,1,0,0,1,assisted_mcpb,prepared_snippet,not_selected,not_selected
+1101,1,1,0,1,1,assisted_mcpb,prepared_snippet,not_selected,installed_and_registered
+1110,1,1,1,0,1,assisted_mcpb,prepared_snippet,prepared_snippet,not_selected
+1111,1,1,1,1,1,assisted_mcpb,prepared_snippet,prepared_snippet,installed_and_registered

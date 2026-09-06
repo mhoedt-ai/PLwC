@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import json
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -132,6 +135,56 @@ def test_doctor_diagnosis_is_read_only_and_keeps_public_mcp_boundary(tmp_path: P
     assert _tree(tmp_path) == before
     assert len(PUBLIC_TOOLS) == 8
     assert "plwc_doctor" not in PUBLIC_TOOLS
+
+
+def test_doctor_export_contains_bounded_installer_evidence_and_excludes_user_content(tmp_path: Path) -> None:
+    doctor = _ready_installation(tmp_path)
+    setup_root = tmp_path / "logs" / "setup"
+    missing_report = setup_root / "r27-installer-postflight-missing.json"
+    _write(
+        setup_root / "installer-diagnostic.log",
+        f"report={missing_report}\nsession_token=do-not-export\n".encode("utf-8"),
+    )
+    _write(setup_root / "r27-installer-preflight.json", b'{"ok":false,"password":"private"}\n')
+    _write(setup_root / "r27-runtime-image-processes-acquire" / "document_worker.json", b'{"exit_code":30}\n')
+    _write(tmp_path / "state" / "installation" / "r27-installer-transaction.json", b'{"status":"prepared"}\n')
+    _write(tmp_path / "app" / "installation" / "runtime-images.json", b'{"schema_version":"1.0.0"}\n')
+    _write(tmp_path / "workspace" / "private-note.txt", b"never export workspace")
+    _write(tmp_path / "profiles" / "default" / "private-note.txt", b"never export profile")
+    diagnosis = doctor.diagnose(component_inventory={"components": []})
+
+    filename, bundle = doctor.export_diagnostic_bundle(diagnosis)
+
+    assert filename == f"plwc-doctor-{diagnosis['snapshot_id']}.zip"
+    with zipfile.ZipFile(io.BytesIO(bundle)) as archive:
+        names = set(archive.namelist())
+        assert "diagnosis.json" in names
+        assert "manifest.json" in names
+        assert "README.txt" in names
+        assert "artifacts/logs/setup/installer-diagnostic.log" in names
+        assert "artifacts/logs/setup/r27-installer-preflight.json" in names
+        assert "artifacts/logs/setup/r27-runtime-image-processes-acquire/document_worker.json" in names
+        assert "artifacts/state/installation/r27-installer-transaction.json" in names
+        assert "artifacts/app/installation/runtime-images.json" in names
+        assert all("workspace/" not in name and "profiles/" not in name for name in names)
+        assert b"do-not-export" not in archive.read("artifacts/logs/setup/installer-diagnostic.log")
+        assert b"private" not in archive.read("artifacts/logs/setup/r27-installer-preflight.json")
+        assert b"[REDACTED]" in archive.read("artifacts/logs/setup/r27-installer-preflight.json")
+        manifest = json.loads(archive.read("manifest.json"))
+        assert manifest["workspace_and_profiles_excluded"] is True
+        assert missing_report.relative_to(tmp_path).as_posix() in manifest["missing_referenced_artifacts"]
+        entry = next(
+            item for item in manifest["included"]
+            if item["relative_path"] == "logs/setup/r27-installer-preflight.json"
+        )
+        assert entry["redacted"] is True
+        assert entry["source_sha256"] != entry["export_sha256"]
+
+
+def test_doctor_export_rejects_an_unknown_snapshot(tmp_path: Path) -> None:
+    doctor = _ready_installation(tmp_path)
+    with pytest.raises(DoctorContractError, match="valid immutable"):
+        doctor.export_diagnostic_bundle({"read_only": True, "snapshot_id": "short"})
 
 
 def test_public_clu_doctor_keeps_diagnosis_read_only_with_metadata_audit(tmp_path: Path) -> None:

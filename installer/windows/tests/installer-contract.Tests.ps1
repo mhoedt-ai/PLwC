@@ -11,6 +11,9 @@ $mcpLockPath = Join-Path $assetsRoot "mcp-runtime-lock.txt"
 $runtimeRequirementsPath = Join-Path $assetsRoot "runtime-requirements.in"
 $prerequisiteSizesPath = Join-Path $assetsRoot "prerequisite-sizes.iss"
 $pythonRuntimeProbePath = Join-Path $assetsRoot "python-runtime-probe.py"
+$runtimeImageManagerPath = Join-Path $assetsRoot "runtime-image-manager.py"
+$runtimeImageSchemaPath = Join-Path $installerRoot "manifests\runtime-images.schema.json"
+$runtimeImageSourceLockPath = Join-Path $repoRoot "docker\runtime-image-sources.json"
 $bridgeIdentityPath = Join-Path $repoRoot "integrations\plwc-chat-bridge\native\extension-identity.json"
 $bridgeBuildIdentityPath = Join-Path $repoRoot "integrations\plwc-chat-bridge\build-identity.json"
 $bridgeScriptsRoot = Join-Path $repoRoot "integrations\plwc-chat-bridge\scripts"
@@ -38,7 +41,7 @@ $componentsManifestPath = Join-Path $installerRoot "manifests\components.json"
 $workspaceStructurePath = Join-Path $assetsRoot "workspace-structure.iss"
 $workspaceFixturePath = Join-Path $testsRoot "workspace-structure-fixture.iss"
 $testGeneratedOutputRoot = Join-Path $installerRoot ".validate-build"
-$unsignedGeneratedOutputRoot = Join-Path $installerRoot ".unsigned-build-r26"
+$unsignedGeneratedOutputRoot = Join-Path $installerRoot ".unsigned-build-r27"
 $stageRoot = Join-Path $testGeneratedOutputRoot "stage"
 $distRoot = Join-Path $testGeneratedOutputRoot "dist"
 $testScriptPath = [IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
@@ -282,13 +285,13 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
             $codeSection | Should Match "(?i)\b$stateName\b"
         }
         $codeSection | Should Match '(?i)DockerImagesOK'
-        foreach ($image in @('python:3.12-slim', 'plwc-node-runner:0.1.0', 'plwc-document-worker:0.1.0')) {
-            $codeSection | Should Match ([regex]::Escape($image))
-        }
+        $codeSection | Should Match 'RuntimeImagesPayloadIncluded'
+        $codeSection | Should Match 'runtime-image-manager\.py'
         $codeSection | Should Match '(?is)procedure\s+RunPrerequisiteChecks.*?ProbeDocker\s*;.*?ProbeWsl2\s*;.*?ProbeVirtualization\s*;'
         $codeSection | Should Match '(?is)DockerDesktopInstalled\s*:=.*?RegistryHasUninstallName\(''Docker Desktop''\)'
         $codeSection | Should Match '(?is)DockerDaemonOK\s*:=\s*RunProbeWithTimeout\s*\([^;]*docker_engine info'
-        $codeSection | Should Match '(?is)DockerImagesOK\s*:=\s*DockerDaemonOK\s+and\s+RunProbeWithTimeout\s*\('
+        $codeSection | Should Match '(?is)procedure\s+ProbeDocker.*?DockerImagesOK\s*:=\s*False'
+        $codeSection | Should Not Match '(?is)procedure\s+ProbeDocker.*?docker_engine image inspect'
         $codeSection | Should Match '(?is)PrereqDockerDesktopOK.*?PrereqDockerCliMissing.*?PrereqDockerDaemonMissing.*?PrereqDockerImagesMissing'
         $codeSection | Should Match '(?is)PrereqWsl2OK.*?PrereqWsl2Missing.*?PrereqVirtualizationOK.*?PrereqVirtualizationMissing'
         $codeSection | Should Match '(?is)PrereqVmNestedMissing.*?PrereqSafeModeExplanation'
@@ -792,6 +795,36 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         }
     }
 
+    It "gates immutable r27 runtime image acquisition behind explicit interactive consent" {
+        (Test-Path -LiteralPath $runtimeImageManagerPath -PathType Leaf) | Should Be $true
+        (Test-Path -LiteralPath $runtimeImageSchemaPath -PathType Leaf) | Should Be $true
+        (Test-Path -LiteralPath $runtimeImageSourceLockPath -PathType Leaf) | Should Be $true
+
+        $fileSection = Get-InnoSection -Source $source -Name "Files"
+        $managerSource = Get-NormalizedText -Path $runtimeImageManagerPath
+        $buildSource = Get-NormalizedText -Path $buildScript
+
+        $fileSection | Should Match '(?im)^Source:\s*"assets\\runtime-image-manager\.py";\s*Flags:\s*dontcopy$'
+        $fileSection | Should Match '(?is)#if\s+RuntimeImagesIncluded\s*==\s*"1".*?runtime-images\.json.*?#endif'
+        $source | Should Match '(?im)^\s*#define\s+RuntimeImagesIncluded\s+"0"\s*$'
+        $codeSection | Should Match '(?is)RuntimeImagesPage\s*:=\s*CreateInputOptionPage.*?RuntimeImagesPage\.Values\[0\]\s*:=\s*False'
+        $codeSection | Should Match '(?is)function\s+ShouldSkipPage.*?PageID\s*=\s*RuntimeImagesPage\.ID.*?WizardSilent.*?not\s+RuntimeImagesPayloadIncluded.*?not\s+DockerDaemonOK'
+        $codeSection | Should Match "(?is)RunRuntimeImageManager\('inventory',\s*False"
+        $codeSection | Should Match "(?is)RuntimeImagesPage\.Values\[0\].*?AcquireRuntimeImages"
+        $codeSection | Should Match 'I_ACCEPT_PLWC_RUNTIME_IMAGE_DOWNLOAD_R27'
+        $codeSection | Should Match '(?is)procedure\s+CancelButtonClick.*?RuntimeImagesOperationBusy.*?SaveStringToFile\(RuntimeImagesCancelFile'
+
+        $managerSource | Should Match 'EXPECTED_IDS\s*=\s*\("document_worker",\s*"node_runner",\s*"python_runner"\)'
+        $managerSource | Should Match '\["pull",\s*"--platform",\s*"linux/amd64",\s*str\(image\["reference"\]\)\]'
+        $managerSource | Should Match '\["image",\s*"inspect",\s*"--format",\s*"\{\{json \.\}\}",\s*str\(image\["reference"\]\)\]'
+        $managerSource | Should Match 'image\["reference"\]\s+in\s+repo_digests'
+        $managerSource | Should Match '"--pull",\s*"never"'
+        $managerSource | Should Match 'shell=False'
+        $managerSource | Should Not Match '(?i)\[\s*["'']login["'']'
+        $buildSource | Should Match 'A release-grade r27 build requires -RuntimeImagesManifestPath'
+        $buildSource | Should Match '/DRuntimeImagesManifestSha256='
+    }
+
     It "installs the fully hash-locked PLwC runtime for the current user and rechecks" {
         (Test-Path -LiteralPath $mcpLockPath -PathType Leaf) | Should Be $true
         (Test-Path -LiteralPath $runtimeRequirementsPath -PathType Leaf) | Should Be $true
@@ -971,7 +1004,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
     }
 
     It "uses an unmistakable installer revision in the UI and artifact name" {
-        $source | Should Match '(?im)^\s*#define\s+InstallerRevision\s+"installer-r26"\s*$'
+        $source | Should Match '(?im)^\s*#define\s+InstallerRevision\s+"installer-r27"\s*$'
         $setupSection | Should Match '(?im)^\s*AppVerName=.*\{#InstallerRevision\}\)\s*$'
         $setupSection | Should Match '(?im)^\s*OutputBaseFilename=PLwC-Setup-\{#AppVersion\}-\{#InstallerRevision\}\s*$'
     }
@@ -1055,7 +1088,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $customMessageSection | Should Match '(?im)^german\.ReadyUpdateMode=Vorhandene PLwC-Installation erkannt\.'
     }
 
-    It "uses one immutable r26 migration transaction and a hard postflight before success" {
+    It "uses one immutable r27 migration transaction and a hard postflight before success" {
         $fileSection = Get-InnoSection -Source $source -Name "Files"
         $codeSection = Get-InnoSection -Source $source -Name "Code"
         $maintenanceSource = Get-Content -LiteralPath (Join-Path $assetsRoot "installer-maintenance.py") -Raw -Encoding UTF8
@@ -1069,10 +1102,10 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $codeSection | Should Match '(?is)procedure\s+CurStepChanged.*?ssInstall.*?PrepareInstallerMigration.*?ssPostInstall'
         $codeSection | Should Match '(?is)ConfigureChatBridgeWindowsIntegration\s*;.*?RunHardInstallerPostflight\s*;.*?installation_completed.*?status=success'
         $codeSection | Should Match '(?is)except.*?RollbackInstallerMigration.*?status=failure.*?RaiseException'
-        $codeSection | Should Match '(?is)InstallerMigrationTransactionPath\s*:=\s*GetStatePath.*?\\installation\\r26-installer-transaction\.json'
-        $codeSection | Should Not Match '\{tmp\}\\plwc-r26-installer-transaction\.json'
-        $codeSection | Should Match 'r26-installer-postflight\.json'
-        $codeSection | Should Match 'r26-installer-rollback\.json'
+        $codeSection | Should Match '(?is)InstallerMigrationTransactionPath\s*:=\s*GetStatePath.*?\\installation\\r27-installer-transaction\.json'
+        $codeSection | Should Not Match '\{tmp\}\\plwc-r27-installer-transaction\.json'
+        $codeSection | Should Match 'r27-installer-postflight\.json'
+        $codeSection | Should Match 'r27-installer-rollback\.json'
         $codeSection | Should Match '(?is)function\s+GetCustomSetupExitCode.*?InstallerFailureExitCode'
         $codeSection | Should Match '(?is)RollbackComplete\s*:=\s*RollbackInstallerMigration.*?InstallerFailureExitCode\s*:=\s*30.*?InstallerFailureExitCode\s*:=\s*50'
         $maintenanceSource | Should Match 'InstallerStateEngine'
@@ -1080,12 +1113,12 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $maintenanceSource | Should Match 'archive_legacy_after_success'
         $maintenanceSource | Should Match '(?is)phase.*rollback.*_atomic_write_json'
         $stateSource | Should Match 'foreign_port_3007_owner'
-        $stateSource | Should Match 'app-before-r26'
+        $stateSource | Should Match 'app-before-r27'
         $stateSource | Should Match 'payload\.hashes'
         $stateSource | Should Match 'toolCount.*8'
         $stateSource | Should Match 'native-messaging/plwc\.chat_bridge\.launcher\.json'
         $stateSource | Should Match 'taskkill\.exe'
-        $stateSource | Should Match '-r26-failed-'
+        $stateSource | Should Match '-r27-failed-'
         $stateSource | Should Match 'config_file_backups'
         $doctorSource | Should Match "GetFolderPath\('Startup'\)"
         $doctorSource | Should Match "GetFolderPath\('Desktop'\)"
@@ -1157,8 +1190,8 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $buildSource = Get-Content -LiteralPath $buildScript -Raw
         $buildSource | Should Match '(?is)function\s+Get-InstallerRevision.*?PLwCSetup\.iss'
         $buildSource | Should Match '(?is)function\s+Write-InstallerBuildIdentity.*?Get-FileHash.*?InstallerPath.*?Get-FileHash.*?PayloadManifestPath'
-        $buildSource | Should Match 'CHAT-BRIDGE-1\.0'
-        $buildSource | Should Match 'docs/evidence/R26_PHASE8_RELEASE_ACCEPTANCE_DE\.md'
+        $buildSource | Should Match 'R27-G3'
+        $buildSource | Should Match 'docs/R27_WINDOWS_IMAGE_DELIVERY_PLAN_DE\.md'
         foreach ($define in @(
             "InstallerRevision",
             "GatewayVersion",
@@ -1497,6 +1530,9 @@ Describe "PLwC Windows payload build gate" {
         (Test-Path -LiteralPath (Join-Path $stageRoot "gateway\config\release-manifest.schema.json") -PathType Leaf) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $stageRoot "gateway\config\release-trust.json") -PathType Leaf) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $stageRoot "gateway\config\release-trust.schema.json") -PathType Leaf) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $stageRoot "common\installation\runtime-image-manager.py") -PathType Leaf) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $stageRoot "common\installation\runtime-images.schema.json") -PathType Leaf) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $stageRoot "common\installation\runtime-images.json") -PathType Leaf) | Should Be $false
         (Test-Path -LiteralPath (Join-Path $stageRoot "chat-bridge\bridge\dist\src\index.js") -PathType Leaf) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $stageRoot "chat-bridge\extension\manifest.json") -PathType Leaf) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $stageRoot "chat-bridge\native\bin\plwc-chat-bridge-launcher.exe") -PathType Leaf) | Should Be $true
@@ -1604,15 +1640,15 @@ Describe "PLwC Windows payload build gate" {
     It "binds staged payload metadata to the installer revision and component versions" {
         $manifest = Get-Content -LiteralPath (Join-Path $stageRoot "payload-manifest.json") -Raw | ConvertFrom-Json
         $expectedBuildIdentity = Get-Content -LiteralPath $bridgeBuildIdentityPath -Raw | ConvertFrom-Json
-        $manifest.installer.revision | Should Be "installer-r26"
+        $manifest.installer.revision | Should Be "installer-r27"
         $manifest.installer.artifactName | Should Be (
-            "PLwC-Setup-{0}-installer-r26.exe" -f $manifest.version
+            "PLwC-Setup-{0}-installer-r27.exe" -f $manifest.version
         )
         $manifest.installer.buildIdentityArtifact | Should Be (
-            "PLwC-{0}-installer-r26-build-identity.json" -f $manifest.version
+            "PLwC-{0}-installer-r27-build-identity.json" -f $manifest.version
         )
-        $manifest.installer.evidencePackage | Should Be "R26-PHASE5"
-        $manifest.installer.evidencePath | Should Be "docs/evidence/R26_PHASE5_INSTALLER_MIGRATION_DE.md"
+        $manifest.installer.evidencePackage | Should Be "R27-G3"
+        $manifest.installer.evidencePath | Should Be "docs/R27_WINDOWS_IMAGE_DELIVERY_PLAN_DE.md"
         $componentManifest = Get-Content -LiteralPath $componentsManifestPath -Raw | ConvertFrom-Json
         $manifest.version | Should Be $componentManifest.product.releaseVersion
         $manifest.installer.components.gateway | Should Be $componentManifest.product.gatewayVersion

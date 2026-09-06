@@ -13,7 +13,7 @@
 #define AppVersion "1.0.0"
 #endif
 #ifndef InstallerRevision
-#define InstallerRevision "installer-r26"
+#define InstallerRevision "installer-r27"
 #endif
 #ifndef GatewayVersion
 #define GatewayVersion "1.0.0"
@@ -38,6 +38,18 @@
 #endif
 #ifndef StableChatBridgeExtensionId
 #define StableChatBridgeExtensionId "nlogfcafjdfdoknpkbehjgihpafpipdb"
+#endif
+#ifndef RuntimeImagesIncluded
+#define RuntimeImagesIncluded "0"
+#endif
+#ifndef RuntimeImagesManifestSha256
+#define RuntimeImagesManifestSha256 "0000000000000000000000000000000000000000000000000000000000000000"
+#endif
+#ifndef RuntimeImagesDownloadMiB
+#define RuntimeImagesDownloadMiB 0
+#endif
+#ifndef RuntimeImagesDiskMiB
+#define RuntimeImagesDiskMiB 0
 #endif
 #include "assets\prerequisite-sizes.iss"
 
@@ -659,12 +671,54 @@ english.ErrorSharedSync=Setup could not synchronize the shared PLwC settings. Ex
 german.ErrorSharedSync=Setup konnte die gemeinsamen PLwC-Einstellungen nicht synchronisieren. Rückgabecode:
 english.InstallerMigrationStatus=Securing the existing PLwC runtime and checking the migration plan...
 german.InstallerMigrationStatus=Vorhandene PLwC-Laufzeit wird gesichert und der Migrationsplan geprüft...
-english.InstallerPostflightStatus=Verifying the complete r26 installation...
-german.InstallerPostflightStatus=Die vollständige r26-Installation wird geprüft...
-english.ErrorInstallerPreflight=The r26 preflight or migration preparation failed. No foreign process was stopped. Review the diagnostic report:
-german.ErrorInstallerPreflight=Der r26-Preflight oder die Migrationsvorbereitung ist fehlgeschlagen. Es wurde kein fremder Prozess beendet. Prüfen Sie den Diagnosebericht:
-english.ErrorInstallerPostflight=The mandatory r26 postflight failed; Setup will not report success and attempted to restore the previous application runtime. Review the diagnostic report:
-german.ErrorInstallerPostflight=Der verbindliche r26-Postflight ist fehlgeschlagen; Setup meldet keinen Erfolg und hat versucht, die vorherige Anwendungslaufzeit wiederherzustellen. Prüfen Sie den Diagnosebericht:
+english.InstallerPostflightStatus=Verifying the complete r27 installation...
+german.InstallerPostflightStatus=Die vollständige r27-Installation wird geprüft...
+english.ErrorInstallerPreflight=The r27 preflight or migration preparation failed. No foreign process was stopped. Review the diagnostic report:
+german.ErrorInstallerPreflight=Der r27-Preflight oder die Migrationsvorbereitung ist fehlgeschlagen. Es wurde kein fremder Prozess beendet. Prüfen Sie den Diagnosebericht:
+english.ErrorInstallerPostflight=The mandatory r27 postflight failed; Setup will not report success and attempted to restore the previous application runtime. Review the diagnostic report:
+german.ErrorInstallerPostflight=Der verbindliche r27-Postflight ist fehlgeschlagen; Setup meldet keinen Erfolg und hat versucht, die vorherige Anwendungslaufzeit wiederherzustellen. Prüfen Sie den Diagnosebericht:
+english.ErrorInstallerReportMissing=The detailed report could not be created. Review the existing Setup diagnostic folder:
+german.ErrorInstallerReportMissing=Der ausführliche Bericht konnte nicht erstellt werden. Prüfen Sie den vorhandenen Setup-Diagnoseordner:
+english.PageRuntimeImagesTitle=PLwC runtime images
+german.PageRuntimeImagesTitle=PLwC-Laufzeit-Images
+english.PageRuntimeImagesDescription=Prepare the optional Docker runtimes
+german.PageRuntimeImagesDescription=Optionale Docker-Laufzeiten vorbereiten
+english.PageRuntimeImagesSubCaption=Review source, size and Safe Mode before downloading.
+german.PageRuntimeImagesSubCaption=Prüfen Sie vor dem Download Quelle, Größe und Safe Mode.
+english.OptionInstallRuntimeImages=Download and verify the three PLwC runtime images
+german.OptionInstallRuntimeImages=Die drei PLwC-Laufzeit-Images herunterladen und prüfen
+english.RuntimeImagesSource=Source: GitHub Container Registry (ghcr.io/mhoedt-ai)
+german.RuntimeImagesSource=Quelle: GitHub Container Registry (ghcr.io/mhoedt-ai)
+english.RuntimeImagesPlatform=Platform: Linux AMD64 for Docker Desktop / WSL2
+german.RuntimeImagesPlatform=Plattform: Linux AMD64 für Docker Desktop / WSL2
+english.RuntimeImagesVersions=Images: Document Worker, Node Runner and Python Runner
+german.RuntimeImagesVersions=Images: Document Worker, Node Runner und Python Runner
+english.RuntimeImagesDownloadSize=Estimated download:
+german.RuntimeImagesDownloadSize=Geschätzter Download:
+english.RuntimeImagesDiskSize=Required Docker storage:
+german.RuntimeImagesDiskSize=Benötigter Docker-Speicher:
+english.RuntimeImagesConsentRequired=This download starts only after you select the checkbox and click Next.
+german.RuntimeImagesConsentRequired=Dieser Download startet erst, wenn Sie das Kontrollkästchen auswählen und auf „Weiter“ klicken.
+english.RuntimeImagesDeclinedSafeMode=Without the images, PLwC installs in Safe Mode and document, Python and Node operations remain unavailable.
+german.RuntimeImagesDeclinedSafeMode=Ohne die Images wird PLwC im Safe Mode installiert; Dokument-, Python- und Node-Operationen bleiben nicht verfügbar.
+english.RuntimeImagesProgressInventory=Checking local runtime images...
+german.RuntimeImagesProgressInventory=Lokale Laufzeit-Images werden geprüft...
+english.RuntimeImagesProgressPull=Downloading PLwC runtime image...
+german.RuntimeImagesProgressPull=PLwC-Laufzeit-Image wird heruntergeladen...
+english.RuntimeImagesProgressVerify=Verifying image digest and platform...
+german.RuntimeImagesProgressVerify=Image-Digest und Plattform werden geprüft...
+english.RuntimeImagesProgressProbe=Running the offline runtime probe...
+german.RuntimeImagesProgressProbe=Der Offline-Laufzeittest wird ausgeführt...
+english.RuntimeImagesCancelled=The runtime image download was cancelled. PLwC will remain in Safe Mode.
+german.RuntimeImagesCancelled=Der Download der Laufzeit-Images wurde abgebrochen. PLwC bleibt im Safe Mode.
+english.RuntimeImagesFailed=A runtime image could not be prepared. PLwC will remain in Safe Mode.
+german.RuntimeImagesFailed=Ein Laufzeit-Image konnte nicht vorbereitet werden. PLwC bleibt im Safe Mode.
+english.RuntimeImagesRetry=Review the diagnostic report and click Next to start a new attempt.
+german.RuntimeImagesRetry=Prüfen Sie den Diagnosebericht und klicken Sie für einen neuen Versuch auf „Weiter“.
+english.RuntimeImagesReady=All three runtime images passed their offline probes.
+german.RuntimeImagesReady=Alle drei Laufzeit-Images haben ihre Offline-Tests bestanden.
+english.RuntimeImagesReportLocation=Diagnostic report:
+german.RuntimeImagesReportLocation=Diagnosebericht:
 
 [Types]
 Name: "compact"; Description: "{cm:TypeGatewayOnly}"
@@ -684,6 +738,10 @@ Name: "chatbridge"; Description: "{cm:ComponentChatBridge}"; Types: full
 Source: "assets\mcp-runtime-lock.txt"; Flags: dontcopy
 Source: "assets\python-runtime-probe.py"; Flags: dontcopy
 Source: "assets\installer-maintenance.py"; Flags: dontcopy
+Source: "assets\runtime-image-manager.py"; Flags: dontcopy
+#if RuntimeImagesIncluded == "1"
+Source: "{#StageDir}\common\installation\runtime-images.json"; Flags: dontcopy
+#endif
 Source: "..\..\src\plwc_gateway\installation\installer_state.py"; Flags: dontcopy
 Source: "..\..\src\plwc_gateway\installation\doctor.py"; Flags: dontcopy
 Source: "{#StageDir}\common\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Components: gateway
@@ -736,6 +794,8 @@ const
   WaitObject0 = 0;
   WaitTimeout = 258;
   SeeMaskNoCloseProcess = 64;
+  PmRemove = 1;
+  WmQuit = 18;
   { Cold imports of onnxruntime/fastembed exceeded 30 seconds in the clean-VM gate. }
   PythonRuntimeProbeTimeoutMilliseconds = 120000;
 #ifdef UiSmokeDownloadFixture
@@ -778,6 +838,15 @@ type
     hMonitor: THandle;
     hProcess: THandle;
   end;
+  TWindowsMessage = record
+    Wnd: HWND;
+    Message: LongWord;
+    WParam: THandle;
+    LParam: THandle;
+    Time: LongWord;
+    Pt: TPoint;
+    LPrivate: LongWord;
+  end;
 
 function WaitNamedPipe(
   PipeName: String; TimeoutMilliseconds: LongWord): BOOL;
@@ -792,6 +861,14 @@ function TerminateProcess(Handle: THandle; ExitCode: LongWord): BOOL;
   external 'TerminateProcess@kernel32.dll stdcall';
 function CloseHandle(Handle: THandle): BOOL;
   external 'CloseHandle@kernel32.dll stdcall';
+function PeekMessage(
+  var Msg: TWindowsMessage; Wnd: HWND;
+  MsgFilterMin, MsgFilterMax, RemoveMsg: LongWord): BOOL;
+  external 'PeekMessageW@user32.dll stdcall';
+function TranslateMessage(var Msg: TWindowsMessage): BOOL;
+  external 'TranslateMessage@user32.dll stdcall';
+function DispatchMessage(var Msg: TWindowsMessage): Longint;
+  external 'DispatchMessageW@user32.dll stdcall';
 
 var
   PrerequisitesPage: TOutputMsgMemoWizardPage;
@@ -804,6 +881,9 @@ var
   RecheckPrerequisitesButton: TNewButton;
   PrerequisiteActionStatusLabel: TNewStaticText;
   PrerequisiteSizeMemo: TNewMemo;
+  RuntimeImagesPage: TInputOptionWizardPage;
+  RuntimeImagesInfoMemo: TNewMemo;
+  RuntimeImagesProgressPage: TOutputMarqueeProgressWizardPage;
   RuntimeDirsPage: TInputDirWizardPage;
   DataDirsPage: TInputDirWizardPage;
   OperatingDirsPage: TInputDirWizardPage;
@@ -834,6 +914,17 @@ var
   DockerCliOK: Boolean;
   DockerDaemonOK: Boolean;
   DockerImagesOK: Boolean;
+  RuntimeImagesConsentGiven: Boolean;
+  RuntimeImagesOperationBusy: Boolean;
+  RuntimeImagesCancelRequested: Boolean;
+  RuntimeImagesInventoryAttempted: Boolean;
+  RuntimeImagesOutcome: String;
+  RuntimeImagesReportPath: String;
+  RuntimeImagesProcessReportDir: String;
+  RuntimeImagesCancelFile: String;
+  RuntimeDocumentWorkerState: String;
+  RuntimeNodeRunnerState: String;
+  RuntimePythonRunnerState: String;
   DockerInstalledBySetup: Boolean;
   Wsl2OK: Boolean;
   VirtualizationCapabilityOK: Boolean;
@@ -1571,11 +1662,9 @@ begin
         DetectedDockerPath,
         '-H npipe:////./pipe/docker_engine info',
         8000);
-  DockerImagesOK := DockerDaemonOK and RunProbeWithTimeout(
-    DetectedDockerPath,
-    '-H npipe:////./pipe/docker_engine image inspect ' +
-      'python:3.12-slim plwc-node-runner:0.1.0 plwc-document-worker:0.1.0',
-    8000);
+  { r27 never trusts tag-only inspection. The immutable manager sets this only
+    after all three digest checks and offline probes pass. }
+  DockerImagesOK := False;
 end;
 
 procedure ProbeWsl2;
@@ -2252,6 +2341,22 @@ begin
     Result := Result + '  - ' + CustomMessage('ComponentChatBridge') + #13#10;
 end;
 
+function RuntimeImagesStatusSummary: String;
+begin
+  if RuntimeImagesOutcome = 'ready' then
+    Result := CustomMessage('RuntimeImagesReady')
+  else
+    Result := CustomMessage('RuntimeImagesDeclinedSafeMode');
+  Result := Result + #13#10 +
+    '  document_worker=' + RuntimeDocumentWorkerState + #13#10 +
+    '  node_runner=' + RuntimeNodeRunnerState + #13#10 +
+    '  python_runner=' + RuntimePythonRunnerState + #13#10 +
+    '  outcome=' + RuntimeImagesOutcome;
+  if FileExists(RuntimeImagesReportPath) then
+    Result := Result + #13#10 +
+      CustomMessage('RuntimeImagesReportLocation') + ' ' + RuntimeImagesReportPath;
+end;
+
 function BuildInstallSummary: String;
 begin
   if PrerequisiteReport = '' then
@@ -2282,7 +2387,8 @@ begin
     CustomMessage('SummaryPersonaDisabled') +
       LocalizedBoolean(RuntimeOptionsPage.Values[1]) + #13#10 +
     CustomMessage('SummarySafeMode') + LocalizedBoolean(IsSafeModeExpected) + #13#10 +
-    'safe_mode_expected=' + BooleanIniValue(IsSafeModeExpected) + #13#10 + #13#10 +
+    'safe_mode_expected=' + BooleanIniValue(IsSafeModeExpected) + #13#10 +
+    RuntimeImagesStatusSummary + #13#10 + #13#10 +
     CustomMessage('SummaryPrerequisites') + #13#10 +
     PrerequisiteReport + #13#10 + #13#10 +
     CustomMessage('SummaryComponents') + #13#10 + SelectedComponentSummary + #13#10;
@@ -2387,6 +2493,23 @@ begin
     Result := InstallerPostflightReportPath;
 end;
 
+function GetExistingMaintenanceReportReference(ActionName: String): String;
+var
+  ReportPath: String;
+  DiagnosticRoot: String;
+begin
+  ReportPath := GetInstallerMaintenanceReportPath(ActionName);
+  if FileExists(ReportPath) then
+    Result := ReportPath
+  else
+  begin
+    DiagnosticRoot := ExtractFileDir(GetInstallerDiagnosticPath);
+    EnsureDirectory(DiagnosticRoot);
+    Result := CustomMessage('ErrorInstallerReportMissing') + #13#10 +
+      DiagnosticRoot;
+  end;
+end;
+
 function BuildInstallerMaintenanceArguments(ActionName: String): String;
 begin
   Result :=
@@ -2418,7 +2541,7 @@ var
 begin
   ResultCode := -1;
   Parameters := BuildInstallerMaintenanceArguments(ActionName);
-  Log('Executing r26 installer maintenance action: ' + ActionName);
+  Log('Executing r27 installer maintenance action: ' + ActionName);
   Started := Exec(
     ResolvePythonPath,
     Parameters,
@@ -2428,10 +2551,279 @@ begin
     ResultCode);
   Result := Started and (ResultCode = 0);
   Log(
-    'r26 installer maintenance action=' + ActionName +
+    'r27 installer maintenance action=' + ActionName +
     '; started=' + IntToStr(Ord(Started)) +
     '; exit=' + IntToStr(ResultCode) +
     '; report=' + GetInstallerMaintenanceReportPath(ActionName));
+end;
+
+function RuntimeImagesPayloadIncluded: Boolean;
+begin
+#if RuntimeImagesIncluded == "1"
+  Result := True;
+#else
+  Result := False;
+#endif
+end;
+
+function GetRuntimeImagesManifestPath: String;
+begin
+  Result := ExpandConstant('{tmp}\runtime-images.json');
+end;
+
+function BuildRuntimeImagesInfoText: String;
+begin
+  Result :=
+    CustomMessage('RuntimeImagesSource') + #13#10 +
+    CustomMessage('RuntimeImagesPlatform') + #13#10 +
+    CustomMessage('RuntimeImagesVersions') + #13#10 +
+    CustomMessage('RuntimeImagesDownloadSize') + ' {#RuntimeImagesDownloadMiB} MiB' + #13#10 +
+    CustomMessage('RuntimeImagesDiskSize') + ' {#RuntimeImagesDiskMiB} MiB' + #13#10 + #13#10 +
+    CustomMessage('RuntimeImagesConsentRequired') + #13#10 +
+    CustomMessage('RuntimeImagesDeclinedSafeMode');
+  if RuntimeImagesOutcome = 'ready' then
+    Result := Result + #13#10 + #13#10 + CustomMessage('RuntimeImagesReady')
+  else if RuntimeImagesOutcome <> '' then
+    Result := Result + #13#10 + #13#10 +
+      CustomMessage('RuntimeImagesReportLocation') + ' ' + RuntimeImagesReportPath;
+end;
+
+procedure ProcessPendingInstallerMessages;
+var
+  Msg: TWindowsMessage;
+begin
+  while PeekMessage(Msg, 0, 0, 0, PmRemove) do
+  begin
+    if Msg.Message <> WmQuit then
+    begin
+      TranslateMessage(Msg);
+      DispatchMessage(Msg);
+    end;
+  end;
+end;
+
+function ExtractRuntimeImageState(ReportText, ImageId: String): String;
+var
+  ImageTail: String;
+  StateTail: String;
+  Position: Integer;
+begin
+  Result := 'safe_mode';
+  Position := Pos('"id": "' + ImageId + '"', ReportText);
+  if Position = 0 then
+    Exit;
+  ImageTail := Copy(ReportText, Position, Length(ReportText) - Position + 1);
+  Position := Pos('"state": "', ImageTail);
+  if Position = 0 then
+    Exit;
+  StateTail := Copy(ImageTail, Position + Length('"state": "'), Length(ImageTail));
+  Position := Pos('"', StateTail);
+  if Position > 0 then
+    Result := Copy(StateTail, 1, Position - 1);
+end;
+
+procedure LoadRuntimeImageStatesFromReport;
+var
+  ReportText: AnsiString;
+begin
+  RuntimeDocumentWorkerState := 'safe_mode';
+  RuntimeNodeRunnerState := 'safe_mode';
+  RuntimePythonRunnerState := 'safe_mode';
+  if FileExists(RuntimeImagesReportPath) and
+     LoadStringFromFile(RuntimeImagesReportPath, ReportText) then
+  begin
+    RuntimeDocumentWorkerState := ExtractRuntimeImageState(
+      String(ReportText), 'document_worker');
+    RuntimeNodeRunnerState := ExtractRuntimeImageState(
+      String(ReportText), 'node_runner');
+    RuntimePythonRunnerState := ExtractRuntimeImageState(
+      String(ReportText), 'python_runner');
+  end;
+end;
+
+procedure WriteRuntimeImageFallbackReport(OperationName, ErrorText: String);
+var
+  Content: String;
+begin
+  Content :=
+    '{' + #13#10 +
+    '  "schema_version": "1.0.0",' + #13#10 +
+    '  "build_id": "' + JsonEscape(GetInstallerBuildId) + '",' + #13#10 +
+    '  "phase": "image_' + JsonEscape(OperationName) + '",' + #13#10 +
+    '  "category": "docker",' + #13#10 +
+    '  "started": false,' + #13#10 +
+    '  "exit_code": 40,' + #13#10 +
+    '  "exception_type": "ProcessStartError",' + #13#10 +
+    '  "error": "' + JsonEscape(ErrorText) + '",' + #13#10 +
+    '  "report_path": "' + JsonEscape(RuntimeImagesReportPath) + '",' + #13#10 +
+    '  "ok": false,' + #13#10 +
+    '  "state": "safe_mode",' + #13#10 +
+    '  "images": []' + #13#10 +
+    '}' + #13#10;
+  EnsureDirectory(ExtractFileDir(RuntimeImagesReportPath));
+  SaveStringToFile(RuntimeImagesReportPath, Content, False);
+end;
+
+function RunRuntimeImageManager(
+  OperationName: String; ExplicitConsent: Boolean;
+  var ResultCode: Integer): Boolean;
+var
+  Parameters: String;
+  ExecInfo: TShellExecuteInfo;
+  ExitCode: LongWord;
+  WaitResult: LongWord;
+  Started: Boolean;
+begin
+  Result := False;
+  ResultCode := 40;
+  RuntimeImagesCancelRequested := False;
+  RuntimeImagesReportPath := GetLogsPath('') +
+    '\setup\r27-runtime-images-' + OperationName + '.json';
+  RuntimeImagesProcessReportDir := GetLogsPath('') +
+    '\setup\r27-runtime-image-processes-' + OperationName;
+  RuntimeImagesCancelFile := GetStatePath('') +
+    '\installation\r27-runtime-images.cancel';
+  EnsureDirectory(ExtractFileDir(RuntimeImagesReportPath));
+  EnsureDirectory(RuntimeImagesProcessReportDir);
+  EnsureDirectory(ExtractFileDir(RuntimeImagesCancelFile));
+  DeleteFile(RuntimeImagesCancelFile);
+  ExtractTemporaryFile('runtime-image-manager.py');
+#if RuntimeImagesIncluded == "1"
+  ExtractTemporaryFile('runtime-images.json');
+#endif
+
+  Parameters :=
+    QuoteMaintenanceArgument(ExpandConstant('{tmp}\runtime-image-manager.py')) +
+    ' ' + OperationName +
+    ' --manifest ' + QuoteMaintenanceArgument(GetRuntimeImagesManifestPath) +
+    ' --manifest-sha256 {#RuntimeImagesManifestSha256}' +
+    ' --docker ' + QuoteMaintenanceArgument(DetectedDockerPath) +
+    ' --report ' + QuoteMaintenanceArgument(RuntimeImagesReportPath) +
+    ' --process-report-dir ' + QuoteMaintenanceArgument(RuntimeImagesProcessReportDir) +
+    ' --build-id ' + QuoteMaintenanceArgument(GetInstallerBuildId) +
+    ' --cancel-file ' + QuoteMaintenanceArgument(RuntimeImagesCancelFile) +
+    ' --timeout-seconds 900 --inactivity-timeout-seconds 120';
+  if ExplicitConsent then
+    Parameters := Parameters +
+      ' --consent-token I_ACCEPT_PLWC_RUNTIME_IMAGE_DOWNLOAD_R27';
+
+  if OperationName = 'inventory' then
+    RuntimeImagesProgressPage.SetText(
+      CustomMessage('RuntimeImagesProgressInventory'), '')
+  else
+    RuntimeImagesProgressPage.SetText(
+      CustomMessage('RuntimeImagesProgressPull'),
+      CustomMessage('RuntimeImagesProgressVerify') + #13#10 +
+        CustomMessage('RuntimeImagesProgressProbe'));
+  RuntimeImagesProgressPage.Show;
+  RuntimeImagesProgressPage.Animate;
+  RuntimeImagesOperationBusy := True;
+  WizardForm.BackButton.Enabled := False;
+  WizardForm.NextButton.Enabled := False;
+  ExecInfo.cbSize := SizeOf(ExecInfo);
+  ExecInfo.fMask := SeeMaskNoCloseProcess;
+  ExecInfo.Wnd := WizardForm.Handle;
+  ExecInfo.lpVerb := '';
+  ExecInfo.lpFile := ResolvePythonPath;
+  ExecInfo.lpParameters := Parameters;
+  ExecInfo.lpDirectory := ExpandConstant('{tmp}');
+  ExecInfo.nShow := SW_HIDE;
+  ExecInfo.hInstApp := 0;
+  ExecInfo.lpIDList := 0;
+  ExecInfo.lpClass := '';
+  ExecInfo.hkeyClass := 0;
+  ExecInfo.dwHotKey := 0;
+  ExecInfo.hMonitor := 0;
+  ExecInfo.hProcess := 0;
+  Started := ShellExecuteEx(ExecInfo);
+  try
+    if not Started then
+    begin
+      WriteRuntimeImageFallbackReport(
+        OperationName, 'The runtime image manager process could not be started.');
+      Exit;
+    end;
+    repeat
+      WaitResult := WaitForSingleObject(ExecInfo.hProcess, 100);
+      ProcessPendingInstallerMessages;
+    until WaitResult <> WaitTimeout;
+    ExitCode := 40;
+    if WaitResult = WaitObject0 then
+      if GetExitCodeProcess(ExecInfo.hProcess, ExitCode) then
+        ResultCode := ExitCode;
+    Result := ResultCode = 0;
+    if not FileExists(RuntimeImagesReportPath) then
+      WriteRuntimeImageFallbackReport(
+        OperationName, 'The runtime image manager did not create its report.');
+  finally
+    if Started and (ExecInfo.hProcess <> 0) then
+      CloseHandle(ExecInfo.hProcess);
+    RuntimeImagesProgressPage.Hide;
+    RuntimeImagesOperationBusy := False;
+    WizardForm.BackButton.Enabled := True;
+    WizardForm.NextButton.Enabled := True;
+    DeleteFile(RuntimeImagesCancelFile);
+  end;
+end;
+
+procedure InventoryRuntimeImages;
+var
+  ResultCode: Integer;
+begin
+  RuntimeImagesInventoryAttempted := True;
+  RuntimeImagesProgressPage.SetText(
+    CustomMessage('RuntimeImagesProgressInventory'), '');
+  if RunRuntimeImageManager('inventory', False, ResultCode) then
+  begin
+    RuntimeImagesOutcome := 'inventory_complete';
+    RuntimeImagesPage.CheckListBox.ItemEnabled[0] := True;
+  end
+  else
+  begin
+    RuntimeImagesOutcome := 'inventory_failed';
+    RuntimeImagesPage.CheckListBox.ItemEnabled[0] := False;
+  end;
+  LoadRuntimeImageStatesFromReport;
+  RuntimeImagesInfoMemo.Lines.Text := BuildRuntimeImagesInfoText;
+end;
+
+function AcquireRuntimeImages: Boolean;
+var
+  ResultCode: Integer;
+  MessageText: String;
+begin
+  RuntimeImagesConsentGiven := True;
+  if RunRuntimeImageManager('acquire', True, ResultCode) then
+  begin
+    DockerImagesOK := True;
+    RuntimeImagesOutcome := 'ready';
+    RuntimeDocumentWorkerState := 'probe_passed';
+    RuntimeNodeRunnerState := 'probe_passed';
+    RuntimePythonRunnerState := 'probe_passed';
+    RuntimeImagesInfoMemo.Lines.Text := BuildRuntimeImagesInfoText;
+    Result := True;
+    Exit;
+  end;
+
+  DockerImagesOK := False;
+  if ResultCode = 25 then
+  begin
+    RuntimeImagesOutcome := 'cancelled';
+    MessageText := CustomMessage('RuntimeImagesCancelled');
+  end
+  else
+  begin
+    RuntimeImagesOutcome := 'failed';
+    MessageText := CustomMessage('RuntimeImagesFailed');
+  end;
+  LoadRuntimeImageStatesFromReport;
+  RuntimeImagesInfoMemo.Lines.Text := BuildRuntimeImagesInfoText;
+  MsgBox(
+    MessageText + #13#10 + #13#10 +
+      CustomMessage('RuntimeImagesRetry') + #13#10 +
+      CustomMessage('RuntimeImagesReportLocation') + ' ' + RuntimeImagesReportPath,
+    mbError, MB_OK);
+  Result := False;
 end;
 
 procedure PrepareInstallerMigration;
@@ -2440,13 +2832,13 @@ var
 begin
   WizardForm.StatusLabel.Caption := CustomMessage('InstallerMigrationStatus');
   InstallerMigrationTransactionPath := GetStatePath('') +
-    '\installation\r26-installer-transaction.json';
+    '\installation\r27-installer-transaction.json';
   InstallerPreflightReportPath := GetLogsPath('') +
-    '\setup\r26-installer-preflight.json';
+    '\setup\r27-installer-preflight.json';
   InstallerPostflightReportPath := GetLogsPath('') +
-    '\setup\r26-installer-postflight.json';
+    '\setup\r27-installer-postflight.json';
   InstallerRollbackReportPath := GetLogsPath('') +
-    '\setup\r26-installer-rollback.json';
+    '\setup\r27-installer-rollback.json';
   EnsureDirectory(ExtractFileDir(InstallerMigrationTransactionPath));
   EnsureDirectory(ExtractFileDir(InstallerPostflightReportPath));
   ExtractTemporaryFile('installer-maintenance.py');
@@ -2461,7 +2853,7 @@ begin
       'report=' + InstallerPreflightReportPath + #13#10);
     RaiseException(
       CustomMessage('ErrorInstallerPreflight') + #13#10 +
-      InstallerPreflightReportPath + #13#10 +
+      GetExistingMaintenanceReportReference('preflight-prepare') + #13#10 +
       'Exit code: ' + IntToStr(ResultCode));
   end;
   AppendInstallerDiagnosticRecord(
@@ -2480,7 +2872,7 @@ begin
   Result := RunInstallerMaintenance('rollback', ResultCode);
   InstallerRollbackAttempted := True;
   if not Result then
-    Log('r26 installer rollback failed with exit code ' + IntToStr(ResultCode));
+    Log('r27 installer rollback failed with exit code ' + IntToStr(ResultCode));
 end;
 
 procedure RunHardInstallerPostflight;
@@ -2491,7 +2883,7 @@ begin
   if not RunInstallerMaintenance('postflight', ResultCode) then
     RaiseException(
       CustomMessage('ErrorInstallerPostflight') + #13#10 +
-      InstallerPostflightReportPath + #13#10 +
+      GetExistingMaintenanceReportReference('postflight') + #13#10 +
       'Exit code: ' + IntToStr(ResultCode));
 end;
 
@@ -2682,6 +3074,16 @@ begin
   SetIniString('Diagnostics', 'DockerCliPath', DetectedDockerPath, SelectionPath);
   SetIniString('Diagnostics', 'DockerDaemonReachable', BooleanIniValue(DockerDaemonOK), SelectionPath);
   SetIniString('Diagnostics', 'DockerImagesAvailable', BooleanIniValue(DockerImagesOK), SelectionPath);
+  SetIniString('RuntimeImages', 'ManifestIncluded', BooleanIniValue(RuntimeImagesPayloadIncluded), SelectionPath);
+  SetIniString('RuntimeImages', 'ConsentGiven', BooleanIniValue(RuntimeImagesConsentGiven), SelectionPath);
+  SetIniString('RuntimeImages', 'Outcome', RuntimeImagesOutcome, SelectionPath);
+  SetIniString('RuntimeImages', 'DocumentWorkerState', RuntimeDocumentWorkerState, SelectionPath);
+  SetIniString('RuntimeImages', 'NodeRunnerState', RuntimeNodeRunnerState, SelectionPath);
+  SetIniString('RuntimeImages', 'PythonRunnerState', RuntimePythonRunnerState, SelectionPath);
+  if FileExists(RuntimeImagesReportPath) then
+    SetIniString('RuntimeImages', 'ReportPath', RuntimeImagesReportPath, SelectionPath)
+  else
+    SetIniString('RuntimeImages', 'ReportPath', '', SelectionPath);
   SetIniString('Diagnostics', 'Wsl2Available', BooleanIniValue(Wsl2OK), SelectionPath);
   SetIniString('Diagnostics', 'VirtualizationCapability', BooleanIniValue(VirtualizationCapabilityOK), SelectionPath);
   SetIniString('Diagnostics', 'VirtualMachineDetected', BooleanIniValue(VirtualMachineDetected), SelectionPath);
@@ -3851,13 +4253,13 @@ begin
   ExistingSettingsComplete := ExistingInstallDetected and HasCompleteExistingSettings;
   LegacyBridgePath := ReadStoredPath('BridgePath', '');
   InstallerMigrationTransactionPath := GetDataRoot +
-    '\state\installation\r26-installer-transaction.json';
+    '\state\installation\r27-installer-transaction.json';
   InstallerPreflightReportPath := GetDataRoot +
-    '\logs\setup\r26-installer-preflight.json';
+    '\logs\setup\r27-installer-preflight.json';
   InstallerPostflightReportPath := GetLogsPath('') +
-    '\setup\r26-installer-postflight.json';
+    '\setup\r27-installer-postflight.json';
   InstallerRollbackReportPath := GetDataRoot +
-    '\logs\setup\r26-installer-rollback.json';
+    '\logs\setup\r27-installer-rollback.json';
   if ExistingInstallDetected then
     LastAppRoot := NormalizePath(ReadStoredPath('AppPath', WizardDirValue))
   else
@@ -3875,6 +4277,16 @@ begin
   InstallerRollbackAttempted := False;
   InstallerInstallationCompleted := False;
   InstallerFailureExitCode := 0;
+  RuntimeImagesConsentGiven := False;
+  RuntimeImagesOperationBusy := False;
+  RuntimeImagesCancelRequested := False;
+  RuntimeImagesInventoryAttempted := False;
+  RuntimeImagesOutcome := 'safe_mode';
+  RuntimeImagesReportPath := GetDataRoot +
+    '\logs\setup\r27-runtime-images-not-run.json';
+  RuntimeDocumentWorkerState := 'safe_mode';
+  RuntimeNodeRunnerState := 'safe_mode';
+  RuntimePythonRunnerState := 'safe_mode';
 
 #ifdef UiSmokeTimedProbeFixture
   if WaitNamedPipe('\\.\pipe\docker_engine', 2000) then
@@ -3984,6 +4396,35 @@ begin
     CustomMessage('ButtonRecheckPrerequisites');
   RecheckPrerequisitesButton.OnClick := @RecheckPrerequisitesButtonClick;
 
+  RuntimeImagesPage := CreateInputOptionPage(
+    PrerequisiteActionsPage.ID,
+    CustomMessage('PageRuntimeImagesTitle'),
+    CustomMessage('PageRuntimeImagesDescription'),
+    CustomMessage('PageRuntimeImagesSubCaption'),
+    False,
+    False);
+  RuntimeImagesPage.Add(CustomMessage('OptionInstallRuntimeImages'));
+  RuntimeImagesPage.Values[0] := False;
+  RuntimeImagesPage.CheckListBox.Height := ScaleY(42);
+  RuntimeImagesInfoMemo := TNewMemo.Create(RuntimeImagesPage);
+  RuntimeImagesInfoMemo.Parent := RuntimeImagesPage.Surface;
+  RuntimeImagesInfoMemo.Left := 0;
+  RuntimeImagesInfoMemo.Top :=
+    RuntimeImagesPage.CheckListBox.Top +
+    RuntimeImagesPage.CheckListBox.Height + ScaleY(8);
+  RuntimeImagesInfoMemo.Width := RuntimeImagesPage.SurfaceWidth;
+  RuntimeImagesInfoMemo.Height :=
+    RuntimeImagesPage.SurfaceHeight - RuntimeImagesInfoMemo.Top;
+  RuntimeImagesInfoMemo.ReadOnly := True;
+  RuntimeImagesInfoMemo.TabStop := False;
+  RuntimeImagesInfoMemo.WordWrap := True;
+  RuntimeImagesInfoMemo.ScrollBars := ssVertical;
+  RuntimeImagesInfoMemo.Lines.Text := BuildRuntimeImagesInfoText;
+
+  RuntimeImagesProgressPage := CreateOutputMarqueeProgressPage(
+    CustomMessage('PageRuntimeImagesTitle'),
+    CustomMessage('PageRuntimeImagesDescription'));
+
   DependencyDownloadPage := CreateDownloadPage(
     CustomMessage('PageDownloadTitle'),
     CustomMessage('PageDownloadDescription') + '. ' +
@@ -3996,7 +4437,7 @@ begin
     CustomMessage('PageInstallProgressDescription'));
 
   RuntimeDirsPage := CreateInputDirPage(
-    PrerequisiteActionsPage.ID,
+    RuntimeImagesPage.ID,
     CustomMessage('PageRuntimeDirsTitle'),
     CustomMessage('PageRuntimeDirsDescription'),
     CustomMessage('PageRuntimeDirsSubCaption'),
@@ -4123,6 +4564,15 @@ begin
     end;
   end;
 
+  if CurPageID = RuntimeImagesPage.ID then
+  begin
+    RuntimeImagesPage.Values[0] := False;
+    if RuntimeImagesOutcome = 'ready' then
+      RuntimeImagesInfoMemo.Lines.Text := BuildRuntimeImagesInfoText
+    else
+      InventoryRuntimeImages;
+  end;
+
   if CurPageID = RuntimeDirsPage.ID then
   begin
     CurrentAppRoot := NormalizePath(RuntimeDirsPage.Values[0]);
@@ -4135,13 +4585,18 @@ end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := ExistingSettingsComplete and
-    ((PageID = RuntimeDirsPage.ID) or
-     (PageID = DataDirsPage.ID) or
-     (PageID = OperatingDirsPage.ID) or
-     (PageID = ProfilePage.ID) or
-     (PageID = RuntimeSettingsPage.ID) or
-     (PageID = RuntimeOptionsPage.ID));
+  if PageID = RuntimeImagesPage.ID then
+    Result := WizardSilent or
+      (not RuntimeImagesPayloadIncluded) or
+      (not DockerDaemonOK)
+  else
+    Result := ExistingSettingsComplete and
+      ((PageID = RuntimeDirsPage.ID) or
+       (PageID = DataDirsPage.ID) or
+       (PageID = OperatingDirsPage.ID) or
+       (PageID = ProfilePage.ID) or
+       (PageID = RuntimeSettingsPage.ID) or
+       (PageID = RuntimeOptionsPage.ID));
 end;
 
 function GetDataPathByIndex(Index: Integer): String;
@@ -4327,6 +4782,27 @@ begin
     end;
   end;
 
+  if CurPageID = RuntimeImagesPage.ID then
+  begin
+    if WizardSilent then
+      RuntimeImagesPage.Values[0] := False;
+    if DockerImagesOK then
+      RuntimeImagesOutcome := 'ready'
+    else if RuntimeImagesPage.Values[0] then
+    begin
+      Result := AcquireRuntimeImages;
+      if not Result then
+        Exit;
+    end
+    else
+    begin
+      RuntimeImagesOutcome := 'declined';
+      RuntimeDocumentWorkerState := 'safe_mode';
+      RuntimeNodeRunnerState := 'safe_mode';
+      RuntimePythonRunnerState := 'safe_mode';
+    end;
+  end;
+
   if CurPageID = RuntimeDirsPage.ID then
   begin
     if (Trim(RuntimeDirsPage.Values[0]) = '') or
@@ -4471,7 +4947,8 @@ begin
     Space + CustomMessage('ReadyPersona') +
       LocalizedBoolean(RuntimeOptionsPage.Values[1]) + NewLine +
     Space + CustomMessage('ReadySafeMode') +
-      LocalizedBoolean(IsSafeModeExpected) + NewLine + NewLine +
+      LocalizedBoolean(IsSafeModeExpected) + NewLine +
+    Space + RuntimeImagesStatusSummary + NewLine + NewLine +
     CustomMessage('SummaryPrerequisites') + NewLine +
     PrerequisiteReport + NewLine + NewLine +
     MemoTypeInfo + NewLine + NewLine +
@@ -4547,8 +5024,24 @@ begin
      (not InstallerInstallationCompleted) and
      (not InstallerRollbackAttempted) then
   begin
-    Log('Setup ended before r26 postflight success; attempting installer rollback.');
+    Log('Setup ended before r27 postflight success; attempting installer rollback.');
     RollbackInstallerMigration;
+  end;
+end;
+
+procedure CancelButtonClick(
+  CurPageID: Integer; var Cancel, Confirm: Boolean);
+begin
+  if RuntimeImagesOperationBusy then
+  begin
+    RuntimeImagesCancelRequested := True;
+    EnsureDirectory(ExtractFileDir(RuntimeImagesCancelFile));
+    SaveStringToFile(RuntimeImagesCancelFile, 'cancel' + #13#10, False);
+    RuntimeImagesProgressPage.SetText(
+      CustomMessage('RuntimeImagesCancelled'),
+      CustomMessage('RuntimeImagesReportLocation') + ' ' + RuntimeImagesReportPath);
+    Cancel := False;
+    Confirm := False;
   end;
 end;
 

@@ -2,7 +2,17 @@
 
 Stand: 2026-09-04
 
-Freigegebener, ausdrücklich unsignierter r26-Releasekandidat:
+Nachtrag 2026-09-05: **R26 NO-GO / NICHT VERÖFFENTLICHEN.** Ein realer
+Installationsbefund zeigte nach der Installation ein fehlendes
+`plwc-document-worker:0.1.0`-Image (`worker_missing`) sowie bei einem separaten
+erneuten Lauf einen nicht vollständig diagnostizierten Preflight-Exitcode 1.
+Der positive Fall in Zeile 18 wurde auf einem bereits vorbereiteten Host
+erbracht und belegt keine Imagebereitstellung durch Setup. Die unveränderte
+Korrekturrevision ist r27; siehe
+`docs/evidence/R26_FIELD_INCIDENT_2026-09-05_DE.md` und
+`docs/R27_WINDOWS_IMAGE_DELIVERY_PLAN_DE.md`.
+
+Historisch freigegebener, nach dem Feldbefund zurückgezogener r26-Kandidat:
 
 - Datei: `PLwC-Setup-1.0.0-installer-r26.exe`
 - Größe: `5.494.996` Bytes
@@ -60,7 +70,7 @@ Statuslegende:
 | 15 | Browser-Neustart, Disconnect, Reconnect | Generation-Invalidierung, No-Resend, lokales Cache-Recovery und deterministische Panel-Inhaberschaft PASS | **SYSTEM PASS** – auf der sauberen VM blieb PLwC nach vollständigem Chrome-Neustart installiert und meldete wieder Extension `1.0.1`, passende Buildidentität und 8/8. Zusätzlich bestand auf dem Abnahmehost der vollständige Brave-Neustart nach einmaligem Wechsel vom Repository-Netzpfad auf `%APPDATA%\PLwC\app\bridge\extension`. |
 | 16 | Bridge 8/8, während Panel noch nicht geladen ist | Atomare Readiness-State-Tests PASS | **SYSTEM PASS** für `d604e771…97dc65` – Live-Health liefert ohne Panel exakt 8/8 für Development-, Chrome- und Edge-Origin. |
 | 17 | Inkompatible Buildidentität | Fail-closed-Buildidentitätstests PASS | **SYSTEM PENDING** – Defektinjektion nur isoliert |
-| 18 | Docker, Qdrant und Document Worker: vorhanden, fehlend oder nicht prüfbar | Echte CLI-/Daemon-, Python-Distributions- und Docker-Image-Probes samt Positiv-, Fehlend- und Nicht-erreichbar-Regressionen PASS | **SYSTEM PASS (positiver Pfad)** für `d604e771…97dc65` – Docker `29.3.1`, Qdrant-Client `1.18.0` und Document Worker `0.1.0` mit Image-ID `sha256:c81b8c2…9470344`; `blocking=none`, `unknown=none`. Der isolierte Negativpfad bleibt automatisiert belegt. |
+| 18 | Docker, Qdrant und Document Worker: vorhanden, fehlend oder nicht prüfbar | Echte CLI-/Daemon-, Python-Distributions- und Docker-Image-Probes samt Positiv-, Fehlend- und Nicht-erreichbar-Regressionen PASS | **HISTORISCHER SYSTEM PASS (vorbereiter Positivpfad), RELEASEGATE FAIL** – auf dem Abnahmehost waren Docker `29.3.1`, Qdrant-Client `1.18.0` und das lokale Document-Worker-Image bereits vorhanden. Ein späterer realer Nutzerlauf ohne vorbereitetes Image endete mit `worker_missing`; r26 stellt das Image nicht bereit. |
 | 19 | Doctor-Diagnose verändert nichts | Dateisystem-/Registry-/Prozess-Snapshot-Test PASS | **SYSTEM PASS** für `d604e771…97dc65` – installierter Doctor read-only, 7 PASS, 1 Hinweis, 0 Fehler; Profile und Arbeitsbereich bytegleich, Bridge blieb aktiv, Reparaturplan leer. |
 | 20 | Doctor-Reparatur erfolgreich und zweiter Lauf idempotent | Plan/Apply/Postflight/Idempotenz-Tests PASS | **SYSTEM PARTIAL** – zwei installierte Diagnosen erzeugten jeweils einen leeren Plan; kein Apply ohne planspezifische Bestätigung |
 | 21 | Doctor-Reparaturfehler rollt zurück | Injizierter Fehler und Rollback-Test PASS | **SYSTEM PENDING** – Defektinjektion nur isoliert |
@@ -222,10 +232,11 @@ Version `1.0.1`, die stabile Entwicklungs-ID, passenden Build und erneut 8/8.
 
 ## Gate-Ergebnis
 
-Die automatisierte Matrix, der saubere VM-Lauf des aktuellen
-Implementierungsstands und die direkte hashgebundene r25→r26-Aktualisierung
-sind grün. Der Product Owner hat den endgültigen, ausdrücklich unsignierten
-r26-Build freigegeben. Phase 8 ist für den Windows-Installer deshalb **PASS**.
+Historischer Stand vom 2026-09-04: Die automatisierte Matrix, der damalige
+saubere VM-Lauf und die direkte hashgebundene r25→r26-Aktualisierung waren grün;
+der Product Owner gab den ausdrücklich unsignierten r26-Build frei. Diese
+Entscheidung wurde durch den Feldbefund vom 2026-09-05 aufgehoben. Phase 8 ist
+für r26 nun **NO-GO**; die Korrektur wird als r27 geführt.
 
 Diese Entscheidung veröffentlicht nichts. Chrome `1.0.1` bleibt in Prüfung
 mit Sichtbarkeit **Nicht gelistet** und deaktivierter automatischer

@@ -7,6 +7,7 @@ param(
     [string] $McpbPath,
     [string] $IsccPath,
     [string] $GeneratedOutputRoot,
+    [string] $RuntimeImagesManifestPath,
     [string] $SignToolPath,
     [string] $SigningCertificateThumbprint,
     [string] $SigningTimestampUrl
@@ -19,7 +20,7 @@ $installerRoot = [IO.Path]::GetFullPath($PSScriptRoot)
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot "..\.."))
 $testOutputRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot ".test-build"))
 $validateOutputRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot ".validate-build"))
-$unsignedOutputRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot ".unsigned-build-r26"))
+$unsignedOutputRoot = [IO.Path]::GetFullPath((Join-Path $installerRoot ".unsigned-build-r27"))
 $buildOutputRoot = if ([string]::IsNullOrWhiteSpace($GeneratedOutputRoot)) {
     if ($ValidateOnly) { $validateOutputRoot }
     elseif ($Unsigned) { $unsignedOutputRoot }
@@ -242,6 +243,86 @@ function Assert-InstallerSafeVersion {
 
     if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
         throw "$Name version is not installer-safe: $Version"
+    }
+}
+
+function Get-RuntimeImagesManifest {
+    param(
+        [AllowNull()][string] $Path,
+        [Parameter(Mandatory = $true)][bool] $Required
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        if ($Required) {
+            throw "A release-grade r27 build requires -RuntimeImagesManifestPath. The manifest must contain the exact GHCR digests produced by the approved image build."
+        }
+        return $null
+    }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Runtime image manifest not found: $Path"
+    }
+
+    $resolvedPath = (Resolve-Path -LiteralPath $Path).ProviderPath
+    $manifest = Get-Content -LiteralPath $resolvedPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([string] $manifest.schema_version -ne "1.0.0" -or
+        [string] $manifest.product_version -ne "1.0.0" -or
+        [string] $manifest.installer_revision -ne "r27" -or
+        [string] $manifest.source_repository -ne "https://github.com/mhoedt-ai/PLwC" -or
+        [string] $manifest.source_commit -notmatch '^[0-9a-f]{40}$' -or
+        [string] $manifest.platform.os -ne "linux" -or
+        [string] $manifest.platform.architecture -ne "amd64") {
+        throw "Runtime image manifest header is invalid: $resolvedPath"
+    }
+
+    $expected = [ordered]@{
+        document_worker = "ghcr.io/mhoedt-ai/plwc-document-worker"
+        node_runner = "ghcr.io/mhoedt-ai/plwc-node-runner"
+        python_runner = "ghcr.io/mhoedt-ai/plwc-python-runner"
+    }
+    $images = @($manifest.images)
+    if ($images.Count -ne $expected.Count) {
+        throw "Runtime image manifest must contain exactly three images."
+    }
+    foreach ($id in $expected.Keys) {
+        $matches = @($images | Where-Object { [string] $_.id -ceq $id })
+        if ($matches.Count -ne 1) {
+            throw "Runtime image manifest must contain image '$id' exactly once."
+        }
+        $image = $matches[0]
+        $repository = [string] $expected[$id]
+        $digest = [string] $image.digest
+        if ([string] $image.repository -cne $repository -or
+            [string] $image.version -cne "0.1.0" -or
+            $digest -notmatch '^sha256:[0-9a-f]{64}$' -or
+            [string] $image.reference -cne "$repository@$digest" -or
+            [string] $image.display_tag -cne "${repository}:0.1.0" -or
+            [string] $image.platform.os -cne "linux" -or
+            [string] $image.platform.architecture -cne "amd64" -or
+            [long] $image.download_bytes -le 0 -or
+            [long] $image.content_bytes -le 0) {
+            throw "Runtime image manifest entry '$id' is invalid or not digest-locked."
+        }
+    }
+
+    $pythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $pythonCommand) {
+        $pythonCommand = Get-Command python -ErrorAction SilentlyContinue | Select-Object -First 1
+    }
+    if ($null -eq $pythonCommand) {
+        throw "Python is required to verify the runtime image manifest and its security evidence."
+    }
+    $runtimeImageVerifier = Join-Path $repoRoot "scripts\verify_runtime_images.py"
+    Invoke-CheckedCommand `
+        -FilePath $pythonCommand.Source `
+        -ArgumentList @($runtimeImageVerifier, "--manifest", $resolvedPath) `
+        -WorkingDirectory $repoRoot
+
+    return [pscustomobject]@{
+        Path = $resolvedPath
+        Data = $manifest
+        Sha256 = (Get-FileHash -LiteralPath $resolvedPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        DownloadMiB = [int] [Math]::Ceiling((($images | Measure-Object -Property download_bytes -Sum).Sum) / 1MB)
+        ContentMiB = [int] [Math]::Ceiling((($images | Measure-Object -Property content_bytes -Sum).Sum) / 1MB)
     }
 }
 
@@ -712,8 +793,8 @@ function Write-PayloadManifest {
             revision = $InstallerRevision
             artifactName = "PLwC-Setup-$ProductVersion-$InstallerRevision.exe"
             buildIdentityArtifact = "PLwC-$ProductVersion-$InstallerRevision-build-identity.json"
-            evidencePackage = "R26-PHASE5"
-            evidencePath = "docs/evidence/R26_PHASE5_INSTALLER_MIGRATION_DE.md"
+            evidencePackage = "R27-G3"
+            evidencePath = "docs/R27_WINDOWS_IMAGE_DELIVERY_PLAN_DE.md"
             components = [ordered]@{
                 gateway = $GatewayVersion
                 nodeBridge = [string] $BuildIdentity.components.nodeBridge
@@ -814,8 +895,8 @@ function Write-InstallerBuildIdentity {
             }
         })
         evidence = [ordered]@{
-            package = "CHAT-BRIDGE-1.0"
-            acceptanceRecord = "docs/evidence/R26_PHASE8_RELEASE_ACCEPTANCE_DE.md"
+            package = "R27-G3"
+            acceptanceRecord = "docs/R27_WINDOWS_IMAGE_DELIVERY_PLAN_DE.md"
         }
     }
     Write-Utf8File -Path $identityPath -Content (($identity | ConvertTo-Json -Depth 8) + "`n")
@@ -853,6 +934,12 @@ try {
 
     $gatewayVersion = Get-PackageVersion
     $installerRevision = Get-InstallerRevision
+    if ($installerRevision -ne "installer-r27") {
+        throw "This build harness now accepts only installer-r27; observed '$installerRevision'."
+    }
+    $runtimeImages = Get-RuntimeImagesManifest `
+        -Path $RuntimeImagesManifestPath `
+        -Required (-not $ValidateOnly)
     $bridgeSource = Join-Path $repoRoot "integrations\plwc-chat-bridge"
     $buildIdentityPath = Join-Path $bridgeSource "build-identity.json"
     $buildIdentity = Get-Content -LiteralPath $buildIdentityPath -Raw | ConvertFrom-Json
@@ -911,6 +998,19 @@ $gettingStartedSource = Join-Path $installerRoot "assets\getting-started"
 $gettingStartedDestination = Join-Path $stageRoot "common\docs"
 foreach ($file in @("getting-started-en.html", "getting-started-de.html", "getting-started.css")) {
     Copy-BuildFile -Source (Join-Path $gettingStartedSource $file) -Destination (Join-Path $gettingStartedDestination $file)
+}
+
+$installationDestination = Join-Path $stageRoot "common\installation"
+Copy-BuildFile `
+    -Source (Join-Path $installerRoot "manifests\runtime-images.schema.json") `
+    -Destination (Join-Path $installationDestination "runtime-images.schema.json")
+Copy-BuildFile `
+    -Source (Join-Path $installerRoot "assets\runtime-image-manager.py") `
+    -Destination (Join-Path $installationDestination "runtime-image-manager.py")
+if ($null -ne $runtimeImages) {
+    Copy-BuildFile `
+        -Source $runtimeImages.Path `
+        -Destination (Join-Path $installationDestination "runtime-images.json")
 }
 
 $configurationSource = Join-Path $installerRoot "assets\configuration"
@@ -1084,6 +1184,10 @@ if (-not (Test-Path -LiteralPath $setupScript -PathType Leaf)) {
 }
 $iscc = Resolve-Iscc
 $mcpbAvailable = if ($null -ne $mcpbArtifact) { "1" } else { "0" }
+$runtimeImagesIncluded = if ($null -ne $runtimeImages) { "1" } else { "0" }
+$runtimeImagesManifestSha256 = if ($null -ne $runtimeImages) { $runtimeImages.Sha256 } else { "0" * 64 }
+$runtimeImagesDownloadMiB = if ($null -ne $runtimeImages) { [string] $runtimeImages.DownloadMiB } else { "0" }
+$runtimeImagesDiskMiB = if ($null -ne $runtimeImages) { [string] $runtimeImages.ContentMiB } else { "0" }
 $isccArguments = @(
     "/Qp",
     "/O$distRoot",
@@ -1101,6 +1205,10 @@ $isccArguments = @(
     "/DOUTPUT_DIR=$distRoot",
     "/DMcpbAvailable=$mcpbAvailable",
     "/DMCPB_AVAILABLE=$mcpbAvailable",
+    "/DRuntimeImagesIncluded=$runtimeImagesIncluded",
+    "/DRuntimeImagesManifestSha256=$runtimeImagesManifestSha256",
+    "/DRuntimeImagesDownloadMiB=$runtimeImagesDownloadMiB",
+    "/DRuntimeImagesDiskMiB=$runtimeImagesDiskMiB",
     "/DBridgeDirectoryName=$($buildIdentity.installer.directoryName)",
     "/DStableChatBridgeExtensionId=$stableExtensionId",
     $setupScript

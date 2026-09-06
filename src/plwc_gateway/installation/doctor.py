@@ -3,11 +3,14 @@ from __future__ import annotations
 import configparser
 import hashlib
 import hmac
+import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import threading
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -15,6 +18,22 @@ from typing import Any, Callable, Mapping
 
 DOCTOR_SCHEMA_VERSION = "1.0.0"
 REPAIR_PLAN_SCHEMA_VERSION = "1.0.0"
+DIAGNOSTIC_BUNDLE_SCHEMA_VERSION = "1.0.0"
+DIAGNOSTIC_FILE_MAX_BYTES = 5 * 1024 * 1024
+DIAGNOSTIC_BUNDLE_MAX_BYTES = 25 * 1024 * 1024
+DIAGNOSTIC_ALLOWED_SUFFIXES = frozenset({".ini", ".json", ".jsonl", ".log", ".txt"})
+DIAGNOSTIC_KNOWN_PATHS = (
+    "logs/setup/installer-diagnostic.log",
+    "logs/setup/r27-installer-preflight.json",
+    "logs/setup/r27-installer-postflight.json",
+    "logs/setup/r27-installer-rollback.json",
+    "logs/setup/r27-runtime-images-inventory.json",
+    "logs/setup/r27-runtime-images-acquire.json",
+    "state/installation/r27-installer-transaction.json",
+    "config/installer/selection.ini",
+    "app/installation/payload-manifest.json",
+    "app/installation/runtime-images.json",
+)
 ALLOWED_REPAIR_ACTIONS = frozenset({"ensure_directory", "restore_file_from_payload"})
 REQUIRED_PROFILE_FILES = (
     "CORE.md",
@@ -27,6 +46,13 @@ REQUIRED_PROFILE_FILES = (
 STANDARD_WORKSPACE_DIRECTORIES = ("", "Tagebuch", "Temp", "Trashcan")
 _AUDIT_LOCK = threading.Lock()
 STABLE_CHAT_BRIDGE_EXTENSION_ID = "nlogfcafjdfdoknpkbehjgihpafpipdb"
+_SENSITIVE_ASSIGNMENT = re.compile(
+    r"(?i)([\"']?(?:authorization|password|passwd|secret|session[_-]?token|access[_-]?token|api[_-]?key)"
+    r"[\"']?\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|[^,;\s]+)"
+)
+_DIAGNOSTIC_PATH_REFERENCE = re.compile(
+    r"(?i)(?:[A-Z]:[\\/]|/)[^\r\n\"']+?\.(?:ini|json|jsonl|log|txt)"
+)
 
 
 class DoctorContractError(ValueError):
@@ -85,6 +111,35 @@ def _path_fact(path: Path, *, include_hash: bool = False) -> dict[str, Any]:
         except OSError:
             fact["size"] = None
     return fact
+
+
+def _redact_diagnostic_bytes(path: Path, content: bytes) -> tuple[bytes, bool]:
+    if b"\x00" in content:
+        raise DoctorContractError(f"Diagnostic artifact is not a supported text file: {path}")
+    decoded: str | None = None
+    for encoding in ("utf-8-sig", "cp1252"):
+        try:
+            decoded = content.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if decoded is None:
+        raise DoctorContractError(f"Diagnostic artifact has an unsupported text encoding: {path}")
+
+    def replace(match: re.Match[str]) -> str:
+        value = match.group(2)
+        replacement = '"[REDACTED]"' if value.startswith('"') else "'[REDACTED]'" if value.startswith("'") else "[REDACTED]"
+        return f"{match.group(1)}{replacement}"
+
+    redacted = _SENSITIVE_ASSIGNMENT.sub(replace, decoded)
+    return redacted.encode("utf-8"), redacted != decoded
+
+
+def _zip_write(archive: zipfile.ZipFile, name: str, content: bytes) -> None:
+    info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+    info.compress_type = zipfile.ZIP_DEFLATED
+    info.external_attr = 0o600 << 16
+    archive.writestr(info, content)
 
 
 def _check(
@@ -395,7 +450,125 @@ class InstallationDoctor:
                 "installer": _path_fact(logs / "setup" / "installer-diagnostic.log"),
                 "audit": _path_fact(self.installation_root / "logs" / "audit.jsonl"),
             },
+            "diagnostic_artifacts": self._diagnostic_artifact_facts(),
         }
+
+    def _diagnostic_artifact_paths(self) -> list[Path]:
+        candidates = {self.installation_root / Path(relative) for relative in DIAGNOSTIC_KNOWN_PATHS}
+        for relative_root in ("logs/setup", "logs/doctor", "state/installation"):
+            root = self.installation_root / Path(relative_root)
+            if not root.is_dir():
+                continue
+            try:
+                candidates.update(path for path in root.rglob("*") if path.is_file())
+            except OSError:
+                continue
+        return sorted(candidates, key=lambda path: path.as_posix().casefold())
+
+    def _diagnostic_artifact_facts(self) -> list[dict[str, Any]]:
+        facts: list[dict[str, Any]] = []
+        for path in self._diagnostic_artifact_paths():
+            resolved = path.resolve(strict=False)
+            relative = path.relative_to(self.installation_root).as_posix()
+            fact = {
+                "relative_path": relative,
+                "exists": path.is_file(),
+                "eligible": (
+                    path.is_file()
+                    and _inside(resolved, self.installation_root)
+                    and path.suffix.casefold() in DIAGNOSTIC_ALLOWED_SUFFIXES
+                ),
+            }
+            if path.is_file():
+                try:
+                    fact["size"] = path.stat().st_size
+                except OSError:
+                    fact["size"] = None
+                fact["sha256"] = _file_sha256(path)
+            facts.append(fact)
+        return facts
+
+    def export_diagnostic_bundle(self, diagnosis: Mapping[str, Any]) -> tuple[str, bytes]:
+        """Build a bounded, local ZIP containing the diagnosis and installer evidence."""
+
+        snapshot_id = diagnosis.get("snapshot_id")
+        if diagnosis.get("read_only") is not True or not isinstance(snapshot_id, str) or len(snapshot_id) != 64:
+            raise DoctorContractError("Diagnostic export requires a valid immutable Doctor diagnosis.")
+
+        included: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        referenced_paths: set[str] = set()
+        total_bytes = 0
+        exported_files: list[tuple[str, bytes]] = []
+        for fact in self._diagnostic_artifact_facts():
+            relative = str(fact["relative_path"])
+            if not fact.get("exists"):
+                skipped.append({"relative_path": relative, "reason": "not_present"})
+                continue
+            if not fact.get("eligible"):
+                skipped.append({"relative_path": relative, "reason": "outside_scope_or_unsupported_type"})
+                continue
+            size = fact.get("size")
+            if not isinstance(size, int) or size > DIAGNOSTIC_FILE_MAX_BYTES:
+                skipped.append({"relative_path": relative, "reason": "file_size_limit"})
+                continue
+            path = self.installation_root / Path(relative)
+            try:
+                raw = path.read_bytes()
+                exported, redacted = _redact_diagnostic_bytes(path, raw)
+            except (OSError, DoctorContractError) as exc:
+                skipped.append({"relative_path": relative, "reason": str(exc)})
+                continue
+            if total_bytes + len(exported) > DIAGNOSTIC_BUNDLE_MAX_BYTES:
+                skipped.append({"relative_path": relative, "reason": "bundle_size_limit"})
+                continue
+            total_bytes += len(exported)
+            exported_files.append((f"artifacts/{relative}", exported))
+            included.append(
+                {
+                    "relative_path": relative,
+                    "source_sha256": hashlib.sha256(raw).hexdigest(),
+                    "export_sha256": hashlib.sha256(exported).hexdigest(),
+                    "export_size": len(exported),
+                    "redacted": redacted,
+                }
+            )
+            text = exported.decode("utf-8", errors="replace")
+            for match in _DIAGNOSTIC_PATH_REFERENCE.findall(text):
+                reference = Path(match.replace("\\\\", "\\")).resolve(strict=False)
+                if _inside(reference, self.installation_root):
+                    referenced_paths.add(reference.relative_to(self.installation_root).as_posix())
+
+        present = {item["relative_path"] for item in included}
+        missing_references = sorted(reference for reference in referenced_paths if reference not in present)
+        manifest = {
+            "schema_version": DIAGNOSTIC_BUNDLE_SCHEMA_VERSION,
+            "snapshot_id": snapshot_id,
+            "generated_at": _utc_now(),
+            "scope": ["logs/setup", "logs/doctor", "state/installation", "config/installer", "app/installation"],
+            "workspace_and_profiles_excluded": True,
+            "per_file_limit_bytes": DIAGNOSTIC_FILE_MAX_BYTES,
+            "bundle_content_limit_bytes": DIAGNOSTIC_BUNDLE_MAX_BYTES,
+            "included": included,
+            "skipped": skipped,
+            "missing_referenced_artifacts": missing_references,
+        }
+        diagnosis_bytes = (json.dumps(dict(diagnosis), ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        manifest_bytes = (json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        readme = (
+            "PLwC Doctor diagnostic bundle\n"
+            "Generated only after an explicit local export request.\n"
+            "Workspace and profile contents are excluded. Known secret assignments are redacted, "
+            "but local paths and diagnostic metadata may still identify the Windows account.\n"
+        ).encode("utf-8")
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, mode="w") as archive:
+            _zip_write(archive, "diagnosis.json", diagnosis_bytes)
+            _zip_write(archive, "manifest.json", manifest_bytes)
+            _zip_write(archive, "README.txt", readme)
+            for name, content in exported_files:
+                _zip_write(archive, name, content)
+        return f"plwc-doctor-{snapshot_id}.zip", output.getvalue()
 
     @staticmethod
     def _component_summary(component_inventory: Mapping[str, Any] | None) -> list[dict[str, Any]]:
@@ -427,7 +600,7 @@ class InstallationDoctor:
         system_facts: Mapping[str, Any] | None = None,
         expected_extension_id: str = STABLE_CHAT_BRIDGE_EXTENSION_ID,
     ) -> dict[str, Any] | None:
-        """Reuse the installer's hash and exact 8/8 postflight for an installed r26 payload."""
+        """Reuse the installer's hash and exact 8/8 postflight for the installed payload."""
 
         from .installer_state import InstallerStateEngine
 

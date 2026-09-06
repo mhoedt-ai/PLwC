@@ -953,6 +953,18 @@ class PlwcConfigurationService:
         self._doctor_plans = {str(plan["plan_id"]): plan}
         return plan
 
+    def export_doctor_diagnosis(self, snapshot_id: Any) -> tuple[str, bytes]:
+        if not isinstance(snapshot_id, str) or len(snapshot_id) != 64:
+            raise ConfigurationError("Doctor export requires a valid diagnosis snapshot ID.")
+        diagnosis = self._doctor_diagnoses.get(snapshot_id)
+        if diagnosis is None:
+            raise ConfigurationError("Doctor diagnosis is no longer available. Run diagnosis again.")
+        config = self._config(read_only=True)
+        try:
+            return self._installation_doctor(config).export_diagnostic_bundle(diagnosis)
+        except DoctorContractError as exc:
+            raise ConfigurationError(str(exc)) from exc
+
     def apply_doctor_repair(self, plan_id: Any, confirmed: Any) -> dict[str, Any]:
         if confirmed is not True:
             raise ConfigurationError("Doctor repair requires explicit confirmation.")
@@ -1454,6 +1466,15 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
         content = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         self._send_bytes(status, content, "application/json; charset=utf-8")
 
+    def _send_download(self, filename: str, content: bytes) -> None:
+        safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", filename)
+        self.send_response(HTTPStatus.OK)
+        self._security_headers("application/zip")
+        self.send_header("Content-Disposition", f'attachment; filename="{safe_name}"')
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+
     def _reject(self, status: HTTPStatus, message: str) -> None:
         self._send_json(status, {"ok": False, "error": message})
 
@@ -1567,6 +1588,10 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
                 )
             elif self.path == "/api/doctor/diagnose":
                 result = self.server.service.run_doctor_diagnosis()
+            elif self.path == "/api/doctor/export":
+                filename, content = self.server.service.export_doctor_diagnosis(payload.get("snapshot_id"))
+                self._send_download(filename, content)
+                return
             elif self.path == "/api/doctor/plan":
                 result = self.server.service.plan_doctor_repair(payload.get("snapshot_id"))
             elif self.path == "/api/doctor/apply":

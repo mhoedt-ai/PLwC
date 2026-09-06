@@ -4,10 +4,79 @@ import argparse
 import json
 import os
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from installer_state import InstallerStateEngine, InstallerStateError
+
+
+REPORT_SCHEMA_VERSION = "1.0.0"
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _report_id(value: dict[str, Any]) -> str:
+    import hashlib
+
+    payload = dict(value)
+    payload.pop("report_id", None)
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _final_report(
+    args: argparse.Namespace,
+    payload: dict[str, Any],
+    *,
+    started_at: str,
+    started_monotonic: float,
+    exit_code: int,
+    exception: BaseException | None = None,
+) -> dict[str, Any]:
+    report = dict(payload)
+    report.update(
+        {
+            "schema_version": REPORT_SCHEMA_VERSION,
+            "phase": args.action,
+            "category": "maintenance",
+            "command_id": f"installer-maintenance-{args.action}",
+            "started": True,
+            "started_at": started_at,
+            "finished_at": _utc_now(),
+            "duration_ms": max(0, int((time.monotonic() - started_monotonic) * 1000)),
+            "exit_code": exit_code,
+            "stdout": "",
+            "stderr": "",
+            "stdout_truncated": False,
+            "stderr_truncated": False,
+            "timed_out": False,
+            "cancelled": False,
+            "exception_type": type(exception).__name__ if exception is not None else None,
+            "report_path": str(Path(args.report_path).resolve(strict=False)),
+            "ok": exit_code == 0 and report.get("ok", True) is not False,
+        }
+    )
+    if exception is not None:
+        report["error"] = str(exception)
+        report["error_category"] = "unexpected_maintenance_error"
+    else:
+        report.setdefault("error_category", None)
+    report["report_id"] = _report_id(report)
+    return report
+
+
+def _read_report_if_present(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {}
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -143,7 +212,7 @@ def _rollback(args: argparse.Namespace) -> int:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="PLwC r26 Windows installer migration transaction")
+    parser = argparse.ArgumentParser(description="PLwC r27 Windows installer migration transaction")
     parser.add_argument("action", choices=("preflight-prepare", "postflight", "rollback"))
     for name in (
         "installation-root",
@@ -168,34 +237,49 @@ def _parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = _parser().parse_args()
+    started_at = _utc_now()
+    started_monotonic = time.monotonic()
+    report_path = Path(args.report_path)
     try:
         if args.action == "preflight-prepare":
-            return _prepare(args)
-        if args.action == "postflight":
+            exit_code = _prepare(args)
+        elif args.action == "postflight":
             if not args.payload_manifest or not args.extension_id:
                 raise InstallerStateError("Postflight requires the payload manifest and extension ID.")
-            return _postflight(args)
-        return _rollback(args)
-    except (InstallerStateError, OSError, ValueError, json.JSONDecodeError) as exc:
+            exit_code = _postflight(args)
+        else:
+            exit_code = _rollback(args)
+        report = _final_report(
+            args,
+            _read_report_if_present(report_path),
+            started_at=started_at,
+            started_monotonic=started_monotonic,
+            exit_code=exit_code,
+        )
+        _atomic_write_json(report_path, report)
+        return exit_code
+    except Exception as exc:
+        report = _final_report(
+            args,
+            _read_report_if_present(report_path),
+            started_at=started_at,
+            started_monotonic=started_monotonic,
+            exit_code=40,
+            exception=exc,
+        )
         try:
-            _atomic_write_json(
-                Path(args.report_path),
-                {
-                    "ok": False,
-                    "phase": args.action,
-                    "error": str(exc),
-                    "error_type": type(exc).__name__,
-                    "transaction": str(Path(args.transaction_path).resolve(strict=False)),
-                },
-            )
+            _atomic_write_json(report_path, report)
         except OSError:
-            pass
-        raise
+            fallback = Path(args.logs_root) / "setup" / "r27-installer-maintenance-fallback.json"
+            try:
+                report["report_path"] = str(fallback.resolve(strict=False))
+                report["report_id"] = _report_id(report)
+                _atomic_write_json(fallback, report)
+            except OSError:
+                pass
+        print(f"PLwC installer maintenance failed: {exc}", file=sys.stderr)
+        return 40
 
 
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except (InstallerStateError, OSError, ValueError, json.JSONDecodeError) as exc:
-        print(f"PLwC installer maintenance failed: {exc}", file=sys.stderr)
-        raise SystemExit(40) from exc
+    raise SystemExit(main())

@@ -155,7 +155,7 @@ def _write_selection(paths: dict[str, Path], *, stored_bridge: Path | None = Non
         "ChatBridge": "true",
     }
     parser["BuildIdentity"] = {
-        "InstallerRevision": "installer-r26",
+        "InstallerRevision": "installer-r27",
         "SetupExeSha256": "a" * 64,
     }
     paths["selection"].parent.mkdir(parents=True, exist_ok=True)
@@ -210,7 +210,7 @@ def _install_payload(paths: dict[str, Path]) -> Path:
         json.dumps(
             {
                 "schemaVersion": 1,
-                "installer": {"revision": "installer-r26"},
+                "installer": {"revision": "installer-r27"},
                 "files": manifest_files,
             }
         ),
@@ -397,7 +397,7 @@ def test_failed_update_rolls_back_the_complete_application_tree(tmp_path: Path) 
     )
     _install_payload(paths)
     for relative in INSTALLER_MANAGED_CONFIG_PATHS:
-        _write(paths["config"] / relative, f"failed-r26:{relative}\n")
+        _write(paths["config"] / relative, f"failed-r27:{relative}\n")
     result = engine.rollback(prepared)
 
     assert result["result"] == "restored"

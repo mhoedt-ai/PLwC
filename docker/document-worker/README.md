@@ -3,10 +3,10 @@
 This directory defines the prepared Docker worker image for future governed
 document operations.
 
-Image name:
+Release repository and version label:
 
 ```text
-plwc-document-worker:0.1.0
+ghcr.io/mhoedt-ai/plwc-document-worker:0.1.0
 ```
 
 The worker is separate from the `plwc-gateway` runtime. It is not a public MCP
@@ -19,7 +19,8 @@ server and must be invoked only through PLwC-controlled policy and audit code.
 - The worker must mount the user workspace at `/work`.
 - The worker must not assume `/workspace`.
 - The worker must not run `pip install` at runtime.
-- The worker image must already be available locally.
+- The r27 installer may acquire the manifest-locked GHCR digest only after the
+  user explicitly opts in. Gateway execution never pulls an image.
 - Generated artifacts must remain under `/work`.
 
 ## Offline Wheelhouse Build Strategy
@@ -41,20 +42,14 @@ and are intentionally ignored by Git.
 After the wheelhouse is present:
 
 ```powershell
-docker build -t plwc-document-worker:0.1.0 docker/document-worker
+python scripts/build_runtime_images.py
 ```
 
-Current build evidence:
-
-```text
-image: plwc-document-worker:0.1.0
-digest: sha256:ba166e0bdcd8cfe0b854505990c171afd8068cdd88fa06343f3183bf21c733da
-size: 189903296 bytes
-```
-
-Build-time internet was used for wheelhouse preparation and Debian native
-runtime libraries required by WeasyPrint. Runtime execution remains offline and
-uses `--pull never` plus `--network none`.
+Release digests are never documented as mutable README values. They are frozen
+in the generated, installer-hashed `runtime-images.json` after reproducibility,
+security-evidence and GHCR staging gates pass. Build-time internet is used for
+wheelhouse preparation and the pinned Debian snapshot. Runtime execution remains
+offline and uses `--pull never` plus `--network none`.
 
 ## MVP Commands
 
@@ -79,7 +74,7 @@ ZIPs, nested archive extraction and delete are not implemented in this MVP.
 ## Verification
 
 ```powershell
-docker run --rm --pull never --network none plwc-document-worker:0.1.0 probe
+docker run --rm --pull never --network none <repository>@sha256:<approved-digest> probe
 python -m pytest tests\integration\test_document_worker_mvp.py -q -rs
 ```
 

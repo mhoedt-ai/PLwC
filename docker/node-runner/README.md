@@ -4,13 +4,14 @@ Minimal Docker image for `plwc_sandbox_run(lang="node")`.
 
 ## Build
 
-```bash
-docker build -t plwc-node-runner:0.1.0 docker/node-runner/
-```
+The release repository is `ghcr.io/mhoedt-ai/plwc-node-runner` with version
+label `0.1.0`. Release execution uses only the full digest stored in the
+installer-hashed r27 runtime-image manifest.
 
 ## Notes
 
-- Based on `node:22-slim` (Node 22 LTS).
+- Based on the digest-pinned Node 22.22.3 Bookworm Slim image recorded in
+  `docker/runtime-image-sources.json`.
 - No extra npm packages are installed — the caller supplies `node_modules`
   inside the workspace mount (`/work`).
 - The gateway enforces `--user 65532:65532`, `--network none`, `--read-only`,
@@ -20,5 +21,5 @@ docker build -t plwc-node-runner:0.1.0 docker/node-runner/
   fail — this is expected and correct behavior.
 - Run `node`, never `npm`. The sandbox entrypoint is always
   `node <workspace-relative-script.js>`.
-- The image must be built locally before first use. PLwC does not pull images
-  at runtime (`--pull never`).
+- The r27 installer may acquire the manifest-locked GHCR digest only after the
+  user explicitly opts in. Gateway execution never pulls images (`--pull never`).

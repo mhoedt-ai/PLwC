@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from plwc_gateway.policy.paths import PROTECTED_GOVERNANCE_FILENAMES
+from plwc_gateway.runtime_images import RuntimeImageLockError, load_runtime_image_lock
 
 CONFIG_ENV_VAR = "PLWC_CONFIG_FILE"
 LEGACY_CONFIG_ENV_VAR = "PLWC_SECURITY_CONFIG"
@@ -113,6 +114,9 @@ class GatewayConfig:
     active_profile_name: str = "default"
     configured_active_profile_name: str | None = None
     docker: DockerConfig = DockerConfig()
+    runtime_images_locked: bool = False
+    runtime_images_manifest: Path | None = None
+    document_worker_image: str | None = None
     protected_path_patterns: tuple[str, ...] = DEFAULT_PROTECTED_PATH_PATTERNS
     governance: GovernanceConfig = GovernanceConfig()
     config_file: Path | None = None
@@ -290,10 +294,34 @@ def load_gateway_config(
         shared_settings=shared_settings,
     )
 
+    configured_python_image = _string_value(docker_values.get("image"), "python:3.12-slim")
+    configured_node_image = _string_value(docker_values.get("node_image"), "plwc-node-runner:0.1.0")
+    runtime_images_locked = False
+    runtime_images_manifest: Path | None = None
+    document_worker_image: str | None = None
+    docker_enabled = _bool_value(execution.get("docker_enabled"), True)
+    try:
+        runtime_image_lock = load_runtime_image_lock(root)
+        configured_python_image = runtime_image_lock.resolve_configured(
+            "python_runner", configured_python_image
+        )
+        configured_node_image = runtime_image_lock.resolve_configured(
+            "node_runner", configured_node_image
+        )
+        document_worker_image = runtime_image_lock.reference("document_worker")
+        runtime_images_locked = True
+        runtime_images_manifest = runtime_image_lock.path
+    except RuntimeImageLockError as exc:
+        docker_enabled = False
+        setup_warnings.append(
+            "Immutable r27 runtime image lock unavailable; Docker-backed document, Python and Node operations are disabled. "
+            f"Reason: {exc}"
+        )
+
     docker = _validate_docker_config(
         DockerConfig(
-            enabled=_bool_value(execution.get("docker_enabled"), True),
-            image=_string_value(docker_values.get("image"), "python:3.12-slim"),
+            enabled=docker_enabled,
+            image=configured_python_image,
             network=_string_value(docker_values.get("network"), "none"),
             memory=_string_value(docker_values.get("memory"), "512m"),
             cpus=_string_value(docker_values.get("cpus"), "1"),
@@ -305,6 +333,8 @@ def load_gateway_config(
             allow_host_network=_bool_value(docker_values.get("allow_host_network"), False),
             allow_dynamic_image=_bool_value(docker_values.get("allow_dynamic_image"), False),
             allow_dynamic_mounts=_bool_value(docker_values.get("allow_dynamic_mounts"), False),
+            node_image=configured_node_image,
+            node_memory=_string_value(docker_values.get("node_memory"), "768m"),
         )
     )
     state_root = (root / "state").resolve(strict=False)
@@ -354,6 +384,9 @@ def load_gateway_config(
         active_profile_name=active_profile_name,
         configured_active_profile_name=configured_active_profile_name,
         docker=docker,
+        runtime_images_locked=runtime_images_locked,
+        runtime_images_manifest=runtime_images_manifest,
+        document_worker_image=document_worker_image,
         protected_path_patterns=protected_path_patterns,
         governance=governance,
         config_file=selected_config,

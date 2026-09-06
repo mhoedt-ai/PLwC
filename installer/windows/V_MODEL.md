@@ -2,7 +2,8 @@
 
 Status: verbindliche Arbeitsbasis fuer Implementierung und Verifikation
 Geltungsbereich: `installer/windows/`, PLwC Gateway, Claude Desktop MCPB,
-Codex- und Odysseus-STDIO-Integration sowie PLwC Chat Bridge unter Windows.
+Codex- und Odysseus-STDIO-Integration, PLwC Chat Bridge sowie die von PLwC
+kontrollierten GHCR-Runtime-Images unter Windows.
 
 ## 1. Zweck und normative Sprache
 
@@ -20,6 +21,8 @@ Normative Quellen:
 - `docs/WINDOWS_INSTALLER_PLAN.md`
 - `docs/INSTALLATION.md`
 - `docs/GITHUB_BETA_WORKFLOW.md`
+- `docs/R27_WINDOWS_IMAGE_DELIVERY_PLAN_DE.md`
+- `docs/evidence/R26_FIELD_INCIDENT_2026-09-05_DE.md`
 - `docs/LOCAL_CHATGPT_CLIENT_ADAPTER.md`
 - `integrations/plwc-chat-bridge/README.md`
 - `integrations/plwc-chat-bridge/extension/README.md`
@@ -65,6 +68,8 @@ ueberstimmen.
 | UR-012 | Der Installer MUSS bei jedem ersten interaktiven Start vor der Begruessungsseite eine sichtbare Sprachauswahl fuer Deutsch und Englisch anzeigen. Die Windows-Anzeigesprache wird vorausgewaehlt, eine manuelle Auswahl bleibt moeglich und eine unbekannte Sprache faellt auf Englisch zurueck. | Clean-VM-Start in deutscher, englischer und nicht unterstuetzter Windows-Anzeigesprache; der erste sichtbare Setup-Dialog erlaubt die Auswahl. `/LANG=german` und `/LANG=english` werden separat geprueft. |
 | UR-013 | Vor dem Download oder Start von Python-, Node.js-, Docker- oder Windows-Komponenten MUSS der Installer die erforderlichen Administratorrechte erklaeren und pruefen. Bei fehlenden Rechten MUSS er einen kontrollierten Neustart als Administrator anbieten, Sprache und Auswahl bewahren und die PLwC-Daten weiterhin dem urspruenglichen Benutzerprofil zuordnen. | Standardbenutzer-, lokaler-Administrator- und alternatives-Administratorkonto-Matrix; vor Rechtepruefung startet kein Download. UAC-Abbruch und Hersteller-Exitcodes werden einmalig, lokalisiert und mit Protokollpfad gemeldet. |
 | UR-014 | Der Installer MUSS die Groesse des PLwC-Payloads getrennt von den geschaetzten Downloads und Speicherbedarfen fuer Python, Node.js, Docker Desktop, WSL und variable Images/Modelldaten anzeigen. Unbekannte Werte duerfen nicht als null ausgewiesen werden. | Komponenten-, Akquisitions- und Preview-Seite zeigen exakten PLwC-Payload, einzelne Downloads, bekannte Summe, Mindest-Speicherbedarf und variablen Zusatzbedarf. Ein Free-Space-Negativtest stoppt vor Akquisition beziehungsweise Schreiben. |
+| UR-015 | Der r27-Installer MUSS bei erreichbarem Docker-Dienst eine standardmaessig ausgeschaltete, ausdrueckliche Auswahl zur Installation der drei digest-fixierten PLwC-Runtime-Images fuer Document Worker, Node-Sandbox und Python-Sandbox anbieten. Nach Zustimmung MUSS er Quelle, Version, Plattform, Download- und Speicherbedarf anzeigen, die Images ohne GitHub-Anmeldung von `ghcr.io/mhoedt-ai` laden, jeden Digest verifizieren und fuer jede Laufzeit einen echten netzwerklosen Probe ausfuehren. Ohne Zustimmung oder bei einem Fehler bleibt die Kerninstallation im sichtbar dokumentierten Safe Mode moeglich. | Clean-Windows-11 ohne lokale Images: Ablehnung startet keinen Pull und endet ehrlich im Safe Mode; Zustimmung laedt exakt die manifestierten Digests, alle drei Probes bestehen und `plwc_document_operation` erzeugt ein validiertes Testdokument. Falscher Digest, Offline/Proxy, Abbruch und Wiederholung liefern eindeutige lokalisierte Ergebnisse. |
+| UR-016 | Jeder von Setup gestartete Wartungs-, Migrations-, Image- oder Probeprozess MUSS bei Erfolg und Fehler mindestens Phase, Befehlskategorie, Startstatus, Exitcode, redigiertes stdout/stderr, Exceptiontyp und Reportpfad dauerhaft protokollieren. Der Diagnoseexport MUSS Preflight-, Transaktions-, Image-Akquisitions-, Postflight- und Rollbackberichte einschliessen. Ein angezeigter Berichtspfad DARF NICHT auf eine fehlende Datei zeigen. | Fault Injection mit erwarteten und unerwarteten Python-Ausnahmen sowie Exitcodes 1/20/30/40/50: Setup zeigt genau einen Fehler, der referenzierte Bericht existiert, der Export enthaelt ihn und es gehen keine Geheimnisse oder absoluten fremden Benutzerpfade in Releaseevidenz ein. |
 
 ### 3.2 Verbindliche System- und Sicherheitsanforderungen
 
@@ -80,6 +85,7 @@ ueberstimmen.
 | SR-008 | Docker DARF ausschließlich nach ausdrücklicher Auswahl durch den Benutzer installiert werden. Der Installer DARF Docker-Lizenzbedingungen NICHT automatisch annehmen und KEIN Image implizit ziehen. Bei fehlender CLI, nicht erreichbarem Dienst oder fehlendem erforderlichen Image MUSS er sichtbar warnen, `safe_mode_expected=true` dokumentieren und die nicht verfügbaren Sandbox-/Document-Worker-Funktionen nennen. Profil- und Kerninstallation bleiben möglich. |
 | SR-009 | Automatische Voraussetzungspakete MÜSSEN über HTTPS von offiziellen Hersteller-Domains, mit festgelegter Version und festgelegtem SHA-256 bezogen werden. Die vollständige Python-Paketmenge MUSS exakt versionsgebunden sein und für jedes Paket SHA-256-Hashes erzwingen. Python-Pakete und Docker Desktop werden benutzerbezogen installiert. Node.js DARF nur nach ausdrücklicher Auswahl über die offizielle, hashgeprüfte und signierte LTS-MSI systemweit mit Windows-Administratorbestätigung installiert werden. Silent-Modi erteilen keine Zustimmung. Claude Desktop und Browser werden nicht automatisch installiert. |
 | SR-010 | Eine Erhoehung mit anderen Administrator-Anmeldedaten DARF App-, Config-, State-, Log-, Workspace- und Profildaten nicht unbemerkt in das Profil des Administratorkontos umleiten. Der urspruengliche Benutzerkontext MUSS explizit bewahrt oder die Installation vor jeder Schreibaktion sicher beendet werden. |
+| SR-011 | Alle PLwC-Runtime-Images MUESSEN aus reproduzierbaren, digest-gepinnten Basen gebaut, fuer `linux/amd64` manifestiert, als unveraenderliche `@sha256:`-Referenzen verwendet und mit OCI-Quell-/Versions-/Lizenzlabels, SBOM, Lizenzinventar, Schwachstellenbericht und Provenienz belegt werden. `latest`, Tag-only-Vertrauen, modellgesteuerte Imageauswahl und im Installer gespeicherte Registry-Zugangsdaten sind verboten. Ein GHCR-Push, die oeffentliche Paketsichtbarkeit und ein Produktionsbuild benoetigen jeweils die ausdrueckliche Freigabe des Product Owners. |
 
 ### 3.3 Bekannter Clean-Windows-11-Fund
 
@@ -88,6 +94,8 @@ ueberstimmen.
 | WIN11-PREREQ-001 | Der Kandidat `PLwC-Setup-0.2.0-rc18.dev9.exe` schloss eine Auswahl aller Komponenten auf einem reinen Windows 11 ohne Python, Node.js, Chrome, Claude Desktop, Codex und Odysseus erfolgreich ab. Er kopierte Payloads und erzeugte Snippets, ohne die nicht lauffaehigen Ziele als blockiert oder vorbereitet zu kennzeichnen. Docker fehlte ohne sichtbaren Safe-Mode-Hinweis. | `FAIL`; der Kandidat ist `superseded` und nicht freigabefaehig. Fehlende Produktpruefung darf nicht als `BLOCKED` bewertet werden. | G1 bis G4 werden wieder geoeffnet. G5 bleibt `HOLD`, G6 bleibt `NO-GO`, bis ein neuer gehashter Kandidat UR-008 nachweist. |
 | WIN11-UI-001 | Bei `1366x768` war die Runtime-Seite unten abgeschnitten. Boolean-Werte wurden als editierbare `false/true`-Felder gezeigt; der deutsche Ablauf enthielt englische installer-eigene Feldtexte. | `FAIL`; Layout und Sprachumfang des Kandidaten erfuellen UR-009/UR-010 nicht. | G1 bis G4 bleiben wieder geoeffnet. Der neue Kandidat muss beide Sprachen und jede Seite bei der Mindestaufloesung nachweisen. |
 | WIN11-PREREQ-002 | Bei ausgewähltem Claude MCPB und Chat Bridge wurden fehlendes Claude Desktop und Node.js zwar erkannt, aber erst nach einer zuvor ausgewählten Docker-Installation als Fehler gemeldet. Während der stillen Docker-Installation war keine Warteseite sichtbar; die Docker-Auswahl blieb danach gesetzt und `Weiter` wiederholte Meldung oder Installation. | `FAIL`; der Kandidat `5AD2BE5882F24B2930CABFF8717ADE78B58C654A85B5E67AAEAA9264EFE5F399` ist `superseded`. | G2 bis G5 werden wieder geöffnet. Der Nachfolger benötigt Vorab-Gate, einmalige Aktionen, sichtbaren Installationsfortschritt und Neustart-/Fehler-Short-Circuits. |
+| WIN11-R26-IMAGE-001 | Der r26-Kandidat `d604e771…97dc65` wurde auf einem realen Windows-11-System ohne vorbereitetes `plwc-document-worker:0.1.0` ausgeführt. Gateway und Bridge waren erreichbar, ein echter Dokumentaufruf endete jedoch mit `UNAVAILABLE/worker_missing`. | `FAIL`; der positive Abnahmehost hatte das Image bereits lokal. `docker image inspect` ist keine Imagebereitstellung. | G0 bis G5 werden fuer r27 wieder geoeffnet. UR-015 und SR-011 muessen vor einer neuen Releaseentscheidung vollstaendig nachgewiesen werden. |
+| WIN11-R26-PREFLIGHT-001 | Ein erneuter Lauf desselben r26-Kandidaten endete im Preflight mit Exitcode 1. Der in der UI genannte JSON-Bericht fehlte im bereitgestellten Diagnoseexport. | `FAIL`; der unerwartete Ausnahme- und Exportpfad ist nicht beweiskraeftig. | G0 bis G5 werden fuer r27 wieder geoeffnet. UR-016 muss fuer erwartete und unerwartete Fehler nachgewiesen werden. |
 | WIN11-PREREQ-003 | Auf der Aktionsseite blieb `Weiter` bei fehlender, nicht ausgewählter Python-Installation aktiv. Nach Downloadfehler `12007` war die Auswahl gelöscht und der nächste Klick zeigte wieder den unvollständigen Plan. Fehlendes Node.js war ein manueller Blocker und erreichte deshalb keine automatische oder offizielle Installationsoption. | `FAIL`; der Kandidat `B8A388795F2ECD904E9B0521400EFFE2CA079BF7D75A373250CC774E76A2772C` ist `superseded`. | G2 bis G4 werden erneut geöffnet. Der Nachfolger benötigt Pflichtauswahl-gesteuerte Navigation, benannten Retry-Zustand, DNS-Diagnose mit hashgeprüftem Fallback und ausdrückliche Node.js-Akquisition. |
 | WIN11-UI-002 | Lange dynamische Beschriftungen wie `Installieren und weiter`, `Installation erneut versuchen` und `Pflichtauswahl treffen` wurden auf der festen Navigationsschaltflaeche abgeschnitten. Eine explizite Sprachauswahl war im beobachteten Startfluss nicht sichtbar. | `FAIL`; Navigation und Sprachstart erfuellen UR-009, UR-010 und UR-012 nicht. | G2 bis G5 werden geoeffnet. Die Navigationsschaltflaeche bleibt bei `Weiter`/`Next`; der Aktionsstatus steht im Seiteninhalt. |
 | WIN11-PREREQ-004 | Die Node.js-Installation scheiterte ohne auswertbaren MSI-Exitcode, ohne sichtbaren Logpfad und ohne belastbaren Umgang mit UAC-Abbruch, Neustartbedarf oder einer nach Installation veralteten PATH-Umgebung. | `FAIL`; die Bridge darf nach kopierten Dateien nicht als installiert gelten. | G1 bis G5 werden geoeffnet. Erhoehung, MSI-Logging, absolute Runtime-Pfade und Neustartcodes muessen nachgewiesen werden. |
@@ -157,9 +165,10 @@ Vorgesehene Evidenzdateien:
 
 **Verifikation**
 
-- A-REQ prueft UR-001 bis UR-014 auf Eindeutigkeit, Testbarkeit und
+- A-REQ prueft UR-001 bis UR-016 auf Eindeutigkeit, Testbarkeit und
   Widerspruchsfreiheit.
-- A-SEC prueft SR-001 bis SR-008 gegen Installations-, Beta- und Bridge-Grenzen.
+- A-SEC prueft SR-001 bis SR-011 gegen Installations-, Beta-, Bridge- und
+  Container-Supply-Chain-Grenzen.
 - Jede Anforderung besitzt mindestens eine Verifikationsmethode und ein
   spaeteres Gate in der Traceability-Matrix.
 
@@ -191,6 +200,8 @@ Vorgesehene Evidenzdateien:
   `alle optionalen Ziele -> ein erforderlicher Gateway-Kern`.
 - Review eines komponentenabhaengigen Prerequisite-Resolvers mit eindeutigen
   Detection-Probes, Statusmodell und Block-/Warnreaktion gemaess UR-008.
+- Review des digest-fixierten GHCR-Akquisitions-, Manifest-, Probe-,
+  Diagnose- und Safe-Mode-Designs gemaess UR-015, UR-016 und SR-011.
 - Review der Custom-Page-Aufteilung fuer `1366x768`, semantischer Controls und
   zentraler deutscher/englischer String-Ressourcen gemaess UR-009/UR-010.
 - Review von Installations-, Update-, Repair-, Rollback- und Uninstall-Fluss.
@@ -206,8 +217,9 @@ Vorgesehene Evidenzdateien:
   geschriebenen Datei/jedes Registry-Werts sind spezifiziert.
 - Python-/`mcp`-, Claude-, Node-/Browser-, Codex-/Odysseus- und Docker-Probes
   sowie deren UI-, Preview- und Summary-Ausgaben sind spezifiziert.
-- Opt-in, Hersteller-URLs, Versionen, SHA-256, Abbruch-/Fehlerverhalten und
-  erneute Prüfung für Python, Node.js und Docker sind spezifiziert.
+- Opt-in, Hersteller-/Registry-URLs, Versionen, SHA-256/Digests,
+  Abbruch-/Fehlerverhalten und erneute Prüfung für Python, Node.js, Docker und
+  die drei PLwC-Runtime-Images sind spezifiziert.
 - Jede Installer-Seite, jeder Boolean-Control und jeder sichtbare String besitzt
   ein Layout-/Lokalisierungsdesign fuer Deutsch und Englisch.
 - Codex-/Odysseus-Schreibstrategie folgt SR-004.
@@ -218,8 +230,9 @@ Vorgesehene Evidenzdateien:
 
 - **STOP** bei mehr als einem Gateway, remote gebundener Bridge, unbekannter
   Hostkonfigurationsmutation, fehlendem Rollback, manueller PS1-Pflicht oder
-  fehlender/uneindeutiger Block-/Warnlogik fuer UR-008, nicht aufgeteiltem
-  ueberhohem Formular oder unvollstaendigem Sprachressourcenmodell.
+  fehlender/uneindeutiger Block-/Warnlogik fuer UR-008/UR-015, unvollstaendiger
+  Fehlerdiagnose nach UR-016, nicht aufgeteiltem ueberhohem Formular oder
+  unvollstaendigem Sprachressourcenmodell.
 - **GO zu G2** nach A-ARCH- und A-SEC-Freigabe.
 
 ### G2 - Implementierungs- und Verifikationsfreigabe
@@ -244,6 +257,11 @@ Vorgesehene Evidenzdateien:
   Quellen, manipulierte Hashes, DNS-/Proxyfehler, Installations- und UAC-Abbruch,
   erneute Prüfung, die explizite Node.js-Installation sowie das Verbot
   automatischer Claude-/Browser-Installation ab.
+- Image-Akquisitionstests decken je Image fehlend/vorhanden/falscher Digest,
+  anonymen GHCR-Pull, Tag-only-Verbot, Teilfehler, Timeout, Abbruch,
+  idempotente Wiederholung, netzwerklose Probes und Safe-Mode-Fallback ab.
+- Diagnosetests decken erwartete und unerwartete Child-/Python-Ausnahmen,
+  vollständige Reportpersistenz und den Diagnoseexport ab.
 - UI-Tests decken jede Standard-/Custom-Seite bei `1366x768` in Deutsch und
   Englisch ab, inklusive laengster dynamischer Prerequisite-/Fehlertexte,
   Checkbox-Zustaende, Vor/Zurueck-Navigation und Abschlussseite.
@@ -280,10 +298,12 @@ Vorgesehene Evidenzdateien:
 - Build aus sauberem Checkout ohne privaten zweiten Sourcepfad.
 - Erzeugung einer versionierten Setup-EXE sowie Manifest, SHA256, Dateiliste
   und Lizenzbericht.
+- Zwei reproduzierbare Builds jedes Runtime-Images mit identischem Digest sowie
+  SBOM, Lizenzinventar, Schwachstellenbericht und Provenienz.
 - Zweiter Build in frischer Umgebung; Hashgleichheit oder vollstaendig
   erklaerte, kontrollierte Abweichung wird dokumentiert.
-- Statische Suche nach privaten Pfaden, Secrets, `@latest`, verbotenen Servern
-  und nicht gepinnten Payloadquellen.
+- Statische Suche nach privaten Pfaden, Secrets, `@latest`, Tag-only-
+  Imagereferenzen, verbotenen Servern und nicht gepinnten Payloadquellen.
 
 **Exit-Kriterien**
 
@@ -295,6 +315,8 @@ Vorgesehene Evidenzdateien:
   automatisierter String-Check findet keine fehlende Uebersetzung.
 - Alle Payloadteile stammen aus diesem Checkout oder aus gepinnten,
   hashgeprueften Abhaengigkeiten.
+- Das buildgenerierte Runtime-Image-Manifest bindet logischen Namen, Plattform,
+  Version, GHCR-Repository, Digest, Groesse, SBOM und Provenienz eindeutig.
 - Build- und Packagingbefehle sind wiederholbar und liefern keine
   ungefilterten privaten Inhalte.
 
@@ -324,6 +346,10 @@ Vorgesehene Evidenzdateien:
   Codex-/Odysseus-Clients erzeugen nur als `prepared` bezeichnete Snippets;
   fehlendes Docker erscheint in Preview und Summary mit
   `safe_mode_expected=true`.
+- Die drei Image-Akquisitionspfade bestehen die UR-015-Matrix; ein Pull ohne
+  anschliessenden digestgebundenen Realprobe ist kein Erfolg.
+- Jeder UR-016-Fehlerpfad schreibt einen vorhandenen, exportierbaren Bericht
+  mit redigiertem stdout/stderr und eindeutigem Exitcode.
 - Alle Seiten werden fuer Deutsch und Englisch bei `1366x768` per Screenshot
   und Control-Bounds geprueft. Kein Control liegt ausserhalb des Clientbereichs
   oder hinter der Navigationsleiste; Boolean-Werte sind Checkboxen.
@@ -377,6 +403,13 @@ Vorgesehene Evidenzdateien:
   Abschlussseite.
 - Live-Smokes fuer Gateway-only, jede einzelne optionale Komponente und
   `alles`; weitere Kombinationen werden risikobasiert aus G4 wiederholt.
+- Auf mindestens einem sauberen Windows-11-System ohne lokale PLwC-Images wird
+  der anonyme GHCR-Pfad per Opt-in vollständig durchlaufen; danach bestehen
+  Document Worker, Python Runner und Node Runner reale Operationen offline mit
+  `--pull never`.
+- Ein direkter r26→r27-Lauf reproduziert die Ausgangslage
+  `worker_missing`, beendet den Preflight ohne Diagnoseverlust und bewahrt
+  Profile sowie Workspace bytegleich.
 - Claude: ein `plwc-gateway`, acht Tools, verifizierter MCPB-Hash.
 - Codex/Odysseus: je ein STDIO-Eintrag oder, bei unbekanntem Schema, korrekt
   vorbereiteter und als `prepared` gemeldeter Ausschnitt.
@@ -394,7 +427,7 @@ Vorgesehene Evidenzdateien:
 
 - Alle beanspruchten Clientwege sind auf realer Zielsoftware `PASS` oder im
   Release klar als `prepared/not validated` begrenzt.
-- UR-001 bis UR-014 sind aus Nutzersicht nachgewiesen.
+- UR-001 bis UR-016 sind aus Nutzersicht nachgewiesen.
 - Keine Regression der PLwC Security-/Privacy-Grenzen ist offen.
 
 **Stop/Go**
@@ -416,6 +449,8 @@ Vorgesehene Evidenzdateien:
 
 - A-REL prueft Traceability, offene Fehler, Known Limitations und Claim-vs-Test.
 - A-SEC wiederholt Hash-, Payload-, Privacy-, Lizenz- und Signaturstatuspruefung.
+- A-REL gleicht EXE, Runtime-Image-Manifest und die tatsächlich in GHCR
+  beobachteten Digests ab; oeffentliche anonyme Pullbarkeit ist separat belegt.
 - Release Notes nennen Dateiname, Version, SHA256, Groesse, Signaturstatus,
   Servername, Toolcount, Smoke-Nachweise, Limits und Beta-Warnung.
 - Oeffentlicher Installerpayload wird gegen die Allowlist geprueft; das eine
@@ -424,7 +459,7 @@ Vorgesehene Evidenzdateien:
 **Exit-Kriterien**
 
 - `go-no-go.md` nennt Entscheidung, Entscheider, EXE-SHA256 und alle
-  zugelassenen Produktclaims.
+  Runtime-Image-Digests sowie alle zugelassenen Produktclaims.
 - Keine offene Severity-1/2-Abweichung und keine offene Security-, Privacy-
   oder Integritaetsabweichung.
 - Bei unsignierter EXE ist ausschliesslich eine als unsigned gekennzeichnete
@@ -456,6 +491,8 @@ Vorgesehene Evidenzdateien:
 | UR-012 | Inno-Sprachdialog, Windows-Sprachfallback und `/LANG` | Startdialog-, Kommandozeilen- und lokalisierter E2E-Test | G3, G4, G5 | `G4/ui-layout-and-localization-results.md`, `G5/ui-acceptance.md` |
 | UR-013 | Rechtepruefung, kontrollierter erhoehter Neustart, MSI-Logging und urspruenglicher Benutzerkontext | UAC-/Exitcode-Fault-Injection und Standardbenutzer-Clean-VM | G3, G4, G5 | `G4/prerequisite-matrix-results.csv`, `G5/windows-system-results.md` |
 | UR-014 | Build-generiertes Groessenmanifest, UI-Summen und Free-Space-Pruefung | Manifest-/Summen-Contract und Clean-VM-Speicher-Negativtest | G3, G4, G5 | `G3/artifact-manifest.json`, `G4/static-and-unit-results.md`, `G5/ui-acceptance.md` |
+| UR-015 | GHCR-Image-Manifest, Opt-in-Seite, digestgebundene Akquisition und Realprobes | Source-/UI-Vertrag, Fake-Docker-Matrix, anonymer Clean-VM-Pull und echte Document-/Sandbox-Smokes | G1, G2, G3, G4, G5, G6 | `G1/container-image-design.md`, `G2/test-plan.md`, `G3/runtime-images.json`, `G4/image-acquisition-results.md`, `G5/windows-system-results.md` |
+| UR-016 | gekapselte Prozessausfuehrung, atomare Fehlerberichte und Diagnoseexport | Exitcode-/Exception-Fault-Injection, Report-/Export-Inventar und realer r26→r27-Fehlerpfad | G1, G2, G4, G5 | `G1/diagnostic-design.md`, `G2/test-plan.md`, `G4/diagnostic-fault-results.md`, `G5/windows-system-results.md` |
 | SR-001 | Ein Gateway-Core, Zieladapter, Tool-Allowlist | Contracttest und Host-Smoke | G4, G5 | `G4/static-and-unit-results.md`, `G5/client-smoke-results.md` |
 | SR-002 | Pfadregeln | Property-/Negativtests und UI-Abnahme | G4, G5 | `G4/static-and-unit-results.md`, `G5/windows-system-results.md` |
 | SR-003 | Bridge-Listener, Origincheck, Child-Lifecycle, Policy | Contract-, Security- und Browser-E2E | G4, G5 | `G4/static-and-unit-results.md`, `G5/client-smoke-results.md` |
@@ -466,6 +503,7 @@ Vorgesehene Evidenzdateien:
 | SR-008 | Docker-Prerequisite-Checker, Warnung und persistierte Safe-Mode-Erwartung | Missing-CLI/Daemon/Image-Negativtests und Preview-/Summary-Abnahme | G4, G5 | `G4/static-and-unit-results.md`, `G5/windows-system-results.md` |
 | SR-009 | Gepinnte offizielle HTTPS-Downloads, SHA-256-Prüfung und Opt-in-Grenze | Source-Contract, Hash-Fehler und Silent-Negativtest | G3, G4, G5 | `G3/artifact-manifest.json`, `G4/static-and-unit-results.md`, `G5/windows-system-results.md` |
 | SR-010 | Bewahrter urspruenglicher Benutzerkontext bei Erhoehung | Standardbenutzer-/Alternativkonto-Dateisystem- und Registry-Diff | G4, G5 | `G4/prerequisite-matrix-results.csv`, `G5/windows-system-results.md` |
+| SR-011 | digest-gepinnte reproduzierbare GHCR-Images, OCI-Metadaten, SBOM, Scan und Provenienz | Zwei-Build-Digestvergleich, Manifest-/Policy-Test, anonymer Pull und Releaseabgleich | G1, G2, G3, G4, G5, G6 | `G1/threat-review.md`, `G3/runtime-images.json`, `G3/image-build-report.md`, `G4/image-security-results.md`, `G6/release-review.md` |
 
 ## 7. Globale Stop-/Go-Regeln
 
@@ -482,3 +520,6 @@ Vorgesehene Evidenzdateien:
    unterstuetzt behauptet; sie duerfen klar als `prepared` dokumentiert werden.
 7. Jede GO-Entscheidung nennt exakt Commit-ID und EXE-SHA256. Ein neuer Hash
    ist ein neuer Kandidat.
+8. GHCR-Push, öffentliche Image-Sichtbarkeit, endgültiger Produktionsbuild und
+   Veröffentlichung sind getrennte Freigaben und dürfen nicht aus einem
+   vorherigen Gate-GO abgeleitet werden.

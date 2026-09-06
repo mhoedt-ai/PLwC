@@ -2,9 +2,27 @@
 
 Stand: 2026-09-04
 
-Status: **FINALER R26-RELEASEKANDIDAT PASS / PHASE 8 PASS / NICHT VERÖFFENTLICHT**
+Status: **R26 NACH FELDBEFUND ZURÜCKGEZOGEN / NO-GO / NICHT VERÖFFENTLICHT**
 
-## Freigegebener r26-Releasekandidat
+## Nachtrag vom 2026-09-05
+
+Der am 2026-09-04 freigegebene, aber nicht veröffentlichte Kandidat wurde nach
+einem realen Installationsbefund zurückgezogen. Auf einem weiteren
+Windows-11-System fehlte nach der Installation das lokale
+`plwc-document-worker:0.1.0`-Image; ein echter Dokumentaufruf endete mit
+`UNAVAILABLE/worker_missing`. Der r26-Installer prüft die Images lediglich und
+stellt sie nicht bereit. Ein zusätzlicher erneuter Installationslauf brach im
+Preflight mit Exitcode 1 ab, ohne dass der referenzierte JSON-Bericht im
+Diagnoseexport enthalten war.
+
+Die ursprünglichen Tests und Hashes bleiben historische Evidenz und werden
+nicht umgedeutet. Ihr positiver Docker-/Worker-Systempfad beruhte auf einem
+bereits vorbereiteten Abnahmehost; die saubere VM hatte keinen echten
+Document-Worker-Aufruf ohne vorinstallierte PLwC-Images belegt. Details stehen
+in `R26_FIELD_INCIDENT_2026-09-05_DE.md`. Jede Korrektur wird als
+`installer-r27` geführt.
+
+## Historisch freigegebener, inzwischen zurückgezogener r26-Kandidat
 
 `PLwC-Setup-1.0.0-installer-r26.exe`
 
@@ -112,11 +130,12 @@ Referenzhashes der lokalen Systemnachweise:
 
 ## Gate-Entscheidung
 
-Der endgültige r26-Kandidat bindet den korrigierten Quellstand, bestand die
-vollständigen automatisierten Gates und die direkte r25→r26-Aktualisierung.
-Die zuvor offenen Browser-Lifecycle- und Komponenten-Inventarpunkte sind im
-installierten Ergebnis geschlossen. Der Product Owner hat den ausdrücklich
-unsignierten Build freigegeben. **Phase 8 ist PASS.**
+Historischer Stand vom 2026-09-04: Der damalige r26-Kandidat band den
+korrigierten Quellstand, bestand die automatisierten Gates und die direkte
+r25→r26-Aktualisierung. Der Product Owner gab den ausdrücklich unsignierten
+Build frei. Der Feldbefund vom 2026-09-05 widerlegt jedoch den zu weit gefassten
+Claim einer vollständigen Installation ohne vorbereitete PLwC-Images. Die
+frühere Entscheidung ist aufgehoben; **Phase 8 ist für r26 NO-GO**.
 
 Diese Freigabe veröffentlicht nichts. Insbesondere wurden weder ein
 GitHub-Release noch eine Store-Veröffentlichung ausgeführt. Solche Schritte

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime-images.schema.json",
+  "title": "PLwC immutable runtime image lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "product_version",
+    "installer_revision",
+    "source_repository",
+    "source_commit",
+    "platform",
+    "images"
+  ],
+  "properties": {
+    "$schema": { "const": "./runtime-images.schema.json" },
+    "schema_version": { "const": "1.0.0" },
+    "product_version": { "const": "1.0.0" },
+    "installer_revision": { "const": "r27" },
+    "source_repository": { "const": "https://github.com/mhoedt-ai/PLwC" },
+    "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "platform": { "$ref": "#/$defs/platform" },
+    "images": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/image" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "fileSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "architecture"],
+      "properties": {
+        "os": { "const": "linux" },
+        "architecture": { "const": "amd64" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?![A-Za-z]:|/|\\\\|.*\\.\\.).+$"
+        },
+        "sha256": { "$ref": "#/$defs/fileSha256" }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "repository",
+        "version",
+        "display_tag",
+        "digest",
+        "reference",
+        "platform",
+        "download_bytes",
+        "content_bytes",
+        "probe_id",
+        "oci_labels",
+        "sbom",
+        "licenses",
+        "vulnerabilities",
+        "provenance"
+      ],
+      "properties": {
+        "id": { "enum": ["document_worker", "node_runner", "python_runner"] },
+        "repository": {
+          "enum": [
+            "ghcr.io/mhoedt-ai/plwc-document-worker",
+            "ghcr.io/mhoedt-ai/plwc-node-runner",
+            "ghcr.io/mhoedt-ai/plwc-python-runner"
+          ]
+        },
+        "version": { "const": "0.1.0" },
+        "display_tag": {
+          "type": "string",
+          "pattern": "^ghcr\\.io/mhoedt-ai/plwc-(document-worker|node-runner|python-runner):0\\.1\\.0$"
+        },
+        "digest": { "$ref": "#/$defs/sha256" },
+        "reference": {
+          "type": "string",
+          "pattern": "^ghcr\\.io/mhoedt-ai/plwc-(document-worker|node-runner|python-runner)@sha256:[0-9a-f]{64}$"
+        },
+        "platform": { "$ref": "#/$defs/platform" },
+        "download_bytes": { "type": "integer", "minimum": 1 },
+        "content_bytes": { "type": "integer", "minimum": 1 },
+        "probe_id": { "enum": ["document_worker_v1", "node_runner_v1", "python_runner_v1"] },
+        "oci_labels": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "revision", "version", "licenses", "created"],
+          "properties": {
+            "source": { "const": "https://github.com/mhoedt-ai/PLwC" },
+            "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "version": { "const": "0.1.0" },
+            "licenses": { "const": "Apache-2.0" },
+            "created": { "type": "string", "format": "date-time" }
+          }
+        },
+        "sbom": { "$ref": "#/$defs/evidence" },
+        "licenses": { "$ref": "#/$defs/evidence" },
+        "vulnerabilities": { "$ref": "#/$defs/evidence" },
+        "provenance": { "$ref": "#/$defs/evidence" }
+      }
+    }
+  }
+}
