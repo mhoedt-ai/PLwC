@@ -239,8 +239,18 @@ def verify_build_report(path: Path, *, allow_development_only: bool = False) -> 
         if not isinstance(rounds, list) or len(rounds) != 2:
             raise VerificationError(f"Two independent build rounds required: {image_id}")
         digests = {item.get("digest") for item in rounds if isinstance(item, Mapping)}
+        config_digests = {item.get("config_digest") for item in rounds if isinstance(item, Mapping)}
         sizes = {item.get("content_bytes") for item in rounds if isinstance(item, Mapping)}
-        if len(digests) != 1 or len(sizes) != 1 or image.get("digest") not in digests or image.get("content_bytes") not in sizes:
+        if (
+            len(digests) != 1
+            or len(config_digests) != 1
+            or len(sizes) != 1
+            or image.get("digest") not in digests
+            or image.get("config_digest") not in config_digests
+            or image.get("content_bytes") not in sizes
+            or re.fullmatch(r"sha256:[0-9a-f]{64}", str(image.get("digest", ""))) is None
+            or re.fullmatch(r"sha256:[0-9a-f]{64}", str(image.get("config_digest", ""))) is None
+        ):
             raise VerificationError(f"Image builds are not reproducible: {image_id}")
         evidence = image.get("evidence")
         if not isinstance(evidence, Mapping):

@@ -43,6 +43,7 @@ def _build_report(tmp_path: Path) -> Path:
     for index, locked in enumerate(source["images"], start=1):
         image_id = locked["id"]
         digest = "sha256:" + str(index) * 64
+        config_digest = "sha256:" + str(index + 3) * 64
         root = tmp_path / "evidence" / image_id
         sbom = _write_json(root / "sbom.spdx.json", {"spdxVersion": "SPDX-2.3", "packages": []})
         licenses = _write_json(root / "licenses.json", {"schema_version": "1.0.0", "packages": []})
@@ -73,7 +74,12 @@ def _build_report(tmp_path: Path) -> Path:
             },
             "provenance": {**provenance, "path": Path(provenance["path"]).relative_to(tmp_path).as_posix()},
         }
-        round_value = {"digest": digest, "content_bytes": index * 10_000, "tag": f"fixture-{index}"}
+        round_value = {
+            "digest": digest,
+            "config_digest": config_digest,
+            "content_bytes": index * 10_000,
+            "tag": f"fixture-{index}",
+        }
         images.append(
             {
                 "id": image_id,
@@ -81,6 +87,7 @@ def _build_report(tmp_path: Path) -> Path:
                 "version": "0.1.0",
                 "platform": "linux/amd64",
                 "digest": digest,
+                "config_digest": config_digest,
                 "content_bytes": index * 10_000,
                 "rounds": [dict(round_value), dict(round_value)],
                 "evidence": evidence,
@@ -167,10 +174,9 @@ def test_dirty_or_unscanned_build_is_development_only_and_never_release_grade(tm
 def test_finalizer_binds_remote_manifest_digest_and_reverifies(tmp_path: Path) -> None:
     report_path = _build_report(tmp_path)
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    local_by_repository = {image["repository"]: image["digest"] for image in report["images"]}
-    remote_by_repository = {
-        image["repository"]: "sha256:" + str(index + 6) * 64
-        for index, image in enumerate(report["images"], start=1)
+    local_by_repository = {
+        image["repository"]: {"digest": image["digest"], "config_digest": image["config_digest"]}
+        for image in report["images"]
     }
 
     def runner(argv, **_kwargs):
@@ -180,11 +186,11 @@ def test_finalizer_binds_remote_manifest_digest_and_reverifies(tmp_path: Path) -
             payload = {
                 "schemaVersion": 2,
                 "mediaType": "application/vnd.oci.image.manifest.v1+json",
-                "config": {"digest": local_by_repository[repository], "size": 512},
+                "config": {"digest": local_by_repository[repository]["config_digest"], "size": 512},
                 "layers": [{"digest": "sha256:" + "f" * 64, "size": 2048}],
             }
             return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(payload).encode(), stderr=b"")
-        summary = f"Name: {reference}\nDigest: {remote_by_repository[repository]}\n"
+        summary = f"Name: {reference}\nDigest: {local_by_repository[repository]['digest']}\n"
         return subprocess.CompletedProcess(argv, 0, stdout=summary.encode(), stderr=b"")
 
     manifest_path = tmp_path / "runtime-images.json"
@@ -194,3 +200,62 @@ def test_finalizer_binds_remote_manifest_digest_and_reverifies(tmp_path: Path) -
     assert all(image["download_bytes"] == 2560 for image in manifest["images"])
     verified = verifier.verify_manifest(manifest_path)
     assert verified["installer_revision"] == "r27"
+
+
+def test_finalizer_rejects_changed_remote_manifest_digest(tmp_path: Path) -> None:
+    report_path = _build_report(tmp_path)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    local_by_repository = {
+        image["repository"]: {"digest": image["digest"], "config_digest": image["config_digest"]}
+        for image in report["images"]
+    }
+
+    def runner(argv, **_kwargs):
+        reference = argv[-1]
+        repository = reference.split(":r27-staging-", 1)[0]
+        if "--raw" in argv:
+            payload = {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "config": {"digest": local_by_repository[repository]["config_digest"], "size": 512},
+                "layers": [{"digest": "sha256:" + "f" * 64, "size": 2048}],
+            }
+            return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(payload).encode(), stderr=b"")
+        return subprocess.CompletedProcess(
+            argv, 0, stdout=f"Name: {reference}\nDigest: sha256:{'9' * 64}\n".encode(), stderr=b""
+        )
+
+    try:
+        finalizer.finalize(report_path, tmp_path / "runtime-images.json", runner=runner)
+    except finalizer.VerificationError as exc:
+        assert "manifest digest" in str(exc)
+    else:
+        raise AssertionError("A changed GHCR manifest digest must fail finalization")
+
+
+def test_finalizer_rejects_changed_remote_config_digest(tmp_path: Path) -> None:
+    report_path = _build_report(tmp_path)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    local_by_repository = {image["repository"]: image["digest"] for image in report["images"]}
+
+    def runner(argv, **_kwargs):
+        reference = argv[-1]
+        repository = reference.split(":r27-staging-", 1)[0]
+        if "--raw" in argv:
+            payload = {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "config": {"digest": "sha256:" + "8" * 64, "size": 512},
+                "layers": [{"digest": "sha256:" + "f" * 64, "size": 2048}],
+            }
+            return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(payload).encode(), stderr=b"")
+        return subprocess.CompletedProcess(
+            argv, 0, stdout=f"Name: {reference}\nDigest: {local_by_repository[repository]}\n".encode(), stderr=b""
+        )
+
+    try:
+        finalizer.finalize(report_path, tmp_path / "runtime-images.json", runner=runner)
+    except finalizer.VerificationError as exc:
+        assert "config digest" in str(exc)
+    else:
+        raise AssertionError("A changed GHCR config digest must fail finalization")

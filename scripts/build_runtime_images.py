@@ -52,15 +52,18 @@ def _source_identity(allow_dirty: bool) -> tuple[str, int, str, bool]:
     return commit, epoch, created, source_clean
 
 
-def _metadata_digest(path: Path) -> str:
+def _metadata_identity(path: Path) -> tuple[str, str]:
     metadata = json.loads(path.read_text(encoding="utf-8"))
     digest = metadata.get("containerimage.digest")
     if not isinstance(digest, str) or not digest.startswith("sha256:") or len(digest) != 71:
         raise RuntimeError(f"Build metadata does not contain an image digest: {path}")
+    config_digest = metadata.get("containerimage.config.digest")
+    if not isinstance(config_digest, str) or not config_digest.startswith("sha256:") or len(config_digest) != 71:
+        raise RuntimeError(f"Build metadata does not contain a config digest: {path}")
     descriptor = metadata.get("containerimage.descriptor")
     if not isinstance(descriptor, dict) or descriptor.get("platform") != {"architecture": "amd64", "os": "linux"}:
         raise RuntimeError(f"Build metadata platform is not linux/amd64: {path}")
-    return digest
+    return digest, config_digest
 
 
 def _license_inventory(sbom_path: Path) -> dict[str, Any]:
@@ -122,7 +125,7 @@ def _build_once(
         str(ROOT / image["context"]),
     ]
     _run(arguments)
-    digest = _metadata_digest(metadata_path)
+    digest, config_digest = _metadata_identity(metadata_path)
     _run(("docker", "load", "--input", str(archive_path)))
     observed = json.loads(
         _run(("docker", "image", "inspect", tag, "--format", "{{json .}}"), capture=True).stdout
@@ -133,6 +136,7 @@ def _build_once(
         "round": round_number,
         "tag": tag,
         "digest": digest,
+        "config_digest": config_digest,
         "content_bytes": int(observed["Size"]),
         "archive_path": str(archive_path.relative_to(output_root)),
         "archive_sha256": _sha256(archive_path),
@@ -214,7 +218,11 @@ def main() -> int:
     for image in source_lock["images"]:
         first = _build_once(image, round_number=1, output_root=output_root, commit=commit, epoch=epoch, created=created)
         second = _build_once(image, round_number=2, output_root=output_root, commit=commit, epoch=epoch, created=created)
-        if first["digest"] != second["digest"] or first["content_bytes"] != second["content_bytes"]:
+        if (
+            first["digest"] != second["digest"]
+            or first["config_digest"] != second["config_digest"]
+            or first["content_bytes"] != second["content_bytes"]
+        ):
             raise RuntimeError(f"Non-reproducible image build: {image['id']}")
         release_tag = f"{image['repository']}:{image['version']}"
         _run(("docker", "image", "tag", second["tag"], release_tag))
@@ -230,6 +238,7 @@ def main() -> int:
                 "version": image["version"],
                 "platform": "linux/amd64",
                 "digest": second["digest"],
+                "config_digest": second["config_digest"],
                 "content_bytes": second["content_bytes"],
                 "rounds": [first, second],
                 "evidence": evidence,

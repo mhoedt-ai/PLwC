@@ -147,7 +147,9 @@ def finalize(
         repository = str(image["repository"])
         staging_reference = f"{repository}:{suffix}"
         registry = inspect_remote_image(staging_reference, runner=runner)
-        if registry["config_digest"] != image["digest"]:
+        if registry["digest"] != image["digest"]:
+            raise VerificationError(f"GHCR manifest digest does not match reproducible local build: {image['id']}")
+        if registry["config_digest"] != image["config_digest"]:
             raise VerificationError(f"GHCR config digest does not match reproducible local build: {image['id']}")
         evidence = image["evidence"]
         provenance_path = build_report_path.parent / "evidence" / str(image["id"]) / "registry-provenance.intoto.json"
