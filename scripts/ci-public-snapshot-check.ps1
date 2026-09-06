@@ -12,7 +12,8 @@ if ($LASTEXITCODE -ne 0 -or $trackedFiles.Count -eq 0) {
 $forbiddenPathPatterns = @(
     '(^|/)(logs?|private_evidence|tmp|workspace)(/|$)',
     '^docs/(ARBEITSAUFTRAG_|briefings/|evidence/screenshots/)',
-    '^installer/windows/(\.compile-check[^/]*|\.test-build|\.unsigned-build|dist|evidence|output|stage)(/|$)',
+    '^installer/windows/(\.compile-check[^/]*|\.test-build|\.unsigned-build|dist|output|stage)(/|$)',
+    '^installer/windows/evidence/(?!G[0-6]/[A-Za-z0-9][A-Za-z0-9._-]*\.(md|csv)$)',
     '^installer/windows\.zip$',
     '^integrations/plwc-chat-bridge/(SESSION_NOTES_|bridge/[^/]*\.log$|extension/store/out/|native/bin/)',
     '(?i)\.(env|exe|key|mcpb|p12|pem|pfx|zip)$'

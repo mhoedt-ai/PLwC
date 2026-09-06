@@ -158,3 +158,6 @@ jobs:
           if ($result.FailedCount -ne 0) {
             throw "$($result.FailedCount) Windows installer contract test(s) failed."
           }
+          # Some contract cases intentionally execute failing child processes.
+          # Their handled native status must not leak into the Actions step.
+          $global:LASTEXITCODE = 0

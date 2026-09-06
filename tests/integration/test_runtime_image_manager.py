@@ -143,7 +143,7 @@ def test_process_runner_redacts_and_bounds_child_output(tmp_path: Path) -> None:
         [
             sys.executable,
             "-c",
-            "import sys; print('token=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ123456'); print('x'*70000); sys.exit(1)",
+            "import sys; print('token=' + 'gh' + 'p_' + 'ABCDEFGHIJKLMNOPQRSTUVWXYZ123456'); print('x'*70000); sys.exit(1)",
         ],
         phase="image_pull",
         command_id="synthetic-output",

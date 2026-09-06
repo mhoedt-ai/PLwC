@@ -158,8 +158,9 @@ um 14:38 Uhr deckte einen getrennten Installationszustand auf: Die PLwC-Karte
 fehlte danach vollständig auf `brave://extensions`, und der fertig geladene
 ChatGPT-Tab enthielt kein `plwc-chat-bridge-host`-Element. Gleichzeitig blieb
 der Listener auf `127.0.0.1:3007` aktiv. Braves gespeicherter Restdatensatz für
-die Entwicklungs-ID zeigt als bisherigen Ladepfad den Repository-Netzpfad
-`T:\CODEX_PROJEKTE\PLwC\integrations\plwc-chat-bridge\extension\dist`, nicht
+die Entwicklungs-ID zeigt als bisherigen Ladepfad einen damaligen
+Repository-Netzpfad unter
+`<Repository>\integrations\plwc-chat-bridge\extension\dist`, nicht
 den vom Setup installierten lokalen Ordner
 `%APPDATA%\PLwC\app\bridge\extension`. Der Installer kann einen bereits manuell
 geladenen entpackten Browserpfad aus Sicherheitsgründen nicht stillschweigend
