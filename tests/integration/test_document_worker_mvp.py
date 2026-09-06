@@ -92,6 +92,6 @@ def test_zip_create_inspect_and_extract(tmp_path: Path) -> None:
     (source / "hello.txt").write_text("PLwC r27 synthetic fixture", encoding="utf-8")
     _run("create-zip", "--inputs-json", '["/work/source"]', "--output", "/work/test.zip", workspace=tmp_path)
     inspected = _run("inspect-zip", "--input", "/work/test.zip", workspace=tmp_path)
-    assert inspected["operation"] == "inspect-zip"
+    assert inspected["operation"] == "inspect_zip"
     _run("extract-zip", "--input", "/work/test.zip", "--output-dir", "/work/extracted", workspace=tmp_path)
     assert (tmp_path / "extracted" / "source" / "hello.txt").read_text(encoding="utf-8") == "PLwC r27 synthetic fixture"

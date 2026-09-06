@@ -43,6 +43,8 @@ def test_document_worker_build_is_offline_for_python_and_snapshot_locked_for_apt
     assert "pip install --no-index" in text
     assert "--require-hashes" in text
     assert "snapshot.debian.org" in text
+    assert "/var/cache/ldconfig/*" in text
+    assert "/var/log/dpkg.log" in text
     install_block = text.split("apt-get install", 1)[1].split("&& rm", 1)[0]
     packages = [
         line.strip().rstrip(" \\")
@@ -62,6 +64,8 @@ def test_build_script_has_no_push_or_registry_login_path() -> None:
     assert '"push"' not in text
     assert "--no-cache" in text
     assert "--platform" in text and "linux/amd64" in text
+    assert "type=oci" in text and "rewrite-timestamp=true" in text
+    assert '("docker", "load", "--input"' in text
     assert "Non-reproducible image build" in text
     assert '"source_clean": source_clean' in text
 

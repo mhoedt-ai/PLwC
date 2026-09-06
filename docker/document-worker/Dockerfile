@@ -37,7 +37,13 @@ RUN rm -f /etc/apt/sources.list.d/debian.sources \
         libpango-1.0-0=1.50.12+ds-1 \
         libpangoft2-1.0-0=1.50.12+ds-1 \
         shared-mime-info=2.2-1 \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/apt/*
+    && rm -rf \
+        /var/lib/apt/lists/* \
+        /var/cache/apt/* \
+        /var/cache/ldconfig/* \
+        /var/log/apt/* \
+        /var/log/alternatives.log \
+        /var/log/dpkg.log
 
 COPY requirements-doc-worker.txt requirements-doc-worker.txt
 COPY requirements-doc-worker.lock requirements-doc-worker.lock

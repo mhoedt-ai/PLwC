@@ -95,6 +95,8 @@ def _build_once(
     round_root = output_root / f"round-{round_number}" / image_id
     round_root.mkdir(parents=True, exist_ok=True)
     metadata_path = round_root / "build-metadata.json"
+    archive_path = round_root / "image.oci.tar"
+    archive_cli_path = archive_path.relative_to(ROOT).as_posix() if archive_path.is_relative_to(ROOT) else str(archive_path)
     tag = f"{image['repository']}:r27-build-{round_number}"
     arguments = [
         "docker",
@@ -113,13 +115,15 @@ def _build_once(
         f"OCI_CREATED={created}",
         "--metadata-file",
         str(metadata_path),
-        "--load",
+        "--output",
+        f"type=oci,dest={archive_cli_path},rewrite-timestamp=true,name={tag}",
         "--tag",
         tag,
         str(ROOT / image["context"]),
     ]
     _run(arguments)
     digest = _metadata_digest(metadata_path)
+    _run(("docker", "load", "--input", str(archive_path)))
     observed = json.loads(
         _run(("docker", "image", "inspect", tag, "--format", "{{json .}}"), capture=True).stdout
     )
@@ -130,6 +134,8 @@ def _build_once(
         "tag": tag,
         "digest": digest,
         "content_bytes": int(observed["Size"]),
+        "archive_path": str(archive_path.relative_to(output_root)),
+        "archive_sha256": _sha256(archive_path),
         "metadata_path": str(metadata_path.relative_to(output_root)),
         "metadata_sha256": _sha256(metadata_path),
     }
