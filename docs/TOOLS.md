@@ -23,13 +23,13 @@ No Source A or Source B MCP server is public under its original name.
 
 ## PLwC Public Tool Candidates
 
-For `0.2.0-dev`, the public boundary is an eight-tool facade. This is a
+For `1.0`, the public boundary is an eight-tool facade. This is a
 public-surface refactor, not feature expansion. The previous 19 public tool
 names remain historical `0.1.0` evidence and internal handler references only;
 they are no longer exposed as public MCP tools on this branch. All prior
 behavior remains reachable through the facade dispatch parameters below.
 
-The controlled `0.2.0-dev` MCPB package smoke on 2026-05-21 confirmed the
+The controlled `1.0` MCPB package smoke on 2026-05-21 confirmed the
 same boundary in the installable artifact: one public server,
 `plwc-gateway`, exactly these eight public tools, and no old individual public
 tool names in the manifest or extracted FastMCP registry. The stabilized
@@ -78,7 +78,7 @@ These are target PLwC capabilities, not source server names:
 | `plwc_workspace_operation` | `KEEP_PUBLIC` | Bundled governed workspace operations: list, search, read, write, file info, create directory, move/rename, batch read and exact replace; no delete or raw Commander passthrough |
 | `plwc_document_operation` | `KEEP_PUBLIC` | Bundled governed Document Worker operations: DOCX Creation V2, XLSX Creation V2, existing PPTX/PDF creation, PDF inspect/merge/split/extract/rotate/text extraction, workspace raster image reads, ZIP inspect/extract/create and Office/OpenDocument inspect/extract; no conversion, non-ZIP archives, encrypted/password ZIPs, delete, OCR, macro execution, formula execution, signing, redaction or raw worker passthrough |
 
-### 0.2.0-dev Facade Contract Notes
+### 1.0 Facade Contract Notes
 
 - `plwc_workspace_operation(operation="list")` requires `path`; use `"."` for
   the workspace root.
@@ -267,9 +267,9 @@ These are target PLwC capabilities, not source server names:
   returns an already-processed/duplicate no-op without a second profile
   mutation.
 
-## 0.2.0-dev Legacy Public Tool Mapping
+## 1.0 Legacy Public Tool Mapping
 
-| Previous public tool | 0.2.0-dev facade mapping |
+| Previous public tool | 1.0 facade mapping |
 | --- | --- |
 | `plwc_runtime_status` | `plwc_status(scope="runtime")` |
 | `plwc_sandbox_status` | `plwc_status(scope="sandbox")` |

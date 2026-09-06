@@ -1,0 +1,214 @@
+import type { ConnectionState } from "../shared/messages";
+
+interface JsonRpcResponse {
+  id: number;
+  jsonrpc: "2.0";
+  result?: unknown;
+  error?: { code?: number; message?: string; data?: unknown };
+}
+
+interface JsonRpcNotification {
+  jsonrpc: "2.0";
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+const TOOL_CALL_HEARTBEAT_METHOD = "bridge/heartbeat";
+
+export interface WebSocketLike {
+  readyState: number;
+  onclose: ((event: CloseEvent) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onmessage: ((event: MessageEvent) => void) | null;
+  onopen: ((event: Event) => void) | null;
+  close(): void;
+  send(data: string): void;
+}
+
+export type WebSocketFactory = (endpoint: string) => WebSocketLike;
+
+interface PendingRequest {
+  reject: (error: Error) => void;
+  resolve: (value: unknown) => void;
+  timeout: ReturnType<typeof setTimeout> | null;
+}
+
+export type RpcDeliveryState = "not_sent" | "outcome_unknown" | "response_received";
+
+export class RpcRequestError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly deliveryState: RpcDeliveryState = "response_received",
+  ) {
+    super(message);
+    this.name = "RpcRequestError";
+  }
+}
+
+export class JsonRpcWebSocketClient {
+  private socket: WebSocketLike | null = null;
+  private connectionPromise: Promise<void> | null = null;
+  private nextRequestId = 1;
+  private readonly pending = new Map<number, PendingRequest>();
+  private stateValue: ConnectionState = "disconnected";
+  private lastErrorValue = "";
+  private readonly listeners = new Set<(state: ConnectionState, error: string) => void>();
+
+  constructor(
+    readonly endpoint: string,
+    private readonly requestTimeoutMs = 15_000,
+    private readonly socketFactory: WebSocketFactory = (url) => new WebSocket(url),
+  ) {}
+
+  get state(): ConnectionState {
+    return this.stateValue;
+  }
+
+  get lastError(): string {
+    return this.lastErrorValue;
+  }
+
+  get pendingCount(): number {
+    return this.pending.size;
+  }
+
+  onStateChange(listener: (state: ConnectionState, error: string) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  async connect(): Promise<void> {
+    if (this.socket?.readyState === 1) return;
+    if (this.connectionPromise) return this.connectionPromise;
+
+    this.setState("connecting", "");
+    this.connectionPromise = new Promise<void>((resolve, reject) => {
+      const socket = this.socketFactory(this.endpoint);
+      this.socket = socket;
+
+      socket.onopen = () => {
+        this.connectionPromise = null;
+        this.setState("connected", "");
+        resolve();
+      };
+      socket.onmessage = (event) => this.handleMessage(event.data);
+      socket.onerror = () => {
+        this.setState("error", "WebSocket connection failed.");
+      };
+      socket.onclose = () => {
+        const wasConnecting = this.connectionPromise !== null;
+        this.connectionPromise = null;
+        this.socket = null;
+        const pendingError = new RpcRequestError(
+          "WebSocket connection closed before the response arrived; the remote outcome is unknown.",
+          "connection_closed",
+          "outcome_unknown",
+        );
+        this.rejectAll(pendingError);
+        this.setState("disconnected", pendingError.message);
+        if (wasConnecting) {
+          reject(new RpcRequestError("WebSocket connection closed before the request was sent.", "connection_closed", "not_sent"));
+        }
+      };
+    });
+
+    return this.connectionPromise;
+  }
+
+  async request(method: string, params: unknown): Promise<unknown> {
+    await this.connect();
+    const socket = this.socket;
+    if (!socket || socket.readyState !== 1) {
+      throw new RpcRequestError("WebSocket is not connected.", "not_connected", "not_sent");
+    }
+
+    const id = this.nextRequestId++;
+    return new Promise<unknown>((resolve, reject) => {
+      const request: PendingRequest = {
+        reject,
+        resolve,
+        timeout: null,
+      };
+      this.armRequestTimeout(id, request);
+      this.pending.set(id, request);
+      try {
+        socket.send(JSON.stringify({ id, jsonrpc: "2.0", method, params }));
+      } catch (error) {
+        this.pending.delete(id);
+        if (request.timeout !== null) clearTimeout(request.timeout);
+        reject(new RpcRequestError(
+          error instanceof Error ? error.message : "WebSocket rejected the request before sending it.",
+          "send_failed",
+          "not_sent",
+        ));
+      }
+    });
+  }
+
+  disconnect(): void {
+    this.socket?.close();
+    this.socket = null;
+    this.connectionPromise = null;
+  }
+
+  private handleMessage(raw: unknown): void {
+    if (typeof raw !== "string") return;
+    let message: JsonRpcResponse | JsonRpcNotification;
+    try {
+      message = JSON.parse(raw) as JsonRpcResponse | JsonRpcNotification;
+    } catch {
+      this.setState("error", "Bridge returned invalid JSON.");
+      return;
+    }
+    if ("method" in message) {
+      if (message.method !== TOOL_CALL_HEARTBEAT_METHOD) return;
+      const requestId = message.params?.request_id;
+      if (typeof requestId !== "number") return;
+      const request = this.pending.get(requestId);
+      if (request) this.armRequestTimeout(requestId, request);
+      return;
+    }
+    const response = message;
+    if (typeof response.id !== "number") return;
+
+    const request = this.pending.get(response.id);
+    if (!request) return;
+    this.pending.delete(response.id);
+    if (request.timeout !== null) clearTimeout(request.timeout);
+
+    if (response.error) {
+      request.reject(
+        new RpcRequestError(response.error.message || "JSON-RPC request failed.", `rpc_${response.error.code ?? "error"}`),
+      );
+      return;
+    }
+    request.resolve(response.result);
+  }
+
+  private armRequestTimeout(id: number, request: PendingRequest): void {
+    if (request.timeout !== null) clearTimeout(request.timeout);
+    request.timeout = setTimeout(() => {
+      this.pending.delete(id);
+      request.reject(new RpcRequestError(
+        `JSON-RPC request timed out after ${this.requestTimeoutMs} ms; the remote outcome is unknown.`,
+        "timeout",
+        "outcome_unknown",
+      ));
+    }, this.requestTimeoutMs);
+  }
+
+  private rejectAll(error: Error): void {
+    for (const request of this.pending.values()) {
+      if (request.timeout !== null) clearTimeout(request.timeout);
+      request.reject(error);
+    }
+    this.pending.clear();
+  }
+
+  private setState(state: ConnectionState, error: string): void {
+    this.stateValue = state;
+    this.lastErrorValue = error;
+    for (const listener of this.listeners) listener(state, error);
+  }
+}

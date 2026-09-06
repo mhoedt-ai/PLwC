@@ -1,9 +1,31 @@
 # PLwC Security Model
 
 This document is the standing reference for PLwC's security posture.
-It mirrors the security-notes section of the v0.2.0-rc1 release notes
+It mirrors the security-notes section of the v1.0.0 release notes
 and is kept consistent with the source. Release notes pin the model
 to a specific artifact; this file states it in general terms.
+
+## r26 installation and update boundary
+
+The r26 installer and PLwC Doctor share one deterministic hard postflight. An
+installer success requires exact payload hashes, versionless active paths,
+eight canonical Gateway tools, valid Native Messaging origins, owned shortcuts,
+preserved configuration/profile hashes, and the expected build identity. A
+foreign process on port 3007 is never terminated.
+
+Update metadata is trusted only after RSA/SHA-256 verification of a canonical
+release manifest against a pinned public key. Artifact URL, byte size, SHA-256,
+and build identity are signed together. Size, hash, and identity are checked
+again before an interactive installer start. Update check, download, and
+installation transmit no profile or workspace content; downloads and installs
+are never silent. See [UPDATE_CENTER.md](UPDATE_CENTER.md).
+
+The r26 source trust store pins only public release key
+`plwc-release-r1-6bc3b440c598c407`. Its public-key SHA-256 is
+`6bc3b440c598c407f1b685b136ad89cccb344f25c6b02d5d10fe72c3bfa8dcda`.
+The private key is kept outside the repository and protected for the release
+operator by Windows DPAPI. A missing, empty, unknown, or mismatched trust source
+still fails closed; a test key or unsigned manifest is never promoted implicitly.
 
 > PLwC is designed as a governed MCP gateway with fail-closed
 > boundaries, protected profile/governance files, workspace-scoped
@@ -174,7 +196,7 @@ binary read/write paths all reject protected paths in either role.
 
 ## 9. Tested scope
 
-The current public release (v0.2.0-rc1) has been tested against the
+The current public release (v1.0.0) has been tested against the
 threat model in the following areas:
 
 - workspace boundary (`allowed_roots`, parent traversal, absolute /
@@ -217,19 +239,22 @@ containment layer.
 
 ## 11. Artifact signing
 
-The MCPB artifact is currently **not signed**. Artifact signing is not
-part of the v0.2 release pipeline. Until signing is added, the
-authoritative integrity check is the SHA256 of the released MCPB,
-which is recorded in the corresponding `docs/RELEASE_NOTES_*.md` and
-in the GitHub Draft pre-release entry.
+The MCPB artifact and the explicitly unsigned Windows Setup are **not signed**.
+Artifact signing is not part of the accepted v1.0 release pipeline. The
+authoritative integrity check is an external SHA-256 bound to the exact
+artifact. For Windows Setup r24 this is
+`b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0`
+at the versioned public GitHub pre-release URL recorded in
+[`PROGRAM_AND_SOFTWARE_DESCRIPTION_1_0.md`](PROGRAM_AND_SOFTWARE_DESCRIPTION_1_0.md).
+Do not use a hash contained only inside the artifact being verified as an
+independent trust anchor.
 
 ## 12. Risk acceptance
 
-Remaining risks are known, documented and accepted for the current
-Release Candidate. They are recorded as Release Candidate notes, not
-as release blockers, and they will be revisited before any final
-v0.2.0 release decision.
+Remaining risks are known, documented and accepted for v1.0. The unsigned
+publisher status is recorded explicitly in the external build identity and is
+not hidden by filenames or release notes.
 
-This file is the standing reference. Per-RC residual risks and any
-deltas from this baseline are recorded in the corresponding
-`docs/RELEASE_NOTES_*.md`.
+This file is the standing reference. Artifact-specific residual risks and
+deltas are recorded in their immutable acceptance evidence; historical records
+are not rewritten when a newer installer revision is produced.

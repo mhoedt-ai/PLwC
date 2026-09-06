@@ -78,6 +78,8 @@ class FilesystemResult:
     source_path: str | None = None
     target_path: str | None = None
     search_stats: dict[str, Any] | None = None
+    artifact_origin: str | None = None
+    validation_status: str | None = None
 
 
 class SafeFilesystemAdapter:
@@ -618,6 +620,8 @@ class SafeFilesystemAdapter:
                 "max_bytes": max_bytes,
             },
             requirement_ids=COMMANDER_WORKSPACE_REQUIREMENTS,
+            artifact_origin="unknown",
+            validation_status="unvalidated",
         )
 
     def _write_binary(
@@ -679,6 +683,8 @@ class SafeFilesystemAdapter:
                 "mode": mode,
             },
             requirement_ids=COMMANDER_WORKSPACE_REQUIREMENTS,
+            artifact_origin="workspace_binary_write",
+            validation_status="unvalidated",
         )
 
     def _replace_text(

@@ -1,5 +1,10 @@
 # PLwC Gateway - Program and Software Description
 
+> **Historical document.** This file records the rc18.dev9 Open Beta baseline
+> and is intentionally not rewritten as 1.0 evidence. The current authoritative
+> description is
+> [`PROGRAM_AND_SOFTWARE_DESCRIPTION_1_0.md`](PROGRAM_AND_SOFTWARE_DESCRIPTION_1_0.md).
+
 **Open Beta baseline:** `v0.2.0-rc18.dev9`
 
 **Document edition:** English GitHub publication edition

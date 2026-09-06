@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PLwC Chat Bridge Layout Fixture</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { width: 100%; min-height: 100%; margin: 0; font-family: Arial, sans-serif; background: #212121; color: #f3f3f3; }
+      body { display: grid; grid-template-columns: 260px minmax(0, 1fr); }
+      nav { position: fixed; inset: 0 auto 0 0; width: 260px; padding: 16px; background: #171717; border-right: 1px solid #343434; }
+      nav h1 { margin: 0 0 20px; font-size: 17px; }
+      nav button { width: 100%; padding: 10px; color: inherit; text-align: left; background: #252525; border: 0; }
+      main { grid-column: 2; min-height: 100vh; padding: 28px 40px 120px; }
+      .message { max-width: 660px; margin: 0 auto 20px; line-height: 1.55; }
+      .message pre { padding: 14px; overflow: auto; background: #2b2b2b; border-radius: 6px; }
+      .composer { position: fixed; right: 10%; bottom: 24px; left: calc(260px + 10%); display: flex; gap: 8px; }
+      #prompt-textarea { min-height: 54px; flex: 1; padding: 14px; color: #fff; background: #303030; border: 1px solid #505050; }
+      .composer-submit-button-color { width: 54px; border: 0; color: #111; background: #fff; }
+      @media (max-width: 699px) {
+        body { display: block; }
+        nav { display: none; }
+        main { padding: 20px 18px 100px; }
+        .composer { right: 18px; left: 18px; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav data-testid="sidebar" aria-label="Chat history">
+      <h1>MChat</h1>
+      <button type="button">New chat</button>
+    </nav>
+    <main>
+      <div class="message">Local layout fixture for PLwC Chat Bridge.</div>
+      <section data-turn="assistant" data-turn-id="fixture-assistant-status" data-testid="conversation-turn-1">
+        <div class="message" data-message-author-role="assistant"></div>
+        <div class="message markdown">
+          <pre>JSON<code>{"plwc_tool_call":{"arguments":{"scope":"runtime"},"call_id":"fixture-status-1","name":"plwc_status"}}</code></pre>
+          <div class="cm-editor" style="display:none"><pre><code>{"plwc_tool_call":{"arguments":{"scope":"runtime"},"call_id":"fixture-status-1","name":"plwc_status"}}</code></pre></div>
+        </div>
+      </section>
+      <section data-turn="user" data-turn-id="fixture-user-status" data-testid="conversation-turn-2">
+        <div class="message" data-message-author-role="user">
+          <h3>PLwC Tool Result</h3>
+          <pre>json <code>{"call_id":"fixture-status-1","is_error":false,"name":"plwc_status","result":{"ok":true,"scope":"runtime"}}</code></pre>
+        </div>
+      </section>
+      <div class="message" data-message-author-role="assistant">
+        <pre><code>{"plwc_tool_call":{"arguments":{"content_base64":"JVBERi0xLjQ=","operation":"write_binary","path":"Temp/browser-smoke/unvalidated.pdf"},"call_id":"fixture-unvalidated-1","name":"plwc_workspace_operation"}}</code></pre>
+      </div>
+      <div class="message" data-message-author-role="user">
+        <div class="markdown">
+          <h3>PLwC Tool Result</h3>
+          <pre><code>{"call_id":"fixture-unvalidated-1","is_error":false,"name":"plwc_workspace_operation","result":{"artifact_origin":"workspace_binary_write","ok":true,"operation":"write_binary","path":"Temp/browser-smoke/unvalidated.pdf","validation_status":"unvalidated"}}</code></pre>
+        </div>
+      </div>
+      <div class="message" data-message-author-role="assistant">
+        <pre id="fixture-sandbox-source"><code>{"plwc_tool_call":{"arguments":{"code":"from pathlib import Path\nroot = Path('/work/Wandorra/Spielleiterhandbuch')\nprint('verify a deliberately long sandbox payload without hiding the confirmation state')","lang":"python"},"call_id":"fixture-sandbox-1","name":"plwc_sandbox_run"}}</code></pre>
+      </div>
+      <form class="composer">
+        <div id="prompt-textarea" contenteditable="true" role="textbox" aria-label="Message composer"></div>
+        <button type="submit" class="composer-submit-button-color" aria-label="Nachricht übermitteln">Send</button>
+      </form>
+    </main>
+    <script src="fixture.js"></script>
+  </body>
+</html>

@@ -16,10 +16,10 @@ ROOT = Path(__file__).resolve().parents[2]
 SERVER_JSON = ROOT / "server.json"
 EXPECTED_RELEASE_URL = (
     "https://github.com/mhoedt-ai/PLwC/releases/download/"
-    "v0.2.0-rc18.dev9/plwc-gateway-0.2.0-rc18.dev9.mcpb"
+    "v1.0.0/plwc-gateway-1.0.0.mcpb"
 )
 EXPECTED_SHA256 = (
-    "2f71ac903bf85cc70023805ec0f901e84c4294982c1b59940350db3591a2d345"
+    "5e870f40b9b3faea79d3997af9c657ef62c11295e85635a049214f7b63678fe7"
 )
 
 
@@ -27,11 +27,11 @@ def _load_server_metadata() -> dict:
     return json.loads(SERVER_JSON.read_text(encoding="utf-8"))
 
 
-def test_registry_server_json_points_to_dev9_mcpb_release_asset() -> None:
+def test_registry_server_json_points_to_1_0_0_mcpb_release_asset() -> None:
     metadata = _load_server_metadata()
 
     assert metadata["name"] == f"io.github.mhoedt-ai/{PUBLIC_SERVER_NAME}"
-    assert metadata["version"] == "0.2.0-rc18.dev9"
+    assert metadata["version"] == "1.0.0"
     assert metadata["repository"] == {
         "url": "https://github.com/mhoedt-ai/PLwC",
         "source": "github",

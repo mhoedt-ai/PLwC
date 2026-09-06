@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PLwC Chat Bridge Support</title>
+  <meta name="description" content="Installation, connection, safety, and support guidance for the PLwC Chat Bridge extension.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://plwc.de/chat-bridge/support/">
+  <link rel="icon" href="/assets/icons/favicon.ico" sizes="any">
+  <link rel="stylesheet" href="../store-pages.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="https://plwc.de/" aria-label="PLwC home">
+        <img src="/assets/icons/plwc-icon-64.png" width="36" height="36" alt="">
+        <span>PLwC Chat Bridge</span>
+      </a>
+      <nav class="nav" aria-label="Store support navigation">
+        <a href="https://plwc.de/">PLwC website</a>
+        <a href="https://www.plwc.de/index.html#security">Security</a>
+        <a href="./" aria-current="page">Support</a>
+        <a href="../privacy/">Privacy</a>
+        <a href="https://github.com/mhoedt-ai/PLwC">Source code</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page" id="main">
+    <article class="content">
+      <p class="eyebrow">Microsoft Edge and Google Chrome extension</p>
+      <h1>Chat Bridge support</h1>
+      <p class="lead">Use this page to install the required local companion, verify the <code>8/8</code> tool boundary, understand confirmation controls, and prepare a safe support report.</p>
+
+      <div class="notice warning">
+        <strong>The browser Store installs only the extension.</strong> PLwC Windows Setup must separately install the Gateway, loopback Bridge, and Native Launcher. Adding the extension never installs or silently enables the native application.
+      </div>
+
+      <h2 id="start">1. Before you start</h2>
+      <ul>
+        <li>Use a supported Windows 11 system and a current Microsoft Edge or Google Chrome browser.</li>
+        <li>Install PLwC through the official Windows Setup path linked from the PLwC website or Store listing.</li>
+        <li>Include the optional Chat Bridge component during Setup.</li>
+        <li>Add/Get the extension through the browser's own confirmation flow.</li>
+        <li>Sign in to ChatGPT through the normal ChatGPT page. PLwC does not request or store your ChatGPT credentials.</li>
+      </ul>
+      <div class="button-row">
+        <a class="button primary" href="https://plwc.de/">Open PLwC website</a>
+        <a class="button" href="https://www.plwc.de/index.html#security">Read the security overview</a>
+        <a class="button" href="https://github.com/mhoedt-ai/PLwC">View source and documentation</a>
+      </div>
+
+      <h2 id="connect">2. Verify the local connection</h2>
+      <ol>
+        <li>Open <code>https://chatgpt.com/</code>.</li>
+        <li>Choose the PLwC icon beside the composer or at the right edge.</li>
+        <li>Open the Status tab and choose Reconnect if the Bridge is offline.</li>
+        <li>Confirm that the endpoint is <code>ws://127.0.0.1:3007/message</code>, the build identity is valid, and tool validation reports exactly <code>8/8</code>.</li>
+      </ol>
+      <p>If the panel reports that the Native Launcher is unavailable, rerun PLwC Windows Setup and choose Repair with the Chat Bridge component selected. Reinstalling the browser extension alone cannot repair native registration.</p>
+
+      <h2 id="primer">3. Start a Bridge conversation</h2>
+      <ol>
+        <li>Open the Primer tab.</li>
+        <li>Choose Generate, review the generated primer, and choose Insert Bridge Primer.</li>
+        <li>Submit the visible primer in ChatGPT.</li>
+        <li>Describe the task in ordinary language. The AI should use the explicit <code>plwc_tool_call</code> wrapper and consult <code>plwc_describe</code> rather than guessing an uncertain operation.</li>
+      </ol>
+
+      <h2 id="safety">4. Confirmation and safety</h2>
+      <p>Read-only calls may run automatically after the visible delay. Recognized writes and sandbox calls require individual confirmation by default. Their automation options are separate, off by default, and carry red warnings. Unknown operations always remain manual.</p>
+      <p>Review the operation name, arguments, target path, and confirmation warning before choosing Run. PLwC has no public delete operation. Workspace deletion requests use the governed Trashcan path where supported, and the extension does not automatically clean temporary workspace data.</p>
+
+      <h2 id="results">5. Results and recovery</h2>
+      <p>Result cards distinguish policy denial, validation failure, missing data, unavailable services, gateway failure, and transport failure. Artifact results show origin and validation state. Large results use complete, ordered chunks with hashes rather than silently dropping content.</p>
+      <p>If ChatGPT does not accept automatic insertion, use Insert Result or Copy Complete Result and paste the text manually. The extension writes to the clipboard only after the Copy action and never reads clipboard data.</p>
+
+      <h2 id="troubleshooting">6. Troubleshooting checklist</h2>
+      <ul>
+        <li><strong>No PLwC icon:</strong> confirm the extension is enabled and the active URL is <code>chatgpt.com</code> or <code>chat.openai.com</code>, then reload the page.</li>
+        <li><strong>Bridge offline:</strong> choose Reconnect. If the native host is missing, use PLwC Setup Repair.</li>
+        <li><strong>Not 8/8 tools:</strong> stop and repair/update PLwC. The extension intentionally blocks execution when the local contract or build identity differs.</li>
+        <li><strong>Call awaits confirmation:</strong> review the call, select its confirmation control, and choose Run. Unknown calls cannot be automated.</li>
+        <li><strong>Composer contains a draft:</strong> automatic result return pauses to protect your text. Clear or send your draft, then use Insert Result.</li>
+        <li><strong>Old calls appear in a reopened chat:</strong> reload once. Existing content should become the quiet baseline and must not execute as new work.</li>
+      </ul>
+
+      <h2 id="report">7. Request support safely</h2>
+      <p>For reproducible defects, open a <a href="https://github.com/mhoedt-ai/PLwC/issues">GitHub issue</a>. For a report that cannot be public, email <a href="mailto:info@plwc.de">info@plwc.de</a>.</p>
+      <p>Include the browser name/version, Windows version, extension version name, PLwC build ID, the visible error class, and minimal reproduction steps. Replace real profile names, usernames, conversation IDs, and local paths with synthetic values.</p>
+      <div class="notice warning">
+        <strong>Never send:</strong> passwords, session cookies, API keys, publisher tokens, recovery codes, payment data, identity documents, private ChatGPT conversations, or confidential workspace files. Support will not ask for these items.
+      </div>
+
+      <h2 id="privacy">8. Privacy</h2>
+      <p>Read the <a href="../privacy/">PLwC Chat Bridge privacy policy</a> for the complete permission, data-use, local-storage, retention, and Limited Use disclosure.</p>
+      <p>The <a href="https://www.plwc.de/index.html#security">PLwC security overview</a> describes the broader local Gateway and workspace security model; it does not replace the extension-specific privacy policy.</p>
+    </article>
+
+    <aside class="summary-card" aria-label="Support summary">
+      <h2>Healthy state</h2>
+      <ul>
+        <li>Windows companion installed</li>
+        <li>Loopback endpoint only</li>
+        <li>Build identity valid</li>
+        <li>Exactly 8/8 tools</li>
+        <li>Writes require confirmation</li>
+        <li>No secrets in reports</li>
+      </ul>
+    </aside>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p>PLwC Chat Bridge · Open Beta · Local companion extension</p>
+      <p><a href="../privacy/">Privacy</a> · <a href="https://www.plwc.de/index.html#security">Security</a> · <a href="https://plwc.de/impressum.html">Legal notice</a></p>
+    </div>
+  </footer>
+</body>
+</html>

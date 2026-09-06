@@ -1,0 +1,740 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "components.schema.json",
+  "title": "PLwC Windows installer component manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "product",
+    "installerTokens",
+    "managedDirectories",
+    "components",
+    "clientTargets"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "./components.schema.json"
+    },
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "product": {
+      "$ref": "#/$defs/product"
+    },
+    "installerTokens": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "managedDirectories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/managedDirectory"
+      }
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/component"
+      }
+    },
+    "clientTargets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/clientTarget"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "platform",
+        "appDataRoot",
+        "releaseVersion",
+        "gatewayVersion",
+        "chatBridgeVersion"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "const": "win32"
+        },
+        "appDataRoot": {
+          "$ref": "#/$defs/path"
+        },
+        "releaseVersion": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "gatewayVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "chatBridgeVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "managedDirectory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "path",
+        "purpose",
+        "mutability",
+        "preserveOnUpgrade",
+        "preserveOnUninstall"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mutability": {
+          "enum": [
+            "immutable_versioned",
+            "installer_managed",
+            "runtime_managed",
+            "user_managed"
+          ]
+        },
+        "preserveOnUpgrade": {
+          "type": "boolean"
+        },
+        "preserveOnUninstall": {
+          "type": "boolean"
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "defaultSelected",
+        "required",
+        "visibility"
+      ],
+      "properties": {
+        "defaultSelected": {
+          "type": "boolean"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "visibility": {
+          "enum": [
+            "user",
+            "internal"
+          ]
+        }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "state",
+        "repositoryTracked",
+        "type"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "state": {
+          "enum": [
+            "actual",
+            "prepared"
+          ]
+        },
+        "repositoryTracked": {
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "file",
+            "directory"
+          ]
+        }
+      }
+    },
+    "destination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "type",
+        "overwritePolicy",
+        "mutable"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "type": {
+          "enum": [
+            "file",
+            "directory"
+          ]
+        },
+        "overwritePolicy": {
+          "enum": [
+            "versioned_replace",
+            "replace_if_hash_matches",
+            "create_if_missing",
+            "backup_merge",
+            "never_overwrite"
+          ]
+        },
+        "mutable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "value"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "sha256"
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "source",
+        "stage",
+        "destination",
+        "required"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "$ref": "#/$defs/location"
+        },
+        "stage": {
+          "$ref": "#/$defs/location"
+        },
+        "destination": {
+          "$ref": "#/$defs/destination"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "integrity": {
+          "$ref": "#/$defs/integrity"
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executable",
+        "arguments"
+      ],
+      "properties": {
+        "executable": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "workingDirectory": {
+          "$ref": "#/$defs/path"
+        }
+      }
+    },
+    "installStrategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "copy_tree",
+            "copy_file",
+            "extract_archive",
+            "generate_config",
+            "build_and_copy",
+            "assisted"
+          ]
+        },
+        "preparationCommands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/command"
+          }
+        }
+      }
+    },
+    "detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "command",
+            "file",
+            "registry",
+            "installer_resolved"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "prerequisite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "name",
+        "scope",
+        "required",
+        "detection"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "enum": [
+            "operating_system",
+            "runtime",
+            "application",
+            "browser",
+            "build_tool",
+            "optional_service"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "enum": [
+            "build",
+            "install",
+            "runtime"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "detection": {
+          "$ref": "#/$defs/detection"
+        }
+      }
+    },
+    "installerInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "required",
+        "description"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "enum": [
+            "string",
+            "directory",
+            "file",
+            "boolean",
+            "choice"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {},
+        "choices": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "validationPattern": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject",
+        "operator",
+        "expected"
+      ],
+      "properties": {
+        "subject": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operator": {
+          "enum": [
+            "exists",
+            "equals",
+            "contains",
+            "count_equals",
+            "matches",
+            "reachable"
+          ]
+        },
+        "expected": {}
+      }
+    },
+    "smokeCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "phase",
+        "type",
+        "required",
+        "assertions"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "phase": {
+          "enum": [
+            "build",
+            "post_stage",
+            "post_install",
+            "client_acceptance"
+          ]
+        },
+        "type": {
+          "enum": [
+            "path_contract",
+            "hash_contract",
+            "json_contract",
+            "command",
+            "mcp_contract",
+            "registry_contract",
+            "websocket_contract",
+            "manual_client_check"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "$ref": "#/$defs/command"
+        },
+        "assertions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/assertion"
+          }
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "displayName",
+        "kind",
+        "version",
+        "availability",
+        "description",
+        "selection",
+        "dependsOn",
+        "installStrategy",
+        "payloads",
+        "prerequisites",
+        "installerInputs",
+        "smokeChecks",
+        "clientTargetIds"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "gateway_runtime",
+            "claude_mcpb",
+            "stdio_client",
+            "chat_bridge"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "availability": {
+          "enum": [
+            "actual",
+            "prepared"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "selection": {
+          "$ref": "#/$defs/selection"
+        },
+        "dependsOn": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "installStrategy": {
+          "$ref": "#/$defs/installStrategy"
+        },
+        "payloads": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/payload"
+          }
+        },
+        "prerequisites": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/prerequisite"
+          }
+        },
+        "installerInputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/installerInput"
+          }
+        },
+        "smokeChecks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/smokeCheck"
+          }
+        },
+        "clientTargetIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        }
+      }
+    },
+    "stdioServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "command",
+        "arguments",
+        "environment"
+      ],
+      "properties": {
+        "name": {
+          "const": "plwc-gateway"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "boolean",
+              "number"
+            ]
+          }
+        }
+      }
+    },
+    "clientTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "componentId",
+        "displayName",
+        "client",
+        "transport",
+        "availability",
+        "installable",
+        "installationMode",
+        "automaticClientConfiguration",
+        "installerOutputPath",
+        "clientConfigurationPath",
+        "limitations"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "componentId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "client": {
+          "enum": [
+            "claude_desktop",
+            "codex",
+            "odysseus",
+            "chatgpt_browser"
+          ]
+        },
+        "transport": {
+          "enum": [
+            "mcpb",
+            "stdio",
+            "websocket_native_messaging"
+          ]
+        },
+        "availability": {
+          "enum": [
+            "actual",
+            "prepared"
+          ]
+        },
+        "installable": {
+          "type": "boolean"
+        },
+        "installationMode": {
+          "enum": [
+            "assisted_mcpb",
+            "generated_snippet",
+            "assisted_unpacked_extension"
+          ]
+        },
+        "automaticClientConfiguration": {
+          "type": "boolean"
+        },
+        "installerOutputPath": {
+          "$ref": "#/$defs/path"
+        },
+        "clientConfigurationPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stdioServer": {
+          "$ref": "#/$defs/stdioServer"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

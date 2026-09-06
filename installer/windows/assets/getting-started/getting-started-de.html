@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="plwc-guide-contract" content="SETUP-P1-04-FIX-02;COMPONENT-PATHS;GATEWAY-ONLY;CLAUDE-MCPB;CODEX-STDIO;ODYSSEUS-STDIO;CHAT-BRIDGE;CONFIGURATION;PROFILE-CREATION;PRIMER;NATURAL-LANGUAGE;COMPILE;REFLECTION;GOVERNOR;DIARY;TRASHCAN;PERSONA-PROMOTION;FORCE;RESTART">
+  <title>Erste Schritte mit PLwC</title>
+  <link rel="stylesheet" href="getting-started.css">
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div>
+        <p class="product">PLwC für Windows</p>
+        <h1>Erste Schritte</h1>
+        <p class="subtitle">Den gewählten Client-Weg abschließen, acht geregelte Werkzeuge prüfen und gemeinsame PLwC-Abläufe in normaler Sprache verwenden.</p>
+      </div>
+      <div class="header-tools">
+        <a class="header-link" href="/">Konfiguration öffnen</a>
+        <div class="local-status" aria-label="Dokumenttyp">
+          <span class="status-dot" aria-hidden="true"></span>
+          Lokale Dokumentation
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <nav aria-label="Abschnitte der Anleitung">
+    <div class="nav-inner">
+      <a href="#installations">Installationswege</a>
+      <a href="#configuration">Konfiguration</a>
+      <a href="#language">Normale Sprache</a>
+      <a href="#bridge">Chat Bridge</a>
+      <a href="#workflows">Arbeitsabläufe</a>
+      <a href="#persona">Profil erweitern</a>
+      <a href="#force">Force</a>
+      <a href="#restart">Neustart</a>
+      <a href="#help">Hilfe</a>
+    </div>
+  </nav>
+
+  <main>
+    <section id="installations">
+      <h2>Beginne mit der Komponente, die du installiert hast</h2>
+      <p class="lede">PLwC Gateway ist der gemeinsame lokale Kern. Claude Desktop, Codex, Odysseus und Chat Bridge sind getrennte optionale Client-Wege. Führe nur die Karten für die Komponenten aus, die du im Setup ausgewählt hast.</p>
+
+      <div class="callout">
+        <strong>Auswahl prüfen:</strong> Öffne über den Startmenüeintrag <strong>PLwC-Installationsübersicht</strong> die Datei <code>%APPDATA%\PLwC\config\installer\installation-summary.txt</code>. Dort stehen die ausgewählten Komponenten und ihre genauen vorbereiteten Pfade.
+      </div>
+
+      <div class="integration-grid">
+        <article class="integration-card" id="gateway">
+          <span class="path-tag">Immer installiert</span>
+          <h3>Nur PLwC Gateway</h3>
+          <p>Das Gateway enthält den geregelten Workspace, die Profile und acht öffentliche Werkzeuge. Es besitzt allein kein Chatfenster.</p>
+          <ol>
+            <li>Bewahre die Installationsübersicht mit den Laufzeit- und Datenpfaden auf.</li>
+            <li>Um PLwC interaktiv zu verwenden, ergänze über Setup <strong>Reparieren</strong> eine der nachfolgenden Client-Integrationen.</li>
+            <li>Docker darf im Safe Mode fehlen; Onboarding, Profil-Compile, Reflection, Governor, Tagebuch und Trashcan bleiben verfügbar.</li>
+          </ol>
+        </article>
+
+        <article class="integration-card" id="claude">
+          <span class="path-tag">Claude Desktop MCPB</span>
+          <h3>Claude Desktop fertig einrichten</h3>
+          <p>Setup prüft und kopiert das unsignierte MCPB-Paket. Den abschließenden Import verwaltet Claude Desktop selbst.</p>
+          <ol>
+            <li>Öffne in Claude Desktop <strong>Einstellungen &gt; Erweiterungen &gt; Erweiterte Einstellungen</strong> und aktiviere den Entwicklermodus.</li>
+            <li>Wähle <strong>Erweiterung installieren</strong> und dann <code>%APPDATA%\PLwC\app\packages\plwc-gateway-1.0.0.mcpb</code>.</li>
+            <li>Starte Claude Desktop bei Aufforderung neu. Prüfe, dass <code>plwc-gateway</code> genau 8 Werkzeuge bereitstellt.</li>
+            <li>Beschreibe PLwC-Aufgaben normal. Claude erhält die Schemas über MCP; der Bridge Primer wird nicht verwendet.</li>
+          </ol>
+        </article>
+
+        <article class="integration-card" id="codex">
+          <span class="path-tag">Codex STDIO</span>
+          <h3>Die erzeugte Codex-Vorlage aktivieren</h3>
+          <p>Setup erzeugt eine geprüfte TOML-Definition und lässt die vorhandene Codex-Konfiguration bewusst unverändert.</p>
+          <ol>
+            <li>Öffne <code>%APPDATA%\PLwC\config\clients\codex\plwc-gateway.generated.toml</code>.</li>
+            <li>Übernimm ihre einzelne Tabelle <code>[mcp_servers.plwc-gateway]</code> in <code>%USERPROFILE%\.codex\config.toml</code>. Lege keine doppelte Tabelle an.</li>
+            <li>Starte Codex App, CLI oder IDE-Erweiterung neu. Prüfe mit <code>/mcp</code>, dass <code>plwc-gateway</code> aktiviert ist und 8 Werkzeuge besitzt.</li>
+            <li>Beschreibe das gewünschte Ergebnis. Codex liest die MCP-Schemas direkt; ein Bridge Primer ist nicht nötig.</li>
+          </ol>
+        </article>
+
+        <article class="integration-card" id="odysseus">
+          <span class="path-tag">Odysseus STDIO</span>
+          <h3>Die portable Odysseus-Vorlage importieren</h3>
+          <p>Der aktive Odysseus-Konfigurationsort hängt von der jeweiligen Installation ab. Deshalb bereitet Setup eine portable JSON-Vorlage vor, ohne den Client zu verändern.</p>
+          <ol>
+            <li>Öffne <code>%APPDATA%\PLwC\config\clients\odysseus\plwc-gateway.generated.json</code>.</li>
+            <li>Importiere oder übernimm ihren einzelnen Eintrag <code>plwc-gateway</code> in die aktive MCP-Server-Konfiguration von Odysseus.</li>
+            <li>Starte Odysseus neu und prüfe einen PLwC-Server mit genau 8 Werkzeugen.</li>
+            <li>Verwende normale Anfragen. Odysseus erhält die Werkzeugschemas über STDIO MCP und verwendet keinen Bridge Primer.</li>
+          </ol>
+        </article>
+
+        <article class="integration-card" id="chat-bridge">
+          <span class="path-tag">ChatGPT im Browser</span>
+          <h3>Chat Bridge fertig einrichten</h3>
+          <p>Setup installiert die lokale Bridge, registriert Native Messaging und aktiviert den benutzerbezogenen Autostart. Die entpackte Browser-Erweiterung muss noch geladen werden.</p>
+          <ol>
+            <li>Öffne den auf der Setup-Abschlussseite angebotenen Erweiterungsordner oder verwende <code>&lt;gewähltes Chat-Bridge-Verzeichnis&gt;\extension</code>.</li>
+            <li>Aktiviere auf der Erweiterungsseite von Chrome, Edge oder Brave den Entwicklermodus und wähle <strong>Entpackte Erweiterung laden</strong>. Gib den genannten Ordner an.</li>
+            <li>Lade ChatGPT neu, öffne das PLwC-Fenster und prüfe übereinstimmende Builds sowie <strong>Werkzeuge 8 / 8</strong>.</li>
+            <li>Führe anschließend die Bridge-spezifischen Primer-Schritte im nächsten Abschnitt aus.</li>
+          </ol>
+        </article>
+      </div>
+
+      <div class="callout">
+        Jeder eingerichtete Client verwendet denselben PLwC-Workspace und dasselbe aktive Profil. Nur Chat Bridge benötigt in jedem neuen Gespräch einen Primer; native MCP-Clients erhalten die Werkzeugschemas direkt.
+      </div>
+    </section>
+
+    <section id="configuration">
+      <h2>PLwC unabhängig vom Chat-Client konfigurieren</h2>
+      <p class="lede">Öffne <strong>PLwC-Konfiguration</strong> im Windows-Startmenü. Die lokale Seite funktioniert mit Gateway-only, Claude Desktop, Codex, Odysseus und Chat Bridge und schreibt die gemeinsamen Gateway-Einstellungen, die alle diese Wege verwenden.</p>
+      <div class="integration-grid">
+        <article class="integration-card">
+          <span class="path-tag">Geregelter Zustand</span>
+          <h3>Aktives Profil</h3>
+          <p>Wähle, welches Profil künftige PLwC-Aufrufe laden. Nutze <strong>Aktivierung prüfen</strong>, lies den Governor-Plan und bestätige ihn ausdrücklich. Die geschützte Profilzustandsdatei wird nie direkt bearbeitet.</p>
+        </article>
+        <article class="integration-card">
+          <span class="path-tag">Geführtes Onboarding</span>
+          <h3>Neues Profil anlegen</h3>
+          <p>Wähle <strong>Neues Profil</strong>, beschreibe Identität, Zusammenarbeit, Memory- und Bestätigungsgrenzen und prüfe anschließend den Governor-Plan. Vor deiner ausdrücklichen Bestätigung wird keine geschützte Datei angelegt; danach ist das vollständige Profil aktiv.</p>
+        </article>
+        <article class="integration-card">
+          <span class="path-tag">Gemeinsame Schwellen</span>
+          <h3>Memory, Persona und Temperament</h3>
+          <p>Lege fest, wie viele unabhängige Belege nötig sind, bevor bestätigte Reflection-Kandidaten zu dauerhaftem Profilwissen werden dürfen. Höhere Werte sind vorsichtiger.</p>
+        </article>
+        <article class="integration-card">
+          <span class="path-tag">Compile-Kontext</span>
+          <h3>Persona Layer</h3>
+          <p>Schalte ein oder aus, ob künftige Compiles den Persona Layer enthalten. Das Ausschalten löscht oder verändert <code>PERSONA.md</code> nicht; es ändert nur den von PLwC erzeugten Kontext.</p>
+        </article>
+        <article class="integration-card">
+          <span class="path-tag">Optionale Suche</span>
+          <h3>Qdrant</h3>
+          <p>Erlaube oder unterbinde die Verwendung des konfigurierten Qdrant-Vektorindex. Das Einschalten erstellt oder aktualisiert keinen Index; eine Neuindizierung bleibt ein eigener geregelter Vorgang.</p>
+        </article>
+      </div>
+
+      <div class="callout">
+        Gespeicherte Werte gelten beim nächsten PLwC-Aufruf. Starte nur einen Client neu, der noch alte Werte anzeigt. Die Seite läuft lokal auf <code>127.0.0.1</code>, verwendet keine externen Inhalte und beendet sich nach längerer Inaktivität.
+      </div>
+    </section>
+
+    <section id="bridge">
+      <h2>Nur Chat Bridge: dein erstes Browser-Gespräch</h2>
+      <p class="lede">Überspringe diesen Abschnitt bei Claude Desktop, Codex oder Odysseus. In ChatGPT ist der Bridge Primer der Arbeitsvertrag und muss am Anfang jedes neuen Gesprächs einmal eingefügt werden.</p>
+
+      <div class="quick-path">
+        <article class="step">
+          <span class="step-number">1</span>
+          <h3>Neuen Chat öffnen</h3>
+          <p>Öffne ChatGPT und wähle das PLwC-Symbol neben dem Eingabefeld, um das Fenster der Chat Bridge zu öffnen.</p>
+        </article>
+        <article class="step">
+          <span class="step-number">2</span>
+          <h3>Verbindung prüfen</h3>
+          <p>Prüfe unter <strong>Status</strong>: <strong>Bridge verbunden</strong>, übereinstimmende Buildidentität und <strong>Werkzeuge 8 / 8</strong>. Nutze bei Bedarf <strong>Neu verbinden</strong>.</p>
+        </article>
+        <article class="step">
+          <span class="step-number">3</span>
+          <h3>Primer einfügen</h3>
+          <p>Öffne <strong>Primer</strong>, wähle <strong>Generate</strong> und danach <strong>Insert Bridge Primer</strong>. Der Primer entsteht aus den acht aktuellen Werkzeugschemas.</p>
+        </article>
+        <article class="step">
+          <span class="step-number">4</span>
+          <h3>Senden und normal schreiben</h3>
+          <p>Der Primer wird in das ChatGPT-Eingabefeld eingefügt, aber nicht für dich abgeschickt. Sende ihn manuell, warte auf die Antwort und beschreibe danach deine PLwC-Aufgabe mit eigenen Worten.</p>
+        </article>
+      </div>
+
+      <div class="callout">
+        <strong>Primer-Regel:</strong> einmal pro neuem Gespräch einfügen und senden. Im selben Gespräch ist er nicht vor jedem Befehl erneut nötig.
+      </div>
+    </section>
+
+    <section id="language">
+      <h2>Normale Sprache statt JSON</h2>
+      <p>Du musst keine Werkzeugnamen auswendig lernen und keinen <code>plwc_tool_call</code>-Block schreiben. Sobald dein ausgewählter Client einen Server <code>plwc-gateway</code> mit genau 8 Werkzeugen meldet, beschreibst du das gewünschte Ergebnis. Claude Desktop, Codex und Odysseus erhalten die Werkzeugschemas direkt über MCP. Chat Bridge erhält denselben Vertrag über seinen Primer.</p>
+      <p>Ist eine Operation oder ein Argument unklar, bitte die KI vor dem Handeln um eine gezielte Prüfung mit <code>plwc_describe</code> und passendem Scope oder Operationsfilter. Eine Operation darf nicht geraten werden. Rein lesende Aufrufe können automatisch laufen. Schreiben, Verschieben, Governor Apply und andere Änderungen bleiben in jedem Client bestätigungspflichtig.</p>
+
+      <div class="prompt">
+        <strong>Gute erste Anfrage</strong>
+        Prüfe meine PLwC-Laufzeit, sage mir, ob das Onboarding abgeschlossen ist, und zeige den nächsten geregelten Schritt. Verändere keine Datei ohne meine Bestätigung.
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>So kannst du es normal formulieren</th><th>Erwarteter öffentlicher PLwC-Pfad</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Prüfe, ob PLwC bereit ist.</td><td><code>plwc_status(scope="runtime")</code></td></tr>
+            <tr><td>Prüfe, ob ein First-Run-Onboarding erforderlich ist.</td><td><code>plwc_status(scope="first_run")</code></td></tr>
+            <tr><td>Lade mein aktives Profil für diese Sitzung einschließlich Persona-Layer.</td><td><code>plwc_profile(operation="compile", compile_mode="boot", persona_layer=true)</code></td></tr>
+            <tr><td>Erzeuge aufgabenspezifischen Kontext für diese Arbeit.</td><td><code>plwc_profile(operation="compile", compile_mode="working", task_context="...")</code></td></tr>
+            <tr><td>Prüfe das vollständige Profil, ohne es zu verändern.</td><td><code>plwc_profile(operation="compile", compile_mode="full")</code></td></tr>
+            <tr><td>Bereite einen Reflection-Eintrag vor und frage vor dem Schreiben.</td><td><code>plwc_reflection(operation="write", ...)</code></td></tr>
+            <tr><td>Bereite einen geregelten Übernahmeplan vor und warte auf meine Freigabe.</td><td><code>plwc_governor(operation="plan", plan_type="...")</code></td></tr>
+            <tr><td>Entwirf den heutigen Tagebucheintrag, zeige ihn und frage vor dem Speichern.</td><td><code>plwc_workspace_operation(operation="write", path="Tagebuch/YYYY-MM-DD.md", ...)</code></td></tr>
+            <tr><td>Verschiebe diese Datei nach meiner Bestätigung in den Trashcan.</td><td><code>plwc_workspace_operation(operation="move", source_path="...", target_path="Trashcan/...")</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="small">Die technischen Aufrufe stehen hier zur Kontrolle und Fehlersuche. Im normalen Betrieb genügt die natürlich formulierte Anfrage.</p>
+    </section>
+
+    <section id="workflows">
+      <h2>Wichtige Arbeitsabläufe</h2>
+      <p class="lede">Diese Abläufe sind in Claude Desktop, Codex, Odysseus und Chat Bridge gleich. Der Client transportiert die Anfrage; PLwC verwendet dieselben Profil-, Bestätigungs- und Governance-Regeln.</p>
+
+      <h3>Status und Describe</h3>
+      <div class="plain-language">
+        <p><strong>Einfach erklärt:</strong> Status zeigt, was aktiv und funktionsfähig ist. Describe erklärt, welche Operationen und Argumente ein PLwC-Werkzeug akzeptiert.</p>
+        <ul>
+          <li><strong>Status verwenden</strong> beim ersten Start, nach Konfigurationsänderungen oder wenn sich ein Ablauf unerwartet verhält.</li>
+          <li><strong>Describe verwenden</strong>, wenn die KI bei einer Operation unsicher ist. Sie soll das Schema prüfen und nicht raten.</li>
+          <li><strong>Was wird verändert?</strong> Nichts. Beide Prüfungen sind rein lesend.</li>
+        </ul>
+      </div>
+
+      <h3>Onboarding</h3>
+      <div class="plain-language">
+        <p><strong>Einfach erklärt:</strong> Das Onboarding erstellt aus deinen Antworten das erste verwendbare PLwC-Profil. Es legt fest, wie die Assistenz dich anspricht, mit dir arbeitet, Informationen behält und Bestätigungen einholt.</p>
+        <ul>
+          <li><strong>Wann verwenden?</strong> Wenn der First-Run-Status meldet, dass kein gültiges aktives Profil vorhanden ist, oder wenn bewusst ein neues Profil angelegt werden soll.</li>
+          <li><strong>Was wird verändert?</strong> Der Plan verändert nichts. Erst der bestätigte Governor Apply erstellt die geschützten Profildateien und aktiviert das Profil.</li>
+          <li><strong>Erwartetes Ergebnis:</strong> Der Laufzeitstatus meldet ein gültiges aktives Profil ohne fehlende Pflichtdateien.</li>
+        </ul>
+      </div>
+      <div class="prompt">
+        <strong>Natürlich formuliert</strong>
+        Prüfe meinen First-Run-Zustand. Falls ein Profil fehlt, stelle die Onboarding-Fragen, bereite einen Profilerstellungsplan vor, zeige ihn mir, warte auf meine ausdrückliche Bestätigung, wende ihn über den Governor an und prüfe danach den Laufzeitstatus.
+      </div>
+      <p>Die richtige Reihenfolge lautet: Status, Governor Plan, ausdrückliche Bestätigung, Governor Apply mit <code>confirmed=true</code> und eine lesende Laufzeitprüfung. Geschützte Profildateien dürfen nie manuell angelegt werden.</p>
+
+      <h3>Compile</h3>
+      <div class="plain-language">
+        <p><strong>Einfach erklärt:</strong> Compile kompiliert keinen Programmcode. Es liest das aktive Profil und setzt die passenden Teile zu einer kontrollierten Kontextschicht zusammen, die die KI in der aktuellen Sitzung verwenden kann.</p>
+        <ul>
+          <li><strong>Was wird geladen?</strong> Die stabilen Kernregeln sowie die passenden Inhalte aus Temperament, Persona, Memory und optionalem Aufgabenkontext. Governance und feste Sicherheitsgrenzen bleiben enthalten.</li>
+          <li><strong>Wann verwenden?</strong> <code>boot</code> zu Beginn normaler Arbeit, <code>working</code> für präzisen Zusatzkontext zur aktuellen Aufgabe und <code>full</code> für vollständige Prüfung oder Transportdiagnose.</li>
+          <li><strong>Was wird verändert?</strong> Nichts im Profil. Compile ist rein lesend und gibt eine Kontextschicht zurück. Persona ein- oder auszuschließen verändert nur diese Rückgabe, nicht <code>PERSONA.md</code>.</li>
+        </ul>
+      </div>
+      <ul>
+        <li><code>boot</code>: kompakter alltäglicher Profilladevorgang für eine neue Sitzung.</li>
+        <li><code>working</code>: Profil laden und um eine genaue Beschreibung der aktuellen Aufgabe ergänzen.</li>
+        <li><code>full</code>: vollständige Profilschicht für Prüfung und Diagnose; größer als der normale Arbeitskontext.</li>
+        <li><code>persona_layer=true</code>: Persona-Layer in diese zurückgegebene Kontextschicht aufnehmen. In Chat Bridge kann Settings dort den Standard steuern.</li>
+      </ul>
+      <div class="prompt">
+        <strong>Natürlich formuliert</strong>
+        Lade mein aktives Profil für diese Sitzung im Boot-Modus, nimm den Persona-Layer auf und fasse zusammen, welche Profil- und Kontextbereiche geladen wurden. Verändere keine Profildatei.
+      </div>
+
+      <h3>Reflection</h3>
+      <div class="plain-language">
+        <p><strong>Einfach erklärt:</strong> Reflection ist ein Prüfnotizbuch für Beobachtungen, die später nützlich sein könnten. Es erfasst einen Kandidaten mit Evidenz und Vertrauen, macht daraus aber nicht sofort dauerhaftes Memory oder Persönlichkeit.</p>
+        <ul>
+          <li><strong>Wann verwenden?</strong> Wenn eine Sitzung eine wiederverwendbare Erkenntnis, Präferenz, Korrektur oder ein erfolgreiches Arbeitsmuster hervorgebracht hat, das später geprüft werden soll.</li>
+          <li><strong>Was wird verändert?</strong> Nach Bestätigung erhält nur <code>reflection.md</code> den Kandidaten.</li>
+          <li><strong>Was geschieht später?</strong> Der Governor kann ausreichend belegte Kandidaten in einem getrennten Plan-/Apply-Ablauf nach Memory oder Persona übernehmen.</li>
+        </ul>
+      </div>
+      <div class="prompt">
+        <strong>Natürlich formuliert</strong>
+        Entwirf eine Reflection über die wiederverwendbare Erkenntnis aus dieser Sitzung. Nenne ein echtes Evidenzdatum und eine Vertrauensstufe, zeige den vorgeschlagenen Eintrag und frage vor dem Schreiben. Übernimm ihn nicht direkt in Memory.
+      </div>
+      <p>Ein Reflection-Write erfasst einen Kandidaten in <code>reflection.md</code>. Er verändert weder <code>memory.md</code> noch <code>PERSONA.md</code> direkt. Eine Übernahme erfolgt getrennt über Governor Plan und Apply.</p>
+
+      <h3>Governor</h3>
+      <div class="plain-language">
+        <p><strong>Einfach erklärt:</strong> Der Governor ist PLwCs Freigabe- und Sicherheitsschicht für dauerhafte Profiländerungen. Er prüft, ob ein Vorschlag genügend Evidenz besitzt, in die Zieldatei gehört, mit vorhandenem Inhalt kollidiert oder bereits enthalten ist.</p>
+        <ul>
+          <li><strong>Plan</strong> ist eine Vorschau und ein Entscheidungsbericht. Er zeigt Ziel, Inhalt, Evidenz, Schwellen, Konflikte und Herkunft, ohne zu schreiben.</li>
+          <li><strong>Apply</strong> führt nur den geprüften Plan aus und benötigt weiterhin eine ausdrückliche Bestätigung.</li>
+          <li><strong>Wann verwenden?</strong> Für Onboarding und dauerhafte Übernahmen nach Memory, Persona oder Temperament. Nicht für vorübergehenden Aufgabenkontext.</li>
+        </ul>
+      </div>
+      <div class="prompt">
+        <strong>Natürlich formuliert</strong>
+        Bereite für diesen Kandidaten einen Governor-Plan vor. Erkläre Ziel, Evidenz, Schwellenentscheidung, Duplikate, Konflikte und Herkunft in normaler Sprache. Wende nichts an, bis ich den genauen Plan bestätige.
+      </div>
+
+      <h3>Tagebuch</h3>
+      <div class="plain-language">
+        <p><strong>Einfach erklärt:</strong> Das Tagebuch ist ein für Menschen lesbarer chronologischer Bericht über einen Tag oder eine Sitzung. Es bewahrt Entscheidungen, Ergebnisse und Kontext so auf, dass du die Geschichte selbst nachvollziehen kannst.</p>
+        <ul>
+          <li><strong>Wann verwenden?</strong> Wenn festgehalten werden soll, was geschehen ist, was entschieden wurde und woran später weitergearbeitet werden soll.</li>
+          <li><strong>Was wird verändert?</strong> Nur die bestätigte Datei unter <code>Tagebuch/</code>. Ein Tagebucheintrag ist nicht automatisch Memory oder Persona.</li>
+          <li><strong>Was geschieht später?</strong> Ein lesender Tagebuch-Scan kann stabile Kandidaten vorschlagen. Vor einer Profilübernahme bleibt eine Governor-Prüfung erforderlich.</li>
+        </ul>
+      </div>
+      <div class="prompt">
+        <strong>Natürlich formuliert</strong>
+        Entwirf einen kompakten Eintrag für <code>Tagebuch/YYYY-MM-DD.md</code>, der die heutigen Entscheidungen und bestätigten Ergebnisse festhält. Zeige mir den genauen Text und frage vor dem Schreiben nach meiner Bestätigung.
+      </div>
+      <p>Das Tagebuch ist ein geregelter Workspace-Nachweis und kein automatisches Memory. PLwC schreibt es nie im Hintergrund und behandelt seinen Inhalt nicht ohne spätere Prüfung als Wahrheit.</p>
+
+      <h3>Trashcan statt Löschen</h3>
+      <div class="plain-language">
+        <p><strong>Einfach erklärt:</strong> PLwC entfernt eine Datei aus ihrem Arbeitsordner, indem es sie nach <code>Trashcan/</code> verschiebt. Dateien werden nicht endgültig gelöscht.</p>
+        <ul>
+          <li><strong>Wann verwenden?</strong> Wenn eine Workspace-Datei nicht mehr im bisherigen Ordner liegen soll, aber später noch geprüft oder zurückgeholt werden könnte.</li>
+          <li><strong>Was wird verändert?</strong> Der bestätigte Dateipfad wechselt von der genauen Quelle zum genauen Trashcan-Ziel.</li>
+          <li><strong>Sicherheitsverhalten:</strong> PLwC fragt nach Bestätigung, leert Trashcan nie automatisch und stoppt bei einem Namenskonflikt am Ziel.</li>
+        </ul>
+      </div>
+      <div class="prompt">
+        <strong>Natürlich formuliert</strong>
+        Verschiebe <code>Temp/beispiel.txt</code> nach <code>Trashcan/beispiel.txt</code>. Zeige Quelle und Ziel genau an und warte auf meine Bestätigung.
+      </div>
+      <p>PLwC besitzt keine öffentliche Löschoperation. <code>Trashcan/</code> ist ein normales Verschiebeziel, wird nie automatisch geleert und erfindet bei einem Zielkonflikt keinen Ersatznamen.</p>
+    </section>
+
+    <section id="persona">
+      <h2>Persönlichkeit aus dem Tagebuch erweitern</h2>
+      <div class="plain-language">
+        <p><strong>Einfach erklärt:</strong> Persona-Promotion macht aus einer wiederholt belegten Präferenz oder einem Zusammenarbeitsmuster einen Teil der dauerhaften Zusammenarbeit mit der Assistenz. Sie ist für stabiles Verhalten gedacht, nicht für eine Tagesstimmung oder ein einzelnes Ereignis.</p>
+        <ul>
+          <li><strong>Wann verwenden?</strong> Wenn Tagebuch-Evidenz eine stabile Art zeigt, wie du über mehrere Sitzungen angesprochen, unterstützt, herausgefordert oder begleitet werden möchtest.</li>
+          <li><strong>Was wird verändert?</strong> Der Tagebuch-Scan verändert nichts. Nur ein bestätigter Governor Apply kann <code>PERSONA.md</code> aktualisieren.</li>
+          <li><strong>Warum Herkunft wichtig ist:</strong> Quelldatei, Überschrift und Hash belegen genau, welche Tagebuch-Evidenz geprüft wurde.</li>
+        </ul>
+      </div>
+      <p>Tagebuchinhalt wird niemals automatisch in das Profil kopiert. Zuerst erfolgt ein lesender Scan, danach eine geregelte Persona-Promotion mit Herkunftsnachweis.</p>
+      <ol>
+        <li>Bitte die KI in deinem gewählten Client, das Tagebuch des aktiven Profils mit <code>plwc_profile(operation="scan_tagebuch")</code> zu untersuchen.</li>
+        <li>Prüfe den vorgeschlagenen stabilen Wunsch, Interaktionsstil, Arbeitsmodus oder Innenperspektive-Kandidaten.</li>
+        <li>Fordere einen <code>plwc_governor</code>-Plan mit <code>plan_type="persona_promotion"</code> an. Wird ein Tagebuchabschnitt als Quelle verwendet, soll der Plan <code>source_file</code> und <code>source_heading</code> enthalten.</li>
+        <li>Prüfe den vom Plan zurückgegebenen kanonischen SHA-256 der Quelle. Bestätige nur genau den Plan, den du dauerhaft übernehmen möchtest.</li>
+        <li>Wende ihn mit <code>confirmed=true</code> und dem exakt zurückgegebenen Herkunftsnachweis an und kompiliere das Profil danach erneut.</li>
+      </ol>
+
+      <div class="prompt">
+        <strong>Natürlich formuliert</strong>
+        Untersuche mein Tagebuch nur lesend nach einer stabilen Präferenz oder einem Zusammenarbeitsmuster, das den Persona-Layer verbessern könnte. Zeige Evidenz und Quellabschnitt, bereite einen Persona-Promotion-Plan vor und wende nichts an, bevor ich ausdrücklich bestätige.
+      </div>
+
+      <div class="callout warning">
+        Eine Tagebuchgeschichte, ein einzelner erfolgreicher Test oder eine vorübergehende Stimmung ist nicht automatisch eine dauerhafte Persönlichkeitseigenschaft. Der Governor soll Evidenz, Vertrauen, Semantik, Duplikate und Konflikte prüfen.
+      </div>
+    </section>
+
+    <section id="force">
+      <h2>Was <code>force</code> bedeutet</h2>
+      <div class="plain-language">
+        <p><strong>Einfach erklärt:</strong> Force ist eine eng begrenzte Ausnahme für einen Benutzer, der bewusst akzeptiert, dass eine Promotion die normale Evidenz- oder Marker-Schwelle noch nicht erreicht. Es ist weder ein schnellerer Modus noch ein administrativer Generalschlüssel zum Umgehen von Sicherheitsregeln.</p>
+        <ul>
+          <li><strong>Wann verwenden?</strong> Wenn ein normaler Governor-Plan eine ansonsten unterstützte Promotion ausschließlich mit <code>insufficient_marker</code> oder <code>insufficient_evidence</code> abgelehnt hat und du diese Begründung geprüft hast.</li>
+          <li><strong>Was wird verändert?</strong> <code>force=true</code> allein verändert nichts. Erst ein getrennt bestätigter Apply führt genau die geprüfte Promotion aus und protokolliert die Ausnahme im Profiljournal.</li>
+          <li><strong>Was bleibt geschützt?</strong> Semantische Qualität, Vertrauen, Duplikat- und Konfliktprüfung, Quellenintegrität, Profilgrenzen, geschützte Pfade und das Verbot endgültigen Löschens können nicht umgangen werden.</li>
+        </ul>
+      </div>
+
+      <div class="prompt">
+        <strong>Sichere Anfrage vor einer Force-Entscheidung</strong>
+        Erkläre die Governor-Ablehnung und sage mir, ob es sich ausschließlich um eine Schwellenablehnung handelt, die Force unterstützt. Wiederhole den Plan noch nicht mit Force und wende nichts an.
+      </div>
+    </section>
+
+    <section id="restart">
+      <h2>Hinweise zu Neustart und Neuladen</h2>
+      <ul>
+        <li>Meldet das Setup, dass Windows neu gestartet werden muss, schließe es und starte Windows neu, bevor du die Installation erneut versuchst.</li>
+        <li>Nach Installation oder Aktualisierung von Docker Desktop oder WSL sollte Windows vor dem ersten Docker-gestützten Sandbox- oder Dokumenttest neu gestartet werden.</li>
+        <li>Starte Claude Desktop nach dem MCPB-Import neu, wenn die PLwC-Erweiterung oder ihre acht Werkzeuge nicht erscheinen.</li>
+        <li>Starte nach einer Änderung der erzeugten Codex- oder Odysseus-Konfiguration den jeweiligen Client neu und prüfe erneut dessen MCP-Serverliste.</li>
+        <li>Nach einem Update der entpackten Chat-Bridge-Erweiterung wähle auf der Erweiterungsseite des Browsers <strong>Neu laden</strong> und lade danach den ChatGPT-Tab neu.</li>
+        <li><strong>Save &amp; Restart</strong> in den Bridge-Einstellungen startet den verwalteten Gateway-Unterprozess neu. Warte, bis der Status wieder <strong>verbunden</strong> und <strong>8 / 8</strong> meldet; nutze bei Bedarf <strong>Neu verbinden</strong>.</li>
+        <li>Eine reine Gateway-Installation ohne Neustartanforderung einer Voraussetzung benötigt normalerweise keinen Windows-Neustart.</li>
+      </ul>
+    </section>
+
+    <section id="help">
+      <h2>Schnellprüfung und Supportnachweise</h2>
+      <ul class="status-list">
+        <li><strong>Client</strong><br><code>plwc-gateway</code> aktiviert</li>
+        <li><strong>Werkzeuge</strong><br>genau 8</li>
+        <li><strong>Laufzeitprüfung</strong><br><code>plwc_status</code> meldet <code>ok: true</code></li>
+      </ul>
+      <p>Prüfe bei Claude Desktop, ob die importierte MCPB-Erweiterung aktiviert ist. Nutze bei Codex <code>/mcp</code> und prüfe, dass die erzeugte TOML-Tabelle nur einmal übernommen wurde. Prüfe bei Odysseus, ob der erzeugte JSON-Eintrag in der aktiven MCP-Konfiguration liegt. Öffne bei Chat Bridge <strong>Status</strong>, wähle <strong>Neu verbinden</strong> und verlange übereinstimmende Builds sowie <strong>8 / 8</strong>. Eine reine Gateway-Installation benötigt zuerst eine Client-Integration, bevor Werkzeuge in einem Chat erscheinen können.</p>
+      <p>Docker darf im Safe Mode fehlen; Onboarding und zentrale Profilabläufe müssen trotzdem funktionieren.</p>
+      <p>Nutze für Setup-Support den Startmenüeintrag <strong>PLwC-Installationsübersicht</strong> und bewahre diese Dateien auf:</p>
+      <pre><code>%APPDATA%\PLwC\config\installer\installation-summary.txt
+%LOCALAPPDATA%\PLwC\logs\setup\installer-diagnostic.log</code></pre>
+    </section>
+  </main>
+
+  <footer>
+    Erste Schritte mit PLwC · Setup-Paket SETUP-P1-04-FIX-02 · Lokale Dokumentation ohne externe Inhalte oder Telemetrie.
+  </footer>
+</body>
+</html>

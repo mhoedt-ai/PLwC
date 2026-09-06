@@ -1,8 +1,8 @@
 # PLwC Onboarding
 
-## 0.2.0-dev Facade Update
+## 1.0 Facade Update
 
-The `0.2.0-dev` public MCP boundary uses eight facade tools. Onboarding status
+The `1.0` public MCP boundary uses eight facade tools. Onboarding status
 is reached through `plwc_status(scope="first_run")`; profile status and compile
 through `plwc_profile(operation="status|snapshot|compile")`; profile creation,
 activation, import, memory/persona promotion and reflection condensation through

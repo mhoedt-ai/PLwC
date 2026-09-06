@@ -1,0 +1,198 @@
+# PLwC 1.0 / Windows Installer r26 – Phase 8 Zwischenabnahme
+
+Stand: 2026-09-04
+
+Status: **ABGESCHLOSSENER ZWISCHENSTAND – durch finale Phase-8-Abnahme ersetzt**
+
+Der verbindliche Abschluss steht in
+`docs/evidence/R26_PHASE8_RELEASE_ACCEPTANCE_DE.md`. Der dort gebundene
+Releasekandidat hat SHA-256
+`d604e7714ab4838337ac036a91335292c7315fd9b0be7d16c54c08b39797dc65`;
+Phase 8 ist PASS. Die folgenden Abschnitte bewahren den historischen
+Zwischenstand und seine damals offenen Befunde.
+
+## Freigabegrenzen
+
+Der Benutzer hat mit `los` den damaligen r26-Build freigegeben. Später wurden
+die geprüften Extension-Pakete `1.0.1` in die vorhandenen Chrome- und
+Edge-Identitäten geladen. Der Product Owner reichte den Chrome-Entwurf
+anschließend zunächst privat zur Prüfung ein, ließ diese Prüfung wieder
+abbrechen, stellte die Sichtbarkeit auf **Nicht gelistet** um und reichte
+Version `1.0.1` erneut zur Prüfung ein. Die automatische Veröffentlichung nach
+bestandener Prüfung blieb deaktiviert. Diese Handlungen umfassten keine
+Store-Veröffentlichung und zu diesem Zeitpunkt keine Freigabe eines neuen
+endgültigen Produktionsbuilds. Der damalige Build wurde mangels Authenticode-Zertifikat
+ausschließlich über den ausdrücklichen Schalter `-Unsigned` erzeugt. Windows
+darf deshalb `Unbekannter Herausgeber` anzeigen.
+
+Keine Store-Veröffentlichung und kein Sichtbarkeitswechsel wurden vorgenommen.
+Edge `1.0.1` wurde nicht zur Prüfung eingereicht.
+
+Am 2026-09-04 gab der Product Owner danach den endgültigen r26-Build
+ausdrücklich frei. Diese spätere Buildfreigabe umfasste weiterhin keine Store-
+oder GitHub-Veröffentlichung.
+
+## Repository- und Releaseidentität
+
+| Feld | Wert |
+| --- | --- |
+| Branch | `codex/plwc-chat-bridge-rc19` |
+| Ausgangs-HEAD | `3f02b54e648486ce3a5a4c071080ae10440f1716` |
+| Produkt / Revision | `1.0.0` / `installer-r26` |
+| Gateway / Node Bridge / Launcher | `1.0.0` / `1.0.0` / `1.0.0` |
+| Extension-Quellpaket | `1.0.1` |
+| Abnahmehost | Windows 11 Pro 64 Bit, Build 22631 |
+
+Der Arbeitsbaum enthält die zusammengehörigen, noch nicht als Releaseabschluss
+committeten r26-Änderungen sowie das vom Benutzer bereitgestellte Briefing.
+Historische Dateien und fremde Änderungen wurden nicht entfernt.
+
+## Damaliger, inzwischen verworfener Kandidat
+
+| Artefakt | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `PLwC-Setup-1.0.0-installer-r26.exe` | 5.493.306 | `55e10b6193ddf0bb88efc2e02e5ad5d587f3c54b48b48b2f58795e4a6b6feab6` |
+| `PLwC-1.0.0-installer-r26-build-identity.json` | 1.329 | `b6f7f3f37e7605ce254b208792c4d23cba57ca0bdaf87232d0a518ed6738adf5` |
+| `PLwC-1.0.0-payload-manifest.json` | 718.106 | `e2fbb20578422b989607f8bbe7a8ac5aaee8ba0e5e15f6d40e79dd6870cd0827` |
+| `SHA256SUMS.txt` | 311 | `b0e51d0ead7aafaf3251ada4d9a88d14f6bc524cd4136c12f0c659eabcc74cd4` |
+
+Authenticode-Status von Setup und nativem Launcher: `NotSigned`. Die externe
+Buildidentität bindet Dateiname, Setup-Hash, Payload-Hash, Revision,
+Komponentenversionen und diesen Abnahmenachweis.
+
+Die vier Dateien liegen zusätzlich schreibgeschützt unter
+`private_evidence/r26-final-candidate/sha256-55e10b6193ddf0bb88efc2e02e5ad5d587f3c54b48b48b2f58795e4a6b6feab6/`.
+
+## Vertrauenskette
+
+Der öffentliche RSA-4096-Verifikationsschlüssel ist in
+`config/release-trust.json` gepinnt:
+
+- Key-ID: `plwc-release-r1-6bc3b440c598c407`
+- Public-Key-Fingerprint:
+  `6bc3b440c598c407f1b685b136ad89cccb344f25c6b02d5d10fe72c3bfa8dcda`
+
+Der private PKCS#8-Schlüssel liegt nicht im Repository und ist für den aktuellen
+Windows-Benutzer per DPAPI geschützt. Paarung, Fingerprint und Manifestprüfung
+bestanden.
+
+## Automatisierte Gates
+
+| Prüfung | Ergebnis |
+| --- | --- |
+| Vollständige Python-Suite | **112 passed, 6 skipped** in 64,77 s |
+| Extension `npm run check` | **190/190 passed**, TypeScript PASS, Build PASS |
+| Installer-Pester | **72/72 passed**, 0 failed, 0 skipped |
+| Pester-NUnit SHA-256 | `22bc69dc445050eb627e34915b30f57365fde363f84044d33f323fbef35d8068` |
+| `git diff --check` | vor Dokumentationsabschluss PASS; nur CRLF-Hinweise |
+
+Die sechs Python-Skips sind optionale Docker-/Symlink-Capability-Gates.
+
+## Realer Lauf des exakten Kandidaten
+
+Der Kandidat wurde als r26→r26-Aktualisierung mit den Komponenten Gateway und
+Chat Bridge auf dem Abnahmehost ausgeführt. Ergebnis:
+
+- Installertransaktion: `postflight_succeeded`;
+- sechs installerverwaltete Konfigurationsdateien vor Austausch gesichert;
+- alle 12 harten Postflight-Checks bestanden;
+- Postflight-Report-ID:
+  `9701e7e16db0b6c5b5e2b619b57f06d35344526e512c5f638424417ded88205c`;
+- Setup-Log regulär geschlossen;
+- `selection.ini` bindet Revision und Setup-SHA des aktuellen Kandidaten;
+- genau ein Port-3007-Besitzer unter dem versionlosen Pfad
+  `%APPDATA%\PLwC\app\bridge\bridge\dist\src\index.js`;
+- Live-Health für Development-, Chrome- und Edge-Store-Origin jeweils PASS,
+  Build `plwc-chat-bridge@1.0.0`, exakt 8 Werkzeuge.
+
+Der äußere PowerShell-Testwrapper wurde nach dem regulären Setup-Ende beendet,
+weil `Start-Process -Wait` auch auf den absichtlich weiterlaufenden
+Bridge-Kindprozess wartete. Setup, Postflight und Bridge wurden dabei nicht
+abgebrochen; der Listener blieb anschließend aktiv.
+
+## Schutz der Benutzerdaten
+
+Der vollständige Vorher/Nachher-Hashvergleich ergab:
+
+- Profile: 83 Dateien / 22 Verzeichnisse, keine Abweichung;
+- Arbeitsbereich: 953 Dateien / 196 Verzeichnisse, keine Abweichung;
+- aktive Profildatei unverändert, SHA-256
+  `24ee97780a92a4e67eefa9bd2982e89dc3b832c9f79d8998d39df61b036c39ec`;
+- fachliche Einstellungen erhalten: `Sororitas`, Arbeitsbereich auf F:,
+  Schwellen 2/3/2, Qdrant an, Persona-Layer an.
+
+## Installierter Doctor
+
+Die erste Diagnose des zuvor gebauten Kandidaten `33f7…` deckte einen falschen
+Inventurpfad auf: geprüft wurde `bridge\dist\index.js`, gebaut wird verbindlich
+`bridge\dist\src\index.js`. Dieser Kandidat wurde verworfen. Nach Korrektur,
+Regressionstest, Vollgates, Neubau und Aktualisierung meldet der installierte
+Doctor:
+
+- `installation.runtime_files`: PASS, `missing=none`;
+- harter Postflight: PASS;
+- Zusammenfassung: 6 PASS, 2 Hinweise, 0 Fehler;
+- Reparaturplan: 0 Änderungen, `no_changes=true`;
+- Windows-Snapshot: ein Port-3007-Besitzer, keine Probe-Fehler.
+
+Der damals installierte Doctor meldete `browser_extension` und
+`document_worker` als nicht erkannt. Für den Browser war das vor dem ersten
+Handshake zulässig; für den lokal vorhandenen Document Worker war es ein
+übersehener Implementierungs- und Abnahmefehler. Das zugehörige Phase-2-Gate
+wurde wieder geöffnet. Der korrigierte Quellstand erkennt auf demselben Host
+Docker `29.3.1`, Qdrant-Client `1.18.0` und Document Worker `0.1.0` mit lokaler
+Image-ID; neue Regressionen und die wiederholten Python-/Installer-Gates sind
+grün. Der installierte alte Kandidat enthält diese Korrektur noch nicht.
+
+## Chrome- und Edge-Storestatus
+
+Der Chrome-Entwurf wurde in diesem Arbeitsablauf tatsächlich gelesen:
+
+- ID `feceodobnhefdbfgmbinkndhogpfkicb`, Version `1.0.0`;
+- akzeptiert und `Bereit zur Veröffentlichung`;
+- angezeigter spätester Termin 2026-10-01;
+- aktive Sichtbarkeit **Privat**;
+- keine Trusted-Tester-Gruppe ausgewählt.
+
+Der Entwurf ist deshalb keine nutzbare Linkveröffentlichung. Das vorgesehene
+Modell ist **Nicht gelistet / Unlisted**. Ein erneuter Leseversuch am 2026-09-04
+endete zunächst an Googles Passwort-Reauth. Nach der später erfolgreichen
+Anmeldung wurde derselbe Zustand live bestätigt. Der Paketbereich sperrt einen
+neuen Upload, solange der akzeptierte Entwurf auf die Veröffentlichung wartet;
+das Menü bietet nur den Abbruch dieser Veröffentlichung. Dieser potenziell
+review-verwerfende Schritt wurde anschließend durch den Product Owner
+ausgeführt; `1.0.0` wurde dabei nicht veröffentlicht. Das reproduzierbar
+geprüfte Paket `PLwC-Chat-Bridge-1.0.1-chrome-brave-store.zip` wurde danach in
+dieselbe Artikel-ID geladen und gespeichert. Der Product Owner reichte diesen
+Entwurf am 2026-09-04 zunächst privat zur Prüfung ein. Anschließend wurde diese
+Prüfung kontrolliert abgebrochen, die Sichtbarkeit auf **Nicht gelistet**
+geändert und gespeichert. Version `1.0.1` wurde danach erneut zur Prüfung
+eingereicht; die automatische Veröffentlichung nach bestandener Prüfung wurde
+im Einreichungsdialog deaktiviert. Die abschließende Live-Prüfung zeigt Status
+**Überprüfung ausstehend**, Sichtbarkeit **Nicht gelistet** und keine
+veröffentlichte Version.
+
+Edge wurde am 2026-09-04 ebenfalls live verifiziert: Version `1.0.0` war
+**Live**, Sichtbarkeit **Hidden**, CRX-ID
+`nncomjknhhlgcmkmlaljhkiojcnpmflb`, und der offizielle Direktlink war
+vorhanden. Anschließend wurde das reproduzierbar geprüfte Paket
+`PLwC-Chat-Bridge-1.0.1-edge-store.zip` in dieselbe Identität geladen. Partner
+Center verifizierte Version `1.0.1`; sie steht nun **In draft** und weiterhin
+**Hidden**, während `1.0.0` live bleibt. `Publish` wurde nicht verwendet.
+
+## Abschluss des Zwischenstands
+
+Die hier dokumentierten technischen HOLD-Punkte wurden danach geschlossen:
+
+- der saubere Windows-11-VM-Lauf einschließlich Chrome-Neustart bestand;
+- der vollständige Brave-Neustart bestand nach dem Wechsel der entpackten
+  Erweiterung auf `%APPDATA%\PLwC\app\bridge\extension`;
+- der korrigierte Komponentenbestand meldet `blocking=none` und
+  `unknown=none`, einschließlich Document Worker `0.1.0`;
+- der endgültige Kandidat `d604e771…97dc65` bestand die direkte, an r25
+  `e0fdcc54…1fa7c` gebundene Aktualisierung mit 12/12 Postflight und 8/8
+  Live-Health;
+- der Product Owner gab diesen ausdrücklich unsignierten r26-Build frei.
+
+Damit wurde dieser Zwischenstand durch **Phase 8 PASS** ersetzt. Kein
+Store-Gate und keine GitHub-Release-Veröffentlichung sind dadurch freigegeben.

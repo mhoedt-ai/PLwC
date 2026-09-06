@@ -1,0 +1,131 @@
+{
+  "$schema": "./compatibility-matrix.schema.json",
+  "schema_version": "1.0.0",
+  "matrix_version": "1.0.0",
+  "release_family": "plwc-1.0",
+  "product": {
+    "name": "PLwC",
+    "semantic_version": "1.0.0",
+    "installer_revision": "installer-r26"
+  },
+  "status_model": {
+    "ready": { "action": "details" },
+    "compatible": { "action": "details" },
+    "recommended_update": { "action": "official_update" },
+    "required_update": { "action": "required_update" },
+    "missing": { "action": "diagnose" },
+    "optional": { "action": "optional_install" },
+    "unknown": { "action": "diagnose" },
+    "mixed_installation": { "action": "repair_plan" }
+  },
+  "trust_model": [
+    "verified_local",
+    "observed_local",
+    "trusted_release",
+    "unverified",
+    "unavailable"
+  ],
+  "contracts": {
+    "gateway_facade": {
+      "version": "1.0.0",
+      "required_tool_count": 8,
+      "canonical_tools": [
+        "plwc_status",
+        "plwc_describe",
+        "plwc_profile",
+        "plwc_reflection",
+        "plwc_governor",
+        "plwc_sandbox_run",
+        "plwc_workspace_operation",
+        "plwc_document_operation"
+      ]
+    },
+    "bridge_protocol": { "version": "1.0.0" },
+    "native_messaging": { "version": "1.0.0" },
+    "build_identity": { "supported_schema_versions": [1] }
+  },
+  "components": [
+    {
+      "id": "product",
+      "display_name": "PLwC",
+      "required": true,
+      "semantic_version": { "required": true, "minimum": "1.0.0", "maximum_exclusive": "1.1.0" },
+      "build_identity": { "required": true, "supported_schema_versions": [1], "build_id_required": true, "sha256_required": true }
+    },
+    {
+      "id": "windows_installer",
+      "display_name": "Windows Installer",
+      "required": true,
+      "semantic_version": { "required": true, "minimum": "1.0.0", "maximum_exclusive": "1.1.0" },
+      "build_identity": { "required": true, "supported_schema_versions": [1], "build_id_required": true, "sha256_required": true }
+    },
+    {
+      "id": "gateway",
+      "display_name": "PLwC Gateway",
+      "required": true,
+      "semantic_version": { "required": true, "minimum": "1.0.0", "maximum_exclusive": "1.1.0" },
+      "protocol": { "name": "gateway_facade", "required": true, "supported_versions": ["1.0.0"] },
+      "readiness": { "required_tool_count": 8, "canonical_tools_required": true }
+    },
+    {
+      "id": "node_bridge",
+      "display_name": "Node Bridge",
+      "required": false,
+      "semantic_version": { "required": true, "minimum": "1.0.0", "maximum_exclusive": "1.1.0" },
+      "protocol": { "name": "bridge_protocol", "required": true, "supported_versions": ["1.0.0"] },
+      "build_identity": { "required": true, "supported_schema_versions": [1], "build_id_required": true, "sha256_required": true },
+      "readiness": { "required_tool_count": 8, "canonical_tools_required": true }
+    },
+    {
+      "id": "native_launcher",
+      "display_name": "Native Launcher",
+      "required": false,
+      "semantic_version": { "required": true, "minimum": "1.0.0", "maximum_exclusive": "1.1.0" },
+      "protocol": { "name": "native_messaging", "required": true, "supported_versions": ["1.0.0"] },
+      "build_identity": { "required": true, "supported_schema_versions": [1], "build_id_required": true, "sha256_required": true }
+    },
+    {
+      "id": "configuration_ui",
+      "display_name": "Configuration UI",
+      "required": true,
+      "semantic_version": { "required": true, "minimum": "1.0.0", "maximum_exclusive": "1.1.0" },
+      "build_identity": { "required": true, "supported_schema_versions": [1], "build_id_required": true, "sha256_required": true }
+    },
+    {
+      "id": "browser_extension",
+      "display_name": "Browser Extension",
+      "required": false,
+      "semantic_version": { "required": true, "minimum": "1.0.0", "maximum_exclusive": "1.1.0" },
+      "protocol": { "name": "bridge_protocol", "required": true, "supported_versions": ["1.0.0"] },
+      "build_identity": { "required": true, "supported_schema_versions": [1], "build_id_required": true, "sha256_required": false },
+      "readiness": { "required_tool_count": 8, "canonical_tools_required": true }
+    },
+    {
+      "id": "python_runtime",
+      "display_name": "Python Runtime",
+      "required": true,
+      "semantic_version": { "required": true, "minimum": "3.11.0", "maximum_exclusive": "4.0.0" }
+    },
+    {
+      "id": "node_runtime",
+      "display_name": "Node.js Runtime",
+      "required": false,
+      "semantic_version": { "required": true, "minimum": "22.12.0", "maximum_exclusive": "25.0.0" }
+    },
+    {
+      "id": "docker",
+      "display_name": "Docker",
+      "required": false
+    },
+    {
+      "id": "qdrant",
+      "display_name": "Qdrant",
+      "required": false
+    },
+    {
+      "id": "document_worker",
+      "display_name": "Document Worker",
+      "required": false
+    }
+  ]
+}

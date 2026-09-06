@@ -1,26 +1,28 @@
-# PLwC Open Beta Testing
+# PLwC 1.0 Pre-release Testing
 
 This is the entry point for open beta testers.
 
-PLwC is in **open beta** for privacy-filtered MCPB package testing. It is not a
-final public release, not production-certified and not signed. Install only the
-package/version that is explicitly announced for the current beta, and verify
-the SHA256 before installing.
+PLwC 1.0 is available as an explicit unsigned pre-release candidate for
+privacy-filtered package and Windows Setup testing. It is not
+production-certified. Install only the exact announced artifact and verify its
+SHA-256 before running it.
 
-Current open beta baseline:
+Current pre-release baseline:
 
 ```text
-Package: build/mcpb/plwc-gateway-0.2.0-rc18.dev9.mcpb
-Version: 0.2.0-rc18.dev9
-SHA256: 2F71AC903BF85CC70023805EC0F901E84C4294982C1B59940350DB3591A2D345
-Status: package smoke PASS, Claude Desktop smoke PASS, Odysseus MCP smoke PASS
-Signature: unsigned
+Gateway package: build/mcpb/plwc-gateway-1.0.0.mcpb
+Gateway package SHA256: 5e870f40b9b3faea79d3997af9c657ef62c11295e85635a049214f7b63678fe7
+Windows Setup: PLwC-Setup-1.0.0-installer-r24.exe
+Windows Setup SHA256: b00c5298bf6faa76c5910ecbb36497a8aa4764a8a3720f73a450851a3fc3e4d0
+Windows Setup URL: https://github.com/mhoedt-ai/PLwC/releases/download/plwc-setup-1.0.0-installer-r24/PLwC-Setup-1.0.0-installer-r24.exe
+Status: installer, installed update, Gateway, Bridge and extension gates PASS; Store-signed browser acceptance PENDING
+Signature: explicit unsigned / Authenticode NotSigned
 ```
 
-Open beta means public testing of the privacy-filtered package and public-safe
-documentation. It does **not** mean the private development repository can be
-published as-is. Historical smoke reports and local evidence still need a
-public-branch sanitization decision before source publication.
+Pre-release means public testing of privacy-filtered artifacts and public-safe
+documentation. It does **not** mean every historical or local artifact is a
+release candidate. Never substitute an older installer or relabel historical
+evidence as r24.
 
 ## What PLwC Is
 
@@ -53,7 +55,7 @@ Tester roles and prerequisites:
 
 - Do not expect enterprise or production certification.
 - Do not use real personal files, real private profiles or real memory content.
-- Do not use old public tool names from early scaffolds. PLwC v0.2 exposes the
+- Do not use old public tool names from early scaffolds. PLwC 1.0 exposes the
   eight facade tools documented in the README.
 - Do not treat the unsigned MCPB as trusted without SHA256 verification.
 - Do not try to bypass PLwC through raw shell or filesystem tools when reporting
@@ -68,8 +70,11 @@ redaction, no digital signing, no form filling, no PDF/A claim, no
 LibreOffice/Pandoc conversion, no macro execution, no runtime network access
 and no HTML/CSS rendering pipeline.
 
-The MCPB itself is unsigned. Integrity is currently established by exact SHA256
-verification plus the recorded package/Desktop/Odysseus smoke evidence.
+The MCPB and r24 Setup are unsigned. Integrity is currently established by
+exact external SHA-256 verification plus the recorded package, installed
+update, Bridge and client evidence. The private Chrome and hidden Edge Store
+packages were submitted for review on 2026-08-30; they are not yet installable
+Store releases.
 
 ## Feedback
 
@@ -80,7 +85,7 @@ Use one issue per finding:
 | Bug | A tool fails, returns the wrong result or behaves differently from docs. |
 | UX confusion | The wording, setup flow or response shape is unclear. |
 | Security concern | A documented boundary appears not to hold. |
-| Feature request | The idea is useful but not part of the current open beta scope. |
+| Feature request | The idea is useful but not part of the current pre-release scope. |
 
 If issue templates are unavailable, use:
 

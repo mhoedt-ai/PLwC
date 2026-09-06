@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "target_platform": "linux/amd64",
+  "source_repository": "https://github.com/mhoedt-ai/PLwC",
+  "debian_snapshot": {
+    "timestamp": "20260806T000000Z",
+    "repositories": [
+      "https://snapshot.debian.org/archive/debian/20260806T000000Z",
+      "https://snapshot.debian.org/archive/debian-security/20260806T000000Z"
+    ]
+  },
+  "images": [
+    {
+      "id": "document_worker",
+      "version": "0.1.0",
+      "context": "docker/document-worker",
+      "repository": "ghcr.io/mhoedt-ai/plwc-document-worker",
+      "base": "docker.io/library/python:3.12.13-slim-bookworm@sha256:6e13e65c55e33adf203d77ee371cf8bf5d81bd4902ef07565721f46bf44917af"
+    },
+    {
+      "id": "node_runner",
+      "version": "0.1.0",
+      "context": "docker/node-runner",
+      "repository": "ghcr.io/mhoedt-ai/plwc-node-runner",
+      "base": "docker.io/library/node:22.22.3-bookworm-slim@sha256:16d364eebf6b62da439dc993d9b80940c78b0ca38438452f011ab9a25c752644"
+    },
+    {
+      "id": "python_runner",
+      "version": "0.1.0",
+      "context": "docker/python-runner",
+      "repository": "ghcr.io/mhoedt-ai/plwc-python-runner",
+      "base": "docker.io/library/python:3.12.13-slim-bookworm@sha256:6e13e65c55e33adf203d77ee371cf8bf5d81bd4902ef07565721f46bf44917af"
+    }
+  ]
+}

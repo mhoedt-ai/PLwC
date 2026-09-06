@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plwc.example/schemas/release-trust-1.0.0.json",
+  "title": "PLwC trusted release keys",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "keys"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "const": "1.0.0" },
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["algorithm", "key_id", "modulus_hex", "exponent"],
+        "properties": {
+          "algorithm": { "const": "rsa-sha256-pkcs1v15" },
+          "key_id": { "type": "string", "minLength": 1 },
+          "modulus_hex": { "type": "string", "pattern": "^[0-9a-fA-F]{512,}$" },
+          "exponent": { "type": "integer", "minimum": 3 }
+        }
+      }
+    }
+  }
+}

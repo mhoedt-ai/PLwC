@@ -1,8 +1,8 @@
 # First Run
 
-## 0.2.0-dev Facade Note
+## 1.0 Facade Note
 
-For `0.2.0-dev`, first-run discovery is exposed through
+For `1.0`, first-run discovery is exposed through
 `plwc_status(scope="first_run")`. The previous public tool
 `plwc_first_run_status` is historical `0.1.0` evidence and is no longer a
 public MCP tool on this branch.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "plwc-gateway"
-version = "0.2.0rc18.dev9"
+version = "1.0.0"
 description = "Policy-controlled MCP gateway for PLwC"
 requires-python = ">=3.11"
 dependencies = ["mcp"]
@@ -33,4 +33,5 @@ pythonpath = ["src"]
 addopts = ["-p", "no:cacheprovider"]
 markers = [
     "symlink_gate: symlink-capable filesystem gate tests; set PLWC_REQUIRE_SYMLINK_TESTS=1 to fail instead of skip when symlink creation is unavailable",
+    "docker_acceptance: Docker-backed sandbox and document-worker acceptance tests; set PLWC_RUN_DOCKER_ACCEPTANCE=1 on a Docker-capable Windows host to run",
 ]

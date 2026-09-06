@@ -16,6 +16,8 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from plwc_gateway.config import load_gateway_config
 from plwc_gateway.policy.paths import guard_path
 
+from .docker_cli import resolve_docker_executable
+
 
 DOCUMENT_WORKER_IMAGE = "plwc-document-worker:0.1.0"
 WORKER_CONTAINER_WORKDIR = "/work"
@@ -358,7 +360,8 @@ class DocumentWorkerAdapter:
         self,
         *,
         workspace_roots: Iterable[Path | str] | None = None,
-        worker_image: str = DOCUMENT_WORKER_IMAGE,
+        worker_image: str | None = None,
+        runtime_image_locked: bool = False,
         runner: Runner = subprocess.run,
         timeout_seconds: int = 120,
         memory: str = "512m",
@@ -374,7 +377,8 @@ class DocumentWorkerAdapter:
             roots = [Path.cwd()]
         self.workspace_root = Path(roots[0]).expanduser().resolve()
         self.workspace_roots = [Path(root).expanduser().resolve() for root in roots]
-        self.worker_image = worker_image
+        self.worker_image = worker_image or "unavailable"
+        self.runtime_image_locked = runtime_image_locked
         self.runner = runner
         self.timeout_seconds = timeout_seconds
         self.memory = memory
@@ -382,6 +386,12 @@ class DocumentWorkerAdapter:
         self.pids_limit = pids_limit
 
     def status(self) -> DocumentWorkerResult:
+        if not self.runtime_image_locked:
+            return self._failure(
+                operation="status",
+                category="runtime_image_lock_missing",
+                error="The immutable r27 runtime image lock is unavailable; document-worker execution is disabled.",
+            )
         inspect = self._inspect_image()
         if inspect.returncode != 0:
             return self._failure(
@@ -2097,6 +2107,13 @@ class DocumentWorkerAdapter:
         requirement_ids: tuple[str, ...] = DOCUMENT_WORKER_REQUIREMENT_IDS,
         allow_empty_output: bool = False,
     ) -> DocumentWorkerResult:
+        if not self.runtime_image_locked:
+            return self._failure(
+                operation=operation,
+                category="runtime_image_lock_missing",
+                error="The immutable r27 runtime image lock is unavailable; document-worker execution is disabled.",
+                requirement_ids=requirement_ids,
+            )
         inspect = self._inspect_image()
         if inspect.returncode != 0:
             return self._failure(
@@ -2194,7 +2211,7 @@ class DocumentWorkerAdapter:
 
     def _docker_args(self, worker_command: Sequence[str]) -> list[str]:
         return [
-            "docker",
+            resolve_docker_executable() or "docker",
             "run",
             "--rm",
             "--pull",
@@ -2225,7 +2242,12 @@ class DocumentWorkerAdapter:
         ]
 
     def _inspect_image(self) -> subprocess.CompletedProcess[str]:
-        args = ["docker", "image", "inspect", self.worker_image]
+        args = [
+            resolve_docker_executable() or "docker",
+            "image",
+            "inspect",
+            self.worker_image,
+        ]
         try:
             return self.runner(
                 args,
