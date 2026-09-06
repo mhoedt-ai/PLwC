@@ -166,7 +166,7 @@ nächste Gate nicht.
 | G0 – Anforderungsbaseline | r26-Befund, neues Image-Opt-in, exaktes Inventar, GHCR-/Sichtbarkeitsregeln, Freigabepunkte und Traceability reviewed | UR-015, UR-016 und SR-011 sind in V-Modell und vollständiger G0-Traceability ergänzt; Konflikt zu SR-008 ist durch standardmäßig ausgeschaltetes ausdrückliches Opt-in aufgelöst; keine blockierende Entscheidung offen. | **PASS / GO zu G1** |
 | G1 – Architektur und Security | Digest-only, drei kontrollierte Runtime-Images, reproduzierbare Basen/Pakete, Manifest, anonymer öffentlicher Pull, Diagnose-, Safe-Mode- und Rollbackdesign reviewed | Die fünf G1-Reviews legen Single-Source-Manifest, drei feste GHCR-Repositories, reproduzierbare Buildgrenzen, standardmäßig ausgeschaltetes Opt-in, gehärtete Realprobes, Safe Mode, Besitzgrenzen, Threat Controls und vollständige Diagnose-/Exportverträge ohne offene Security- oder UX-Entscheidung fest. | **PASS / GO zu G2** |
 | G2 – Implementierungs-/Testfreigabe | vollständiges Design, Tests für alle Erfolgs-/Fehlerpfade, saubere Testdaten und Freigabe zur Implementierung | 27/27 Anforderungen sind automatisierten und systemischen Tests zugeordnet; 16/16 Komponentenauswahlen, 30 Image-Akquisitionsfälle, 24 Diagnose-Faults, neun disposable Windows-Umgebungen sowie das vollständige Deutsch-/Englisch- und Redaktionsdesign sind festgelegt. Die beiden fehlenden README-Dateien sind explizite, nicht verzichtbare G3-Implementierungsobjekte. | **PASS / GO zu G3-Implementierung** |
-| G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | r27-Implementierung, drei digest-gepinnte Dockerfiles, Source Lock, Wheelhouseprüfung, Build-/Verifikations-/Finalisierungsskripte und ein ausschließlich manuell auslösbarer, SHA-gepinnter privater Staging-Workflow sind vorhanden. Beide Inno-Zweige kompilieren isoliert. Lokales Wheelhouse: 31/31 Dateien, 58.102.113 Bytes. Ein nicht freigabefähiger Entwicklungs-Doppelbuild vom 6. September 2026 belegt nach OCI-Zeitstempelnormalisierung identische Digests für alle drei Images; SBOM, Lizenzinventar, Provenienz und echte netzwerklose Probes wurden erzeugt beziehungsweise bestanden. Freigegebener Schwachstellenscan, Wiederholung aus sauberem Checkout und GHCR-Stagingdigest fehlen noch. | **FAIL / STOP** |
+| G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | r27-Implementierung, drei digest-gepinnte Dockerfiles, Source Lock, Wheelhouseprüfung, Build-/Verifikations-/Finalisierungsskripte und ein ausschließlich manuell auslösbarer, SHA-gepinnter privater Staging-Workflow sind vorhanden. Beide Inno-Zweige kompilieren isoliert. Lokales Wheelhouse: 31/31 Dateien, 58.102.113 Bytes. Der saubere lokale Doppelbuild aus Commit `437af257b57460374aa39864720bcf9b2eac5833` belegt nach OCI-Zeitstempelnormalisierung identische Manifest- und Config-Digests für alle drei Images; SBOM, Lizenzinventar, Provenienz und echte netzwerklose Probes wurden erzeugt beziehungsweise bestanden. Der freigegebene Schwachstellenscan und GHCR-Stagingdigest fehlen noch. | **FAIL / STOP** |
 | G4 – Komponentenverifikation | alle automatisierten Image-, Installer-, Security-, Diagnose- und Regressionsprüfungen PASS | Aktueller Zwischenstand: Python `150 PASS / 12 umgebungsbedingt SKIP`, Installer-Pester `73/73`, Bridge `26/26`, Extension `190/190`; neue Image-/Diagnoseverträge sind darin enthalten. Der Gate-Status bleibt gesperrt, bis G3 geschlossen ist und die vollständigen Image-Security-/Realprobe-Ergebnisse vorliegen. | **STOP – G3 VORGESCHALTET** |
 | G5 – Systemvalidierung | Clean-Windows- und Upgrade-Matrix einschließlich echter Dokument-/Sandboxoperation, anonymer GHCR-Pull, Offline/Proxy/Abbruch/Neustart und Datenerhalt PASS | Realer Nutzerbefund zeigt `worker_missing`. Der r26→r27-Pfad existiert noch nicht. Der separate Preflight-Exitcode 1 ist nicht vollständig diagnostiziert, weil der referenzierte JSON-Bericht im Export fehlt. | **FAIL / STOP** |
 | G6 – Release Acceptance | G0–G5 PASS; exakte Image- und EXE-Digests, Signaturstatus, Claims, Known Limitations und Product-Owner-GO vollständig | Kein r27-Artefakt; r26 durch neuen Feldbefund zurückgezogen; keine Veröffentlichungsfreigabe. | **BLOCKED / NO-GO** |
@@ -195,12 +195,12 @@ nächste Gate nicht.
 ## 6. Nächster zulässiger Schritt
 
 G0 bis G2 sind geschlossen; die G3-Implementierungsobjekte und statischen
-Verträge sind erstellt. Der lokale Entwicklungs-Doppelbuild hat die
-Reproduzierbarkeit aller drei Manifestdigests und die Realprobes bestätigt.
-Nächster Schritt ist die Wiederholung aus sauberem Checkout sowie der
-vollständige freigegebene Schwachstellenscan. Danach bleibt G3 bis zu einem
-freigegebenen privaten GHCR-Staging-Push geschlossen. Vor diesem Push ist eine
-weitere ausdrückliche Product-Owner-Freigabe erforderlich.
+Verträge sind erstellt. Der saubere lokale Doppelbuild hat die
+Reproduzierbarkeit aller drei Manifest- und Config-Digests sowie die Realprobes
+bestätigt. Nächster Schritt ist der vollständige freigegebene
+Schwachstellenscan. Danach bleibt G3 bis zu einem freigegebenen privaten
+GHCR-Staging-Push geschlossen. Vor diesem Push ist eine weitere ausdrückliche
+Product-Owner-Freigabe erforderlich.
 
 ## 7. Separat aufgenommener Bridge-Befund
 
