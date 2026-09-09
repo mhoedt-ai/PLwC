@@ -71,7 +71,13 @@ def test_build_script_has_no_push_or_registry_login_path() -> None:
 
 
 def test_wheelhouse_builder_and_worker_acceptance_test_exist() -> None:
-    assert (ROOT / "scripts" / "build_document_worker_wheelhouse.py").is_file()
+    builder = ROOT / "scripts" / "build_document_worker_wheelhouse.py"
+    assert builder.is_file()
+    builder_text = builder.read_text(encoding="utf-8")
+    assert '"--require-hashes"' in builder_text
+    assert '"--no-deps"' in builder_text
+    assert "VENDORED_WHEELHOUSE" in builder_text
+    assert "_write_outputs" not in builder_text
     assert (ROOT / "scripts" / "verify_runtime_images.py").is_file()
     assert (ROOT / "scripts" / "finalize_runtime_image_manifest.py").is_file()
     assert (ROOT / "tests" / "integration" / "test_document_worker_mvp.py").is_file()

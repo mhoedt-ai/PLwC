@@ -115,8 +115,8 @@
       "package": "odfpy",
       "platform_tag": "any",
       "python_tag": "py2",
-      "sha256": "e14d43f3b3e3c6616bd9cb5acd18bd72959278e50135649cd4350efb572f6fee",
-      "source": "pip download",
+      "sha256": "47943c88ca1ce11e2dd37f3629752680f4332f381b695c3cc1fbbdd322fae313",
+      "source": "vendored",
       "version": "1.4.1"
     },
     {

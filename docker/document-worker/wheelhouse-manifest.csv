@@ -9,7 +9,7 @@ fonttools,4.62.1,fonttools-4.62.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_1
 html5lib,1.1,html5lib-1.1-py2.py3-none-any.whl,0d78f8fde1c230e99fe37986a60526d7049ed4bf8a9fadbad5f00e22e58e041d,py2,none,any,pip download
 lxml,6.1.0,lxml-6.1.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl,9147d8e386ec3b82c3b15d88927f734f565b0aaadef7def562b853adca45784a,cp312,cp312,manylinux_2_17_x86_64,pip download
 numpy,2.2.6,numpy-2.2.6-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl,fd83c01228a688733f1ded5201c678f0c53ecc1006ffbc404db9f7a899ac6249,cp312,cp312,manylinux_2_17_x86_64,pip download
-odfpy,1.4.1,odfpy-1.4.1-py2.py3-none-any.whl,e14d43f3b3e3c6616bd9cb5acd18bd72959278e50135649cd4350efb572f6fee,py2,none,any,pip download
+odfpy,1.4.1,odfpy-1.4.1-py2.py3-none-any.whl,47943c88ca1ce11e2dd37f3629752680f4332f381b695c3cc1fbbdd322fae313,py2,none,any,vendored
 openpyxl,3.1.5,openpyxl-3.1.5-py2.py3-none-any.whl,5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2,py2,none,any,pip download
 pandas,2.2.3,pandas-2.2.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl,fffb8ae78d8af97f849404f21411c95062db1496aeb3e56f146f0355c9989319,cp312,cp312,manylinux_2_17_x86_64,pip download
 pillow,12.2.0,pillow-12.2.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl,b86024e52a1b269467a802258c25521e6d742349d760728092e1bc2d135b4d76,cp312,cp312,manylinux_2_17_x86_64,pip download
