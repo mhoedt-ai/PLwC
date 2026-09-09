@@ -1,12 +1,12 @@
 {
   "abi": "cp312",
-  "generated_at_utc": "2026-05-09T13:08:13+00:00",
+  "generated_at_utc": "2026-09-09T17:51:15+00:00",
   "image": "plwc-document-worker:0.1.0",
   "lock_file": "requirements-doc-worker.lock",
   "python_version": "312",
   "requirements_file": "requirements-doc-worker.txt",
   "schema_version": 1,
-  "target_platform": "manylinux2014_x86_64",
+  "target_platform": "manylinux_2_28_x86_64",
   "wheelhouse_path": "docker/document-worker/wheelhouse",
   "wheels": [
     {
@@ -62,7 +62,7 @@
     {
       "abi_tag": "none",
       "filename": "et_xmlfile-2.0.0-py3-none-any.whl",
-      "package": "et_xmlfile",
+      "package": "et-xmlfile",
       "platform_tag": "any",
       "python_tag": "py3",
       "sha256": "7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa",
@@ -80,22 +80,12 @@
       "version": "4.62.1"
     },
     {
-      "abi_tag": "none",
-      "filename": "html5lib-1.1-py2.py3-none-any.whl",
-      "package": "html5lib",
-      "platform_tag": "any",
-      "python_tag": "py2",
-      "sha256": "0d78f8fde1c230e99fe37986a60526d7049ed4bf8a9fadbad5f00e22e58e041d",
-      "source": "pip download",
-      "version": "1.1"
-    },
-    {
       "abi_tag": "cp312",
-      "filename": "lxml-6.1.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "filename": "lxml-6.1.0-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
       "package": "lxml",
-      "platform_tag": "manylinux_2_17_x86_64",
+      "platform_tag": "manylinux_2_26_x86_64",
       "python_tag": "cp312",
-      "sha256": "9147d8e386ec3b82c3b15d88927f734f565b0aaadef7def562b853adca45784a",
+      "sha256": "bc783ee3147e60a25aa0445ea82b3e8aabb83b240f2b95d32cb75587ff781814",
       "source": "pip download",
       "version": "6.1.0"
     },
@@ -141,13 +131,13 @@
     },
     {
       "abi_tag": "cp312",
-      "filename": "pillow-12.2.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "filename": "pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
       "package": "pillow",
-      "platform_tag": "manylinux_2_17_x86_64",
+      "platform_tag": "manylinux_2_27_x86_64",
       "python_tag": "cp312",
-      "sha256": "b86024e52a1b269467a802258c25521e6d742349d760728092e1bc2d135b4d76",
+      "sha256": "78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91",
       "source": "pip download",
-      "version": "12.2.0"
+      "version": "12.3.0"
     },
     {
       "abi_tag": "none",
@@ -171,13 +161,13 @@
     },
     {
       "abi_tag": "none",
-      "filename": "pypdf-4.3.1-py3-none-any.whl",
+      "filename": "pypdf-6.18.0-py3-none-any.whl",
       "package": "pypdf",
       "platform_tag": "any",
       "python_tag": "py3",
-      "sha256": "64b31da97eda0771ef22edb1bfecd5deee4b72c3d1736b7df2689805076d6418",
+      "sha256": "05b762b77bcb9dcb4a7c91fcf5dded585b25bee7269ab3d3001d7c55fa1b324b",
       "source": "pip download",
-      "version": "4.3.1"
+      "version": "6.18.0"
     },
     {
       "abi_tag": "none",
@@ -261,8 +251,18 @@
     },
     {
       "abi_tag": "none",
+      "filename": "tinyhtml5-2.1.0-py3-none-any.whl",
+      "package": "tinyhtml5",
+      "platform_tag": "any",
+      "python_tag": "py3",
+      "sha256": "6e11cfff38515834268daf89d5f85bbde0b6dd02e8d9e212d1385c2289b89f0a",
+      "source": "pip download",
+      "version": "2.1.0"
+    },
+    {
+      "abi_tag": "none",
       "filename": "typing_extensions-4.15.0-py3-none-any.whl",
-      "package": "typing_extensions",
+      "package": "typing-extensions",
       "platform_tag": "any",
       "python_tag": "py3",
       "sha256": "f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548",
@@ -281,13 +281,13 @@
     },
     {
       "abi_tag": "none",
-      "filename": "weasyprint-62.3-py3-none-any.whl",
+      "filename": "weasyprint-70.0-py3-none-any.whl",
       "package": "weasyprint",
       "platform_tag": "any",
       "python_tag": "py3",
-      "sha256": "d31048646ce15084e135b33e334a61f526aa68d2f679fcc109ed0e0f5edaed21",
+      "sha256": "5043e55e38d2a2af2b2b871e869697b1f65dad5f8b4a3677961d04ceacf9c5fe",
       "source": "pip download",
-      "version": "62.3"
+      "version": "70.0"
     },
     {
       "abi_tag": "none",

@@ -90,6 +90,14 @@ def _build_report(tmp_path: Path) -> Path:
                 "config_digest": config_digest,
                 "content_bytes": index * 10_000,
                 "rounds": [dict(round_value), dict(round_value)],
+                "probe": {
+                    "id": f"{image_id}_v1",
+                    "status": "pass",
+                    "pull_policy": "never",
+                    "network": "none",
+                    "user": "10001:10001" if image_id == "document_worker" else "65532:65532",
+                    "stdout": "fixture probe passed",
+                },
                 "evidence": evidence,
             }
         )
@@ -145,6 +153,34 @@ def test_high_vulnerability_fails_closed(tmp_path: Path) -> None:
         assert "CVE-test" in str(exc)
     else:
         raise AssertionError("A HIGH vulnerability must fail the release gate")
+
+
+def test_high_vulnerability_diagnostic_extracts_package_from_purl() -> None:
+    payload = {
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "rules": [
+                            {
+                                "id": "CVE-test-purl",
+                                "properties": {
+                                    "cvssV3_severity": "HIGH",
+                                    "fixed_version": "2.0",
+                                    "purls": ["pkg:deb/debian/example-package@1.0?os_distro=bookworm"],
+                                },
+                            }
+                        ]
+                    }
+                },
+                "results": [],
+            }
+        ]
+    }
+
+    assert verifier._sarif_gate_findings(payload) == [
+        "CVE-test-purl severity=HIGH package=example-package fixed=2.0"
+    ]
 
 
 def test_dirty_or_unscanned_build_is_development_only_and_never_release_grade(tmp_path: Path) -> None:

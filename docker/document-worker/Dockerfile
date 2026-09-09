@@ -1,4 +1,4 @@
-FROM python:3.12.13-slim-bookworm@sha256:6e13e65c55e33adf203d77ee371cf8bf5d81bd4902ef07565721f46bf44917af
+FROM python:3.12.14-slim-bookworm@sha256:9c47360a2a0355e2da18516d0b1c2126ec22c195d2185e97347c9d98398c5bef
 
 ARG OCI_CREATED="1970-01-01T00:00:00Z"
 ARG SOURCE_REVISION="unknown"
@@ -23,9 +23,9 @@ WORKDIR /opt/plwc-document-worker
 
 RUN rm -f /etc/apt/sources.list.d/debian.sources \
     && printf '%s\n' \
-        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/20260806T000000Z bookworm main' \
-        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/20260806T000000Z bookworm-updates main' \
-        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian-security/20260806T000000Z bookworm-security main' \
+        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/20260909T000000Z bookworm main' \
+        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/20260909T000000Z bookworm-updates main' \
+        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian-security/20260909T000000Z bookworm-security main' \
         > /etc/apt/sources.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -36,6 +36,7 @@ RUN rm -f /etc/apt/sources.list.d/debian.sources \
         libglib2.0-0=2.74.6-2+deb12u9 \
         libpango-1.0-0=1.50.12+ds-1 \
         libpangoft2-1.0-0=1.50.12+ds-1 \
+        libpcre2-8-0=10.42-1+deb12u1 \
         shared-mime-info=2.2-1 \
     && rm -rf \
         /var/lib/apt/lists/* \

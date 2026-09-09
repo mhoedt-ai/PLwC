@@ -54,6 +54,15 @@ def test_document_worker_build_is_offline_for_python_and_snapshot_locked_for_apt
     assert packages and all("=" in package for package in packages)
 
 
+def test_node_runner_exposes_node_but_removes_package_managers() -> None:
+    text = (ROOT / "docker" / "node-runner" / "Dockerfile").read_text(encoding="utf-8")
+    assert "/usr/local/lib/node_modules/npm" in text
+    assert "/usr/local/lib/node_modules/corepack" in text
+    assert "/opt/yarn-v1.22.22" in text
+    for executable in ("npm", "npx", "corepack", "yarn", "yarnpkg"):
+        assert f"/usr/local/bin/{executable}" in text
+
+
 def test_build_script_has_no_push_or_registry_login_path() -> None:
     path = ROOT / "scripts" / "build_runtime_images.py"
     text = path.read_text(encoding="utf-8")
@@ -69,6 +78,10 @@ def test_build_script_has_no_push_or_registry_login_path() -> None:
     assert '("docker", "load", "--input"' in text
     assert "Non-reproducible image build" in text
     assert '"source_clean": source_clean' in text
+    assert "def _probe_image" in text
+    assert '"--pull",' in text and '"never",' in text
+    assert '"--network",' in text and '"none",' in text
+    assert "npm npx corepack yarn yarnpkg" in text
 
 
 def test_wheelhouse_builder_and_worker_acceptance_test_exist() -> None:
@@ -79,6 +92,12 @@ def test_wheelhouse_builder_and_worker_acceptance_test_exist() -> None:
     assert '"--no-deps"' in builder_text
     assert "VENDORED_WHEELHOUSE" in builder_text
     assert "_write_outputs" not in builder_text
+    assert "manylinux_2_28_x86_64" in builder_text
+    refresher = ROOT / "scripts" / "refresh_document_worker_wheelhouse_lock.py"
+    assert refresher.is_file()
+    refresher_text = refresher.read_text(encoding="utf-8")
+    assert "--accept-mutable-resolution" in refresher_text
+    assert "_write_outputs" in refresher_text
     assert (ROOT / "scripts" / "verify_runtime_images.py").is_file()
     assert (ROOT / "scripts" / "finalize_runtime_image_manifest.py").is_file()
     assert (ROOT / "tests" / "integration" / "test_document_worker_mvp.py").is_file()

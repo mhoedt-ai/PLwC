@@ -1,4 +1,4 @@
-FROM node:22.22.3-bookworm-slim@sha256:16d364eebf6b62da439dc993d9b80940c78b0ca38438452f011ab9a25c752644
+FROM node:22.23.2-bookworm-slim@sha256:4d676821dff059fd00d277ee4261ef34ea712317fed0737c03941481b5760c96
 
 ARG OCI_CREATED="1970-01-01T00:00:00Z"
 ARG SOURCE_REVISION="unknown"
@@ -13,6 +13,18 @@ LABEL org.opencontainers.image.title="PLwC Node Runner" \
       org.opencontainers.image.revision="${SOURCE_REVISION}"
 
 # Minimal Node 22 LTS sandbox image for plwc_sandbox_run(lang="node").
-# No extra packages — user supplies node_modules in the workspace mount.
+# The sandbox executes node directly. Package managers from the upstream image
+# are deliberately removed because dependency installation is forbidden here.
 # Non-root uid/gid 65532 is enforced at runtime via --user 65532:65532.
+RUN rm -rf \
+        /usr/local/lib/node_modules/corepack \
+        /usr/local/lib/node_modules/npm \
+        /opt/yarn-v1.22.22 \
+    && rm -f \
+        /usr/local/bin/corepack \
+        /usr/local/bin/npm \
+        /usr/local/bin/npx \
+        /usr/local/bin/yarn \
+        /usr/local/bin/yarnpkg
+
 WORKDIR /work

@@ -10,10 +10,11 @@ installer-hashed r27 runtime-image manifest.
 
 ## Notes
 
-- Based on the digest-pinned Node 22.22.3 Bookworm Slim image recorded in
+- Based on the digest-pinned Node 22.23.2 Bookworm Slim image recorded in
   `docker/runtime-image-sources.json`.
-- No extra npm packages are installed — the caller supplies `node_modules`
-  inside the workspace mount (`/work`).
+- The upstream `npm`, `npx`, `corepack` and `yarn` installations are removed.
+  The caller may supply already reviewed `node_modules` inside the workspace
+  mount (`/work`); the sandbox cannot install dependencies itself.
 - The gateway enforces `--user 65532:65532`, `--network none`, `--read-only`,
   `--cap-drop ALL`, `--security-opt no-new-privileges` at runtime.
   These flags are server-owned and cannot be changed by the model.

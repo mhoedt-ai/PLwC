@@ -16,7 +16,8 @@ WHEELHOUSE = WORKER_ROOT / "wheelhouse"
 VENDORED_WHEELHOUSE = WORKER_ROOT / "vendored-wheels"
 LOCK = WORKER_ROOT / "requirements-doc-worker.lock"
 MANIFEST_JSON = WORKER_ROOT / "wheelhouse-manifest.json"
-PLATFORM = "manylinux2014_x86_64"
+PLATFORM = "manylinux_2_28_x86_64"
+COMPATIBLE_PLATFORMS = (PLATFORM, "manylinux2014_x86_64")
 PYTHON_VERSION = "312"
 ABI = "cp312"
 
@@ -64,8 +65,7 @@ def _download(clean: bool) -> None:
             + "\n",
             encoding="utf-8",
         )
-        subprocess.run(
-            [
+        command = [
                 sys.executable,
                 "-m",
                 "pip",
@@ -79,13 +79,15 @@ def _download(clean: bool) -> None:
                 PYTHON_VERSION,
                 "--abi",
                 ABI,
-                "--platform",
-                PLATFORM,
                 "--dest",
                 str(WHEELHOUSE),
                 "--requirement",
                 str(input_path),
-            ],
+            ]
+        for platform in COMPATIBLE_PLATFORMS:
+            command.extend(("--platform", platform))
+        subprocess.run(
+            command,
             check=True,
             cwd=ROOT,
         )

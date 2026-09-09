@@ -149,6 +149,68 @@ def _build_once(
     }
 
 
+def _probe_image(image: dict[str, Any], tag: str) -> dict[str, Any]:
+    image_id = image["id"]
+    user = "10001:10001" if image_id == "document_worker" else "65532:65532"
+    arguments = [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--pids-limit",
+        "64",
+        "--memory",
+        "512m",
+        "--cpus",
+        "1",
+        "--user",
+        user,
+        "--tmpfs",
+        "/tmp:rw,noexec,nosuid,size=64m",
+    ]
+    if image_id == "document_worker":
+        arguments.extend((tag, "probe"))
+    elif image_id == "node_runner":
+        arguments.extend(
+            (
+                "--entrypoint",
+                "sh",
+                tag,
+                "-c",
+                'node --version && for x in npm npx corepack yarn yarnpkg; do '
+                'if command -v "$x" >/dev/null 2>&1; then exit 19; fi; done',
+            )
+        )
+    elif image_id == "python_runner":
+        arguments.extend(("--entrypoint", "sh", tag, "-c", 'python --version && test "$(id -u)" = 65532'))
+    else:
+        raise RuntimeError(f"No governed runtime probe exists for {image_id}")
+    completed = _run(arguments, capture=True)
+    stdout = completed.stdout.strip()
+    if image_id == "document_worker":
+        payload = json.loads(stdout)
+        if payload.get("ok") is not True or payload.get("operation") != "probe":
+            raise RuntimeError("Document Worker probe did not return the governed success contract")
+    elif not stdout:
+        raise RuntimeError(f"Runtime probe returned no version output for {image_id}")
+    return {
+        "id": f"{image_id}_v1",
+        "status": "pass",
+        "pull_policy": "never",
+        "network": "none",
+        "user": user,
+        "stdout": stdout,
+    }
+
+
 def _security_evidence(image: dict[str, Any], tag: str, output_root: Path, digest: str, commit: str) -> dict[str, Any]:
     image_id = image["id"]
     evidence_root = output_root / "evidence" / image_id
@@ -230,6 +292,7 @@ def main() -> int:
             raise RuntimeError(f"Non-reproducible image build: {image['id']}")
         release_tag = f"{image['repository']}:{image['version']}"
         _run(("docker", "image", "tag", second["tag"], release_tag))
+        probe = _probe_image(image, release_tag)
         evidence = _security_evidence(image, release_tag, output_root, second["digest"], commit)
         if evidence["vulnerabilities"]["status"] != "complete" and not args.allow_missing_vulnerability_scan:
             raise RuntimeError(
@@ -245,6 +308,7 @@ def main() -> int:
                 "config_digest": second["config_digest"],
                 "content_bytes": second["content_bytes"],
                 "rounds": [first, second],
+                "probe": probe,
                 "evidence": evidence,
             }
         )

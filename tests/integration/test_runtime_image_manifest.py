@@ -122,8 +122,8 @@ def test_source_lock_and_dockerfiles_pin_every_base() -> None:
 
 def test_document_worker_uses_fixed_snapshot_and_direct_versions() -> None:
     dockerfile = (ROOT / "docker" / "document-worker" / "Dockerfile").read_text(encoding="utf-8")
-    assert "snapshot.debian.org/archive/debian/20260806T000000Z" in dockerfile
-    assert "snapshot.debian.org/archive/debian-security/20260806T000000Z" in dockerfile
+    assert "snapshot.debian.org/archive/debian/20260909T000000Z" in dockerfile
+    assert "snapshot.debian.org/archive/debian-security/20260909T000000Z" in dockerfile
     for package in (
         "fonts-dejavu-core=2.37-6",
         "libcairo2=1.16.0-7",
@@ -132,6 +132,7 @@ def test_document_worker_uses_fixed_snapshot_and_direct_versions() -> None:
         "libglib2.0-0=2.74.6-2+deb12u9",
         "libpango-1.0-0=1.50.12+ds-1",
         "libpangoft2-1.0-0=1.50.12+ds-1",
+        "libpcre2-8-0=10.42-1+deb12u1",
         "shared-mime-info=2.2-1",
     ):
         assert package in dockerfile

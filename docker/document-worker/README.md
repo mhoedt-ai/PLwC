@@ -25,16 +25,30 @@ server and must be invoked only through PLwC-controlled policy and audit code.
 
 ## Offline Wheelhouse Build Strategy
 
-Release-quality builds require a verified offline wheelhouse:
+Release-quality builds consume the committed lock and verified hashes without
+re-resolving dependencies:
 
 ```powershell
 python scripts\build_document_worker_wheelhouse.py --clean --download
 ```
 
-This script downloads Linux CPython 3.12 compatible wheels where available,
-builds a pure-Python wheel for `odfpy==1.4.1`, writes
-`requirements-doc-worker.lock`, and writes `wheelhouse-manifest.json` /
-`wheelhouse-manifest.csv`.
+This command downloads only the exact files recorded in
+`wheelhouse-manifest.json`, verifies every hash and copies the deterministic,
+vendored `odfpy==1.4.1` wheel. It never rewrites the lock or manifests.
+Bookworm supports the recorded `manylinux_2_28_x86_64` wheels as well as the
+older `manylinux2014_x86_64` wheels retained by unchanged dependencies.
+
+A dependency refresh is a separate, deliberate maintainer operation:
+
+```powershell
+python scripts\refresh_document_worker_wheelhouse_lock.py --accept-mutable-resolution
+```
+
+That command preserves compatible transitive pins from the previous lock,
+resolves the explicitly pinned direct requirements, then rewrites
+`requirements-doc-worker.lock` and both wheelhouse manifests. The resulting
+diff and all worker tests must be reviewed before commit. CI never performs
+this mutable refresh.
 
 The wheel files are local build artifacts under `docker/document-worker/wheelhouse/`
 and are intentionally ignored by Git.

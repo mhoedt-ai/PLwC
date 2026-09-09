@@ -9,6 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from urllib.parse import unquote
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -128,7 +129,7 @@ def _severity_values(value: Any, *, key: str = "") -> list[str]:
     if isinstance(value, Mapping):
         for child_key, child in value.items():
             normalized = str(child_key).casefold().replace("_", "-")
-            if normalized in {"severity", "security-severity", "tags"}:
+            if normalized in {"severity", "security-severity", "cvssv3-severity", "cvss-v3-severity", "tags"}:
                 found.append(json.dumps(child, ensure_ascii=False))
             found.extend(_severity_values(child, key=normalized))
     elif isinstance(value, list):
@@ -167,7 +168,18 @@ def _sarif_gate_findings(payload: Mapping[str, Any]) -> list[str]:
             help_value = rule.get("help", {})
             help_text = str(help_value.get("text", "")) if isinstance(help_value, Mapping) else ""
             package_match = re.search(r"(?im)^\s*Package\s*:\s*([^\r\n]+)", help_text)
-            package = package_match.group(1).strip() if package_match else "unknown"
+            package = package_match.group(1).strip() if package_match else ""
+            if not package:
+                purls = properties.get("purls", [])
+                if isinstance(purls, list):
+                    for raw_purl in purls:
+                        if not isinstance(raw_purl, str) or not raw_purl.startswith("pkg:"):
+                            continue
+                        package_path = raw_purl.split("?", 1)[0].rsplit("@", 1)[0]
+                        package = unquote(package_path.rsplit("/", 1)[-1])
+                        if package:
+                            break
+            package = package or "unknown"
             detail = f"{rule_id} severity={severity} package={package} fixed={fixed}"
             if detail not in seen:
                 seen.add(detail)
@@ -306,6 +318,18 @@ def verify_build_report(path: Path, *, allow_development_only: bool = False) -> 
             raise VerificationError(f"Image evidence missing: {image_id}")
         if evidence.get("vulnerabilities", {}).get("status") != "complete" and not allow_development_only:
             raise VerificationError(f"Vulnerability scan incomplete: {image_id}")
+        probe = image.get("probe")
+        expected_user = "10001:10001" if image_id == "document_worker" else "65532:65532"
+        if (
+            not isinstance(probe, Mapping)
+            or probe.get("id") != f"{image_id}_v1"
+            or probe.get("status") != "pass"
+            or probe.get("pull_policy") != "never"
+            or probe.get("network") != "none"
+            or probe.get("user") != expected_user
+            or not str(probe.get("stdout", "")).strip()
+        ):
+            raise VerificationError(f"Governed runtime probe is missing or invalid: {image_id}")
         _verify_evidence_set(
             path.parent,
             evidence,
