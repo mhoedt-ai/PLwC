@@ -137,18 +137,64 @@ def _severity_values(value: Any, *, key: str = "") -> list[str]:
     return found
 
 
+def _has_unaccepted_severity(value: Any) -> bool:
+    severity_text = " ".join(_severity_values(value)).upper()
+    if re.search(r"\b(?:CRITICAL|HIGH)\b", severity_text):
+        return True
+    return any(
+        float(score) >= 7.0
+        for score in re.findall(r"(?<!\d)(?:10(?:\.0+)?|[0-9](?:\.\d+)?)(?!\d)", severity_text)
+    )
+
+
+def _sarif_gate_findings(payload: Mapping[str, Any]) -> list[str]:
+    findings: list[str] = []
+    seen: set[str] = set()
+    for run in payload.get("runs", []):
+        if not isinstance(run, Mapping):
+            continue
+        driver = run.get("tool", {}).get("driver", {})
+        rules = driver.get("rules", []) if isinstance(driver, Mapping) else []
+        for rule in rules:
+            if not isinstance(rule, Mapping) or not _has_unaccepted_severity(rule):
+                continue
+            properties = rule.get("properties", {})
+            if not isinstance(properties, Mapping):
+                properties = {}
+            rule_id = str(rule.get("id", "unknown-rule"))
+            severity = str(properties.get("cvssV3_severity", "HIGH/CRITICAL"))
+            fixed = str(properties.get("fixed_version", "unknown"))
+            help_value = rule.get("help", {})
+            help_text = str(help_value.get("text", "")) if isinstance(help_value, Mapping) else ""
+            package_match = re.search(r"(?im)^\s*Package\s*:\s*([^\r\n]+)", help_text)
+            package = package_match.group(1).strip() if package_match else "unknown"
+            detail = f"{rule_id} severity={severity} package={package} fixed={fixed}"
+            if detail not in seen:
+                seen.add(detail)
+                findings.append(detail)
+        for result in run.get("results", []):
+            if not isinstance(result, Mapping) or not _has_unaccepted_severity(result):
+                continue
+            rule_id = str(result.get("ruleId", "unknown-rule"))
+            detail = f"{rule_id} severity=HIGH/CRITICAL"
+            if detail not in seen:
+                seen.add(detail)
+                findings.append(detail)
+    return findings
+
+
 def _verify_vulnerability_report(path: Path) -> None:
     payload = _read_json(path)
     if not isinstance(payload, Mapping) or not isinstance(payload.get("runs"), list):
         raise VerificationError("Vulnerability report is not SARIF")
     if payload.get("ok") is False or payload.get("status") == "unavailable":
         raise VerificationError("Vulnerability scan was unavailable")
-    severity_text = " ".join(_severity_values(payload)).upper()
-    if re.search(r"\b(?:CRITICAL|HIGH)\b", severity_text):
-        raise VerificationError("Unaccepted critical/high vulnerability finding")
-    for score in re.findall(r"(?<!\d)(?:10(?:\.0+)?|[0-9](?:\.\d+)?)(?!\d)", severity_text):
-        if float(score) >= 7.0:
-            raise VerificationError("Unaccepted vulnerability score >= 7.0")
+    if _has_unaccepted_severity(payload):
+        details = _sarif_gate_findings(payload)
+        summary = "; ".join(details[:10]) if details else "details unavailable"
+        if len(details) > 10:
+            summary += f"; plus {len(details) - 10} more"
+        raise VerificationError(f"Unaccepted critical/high vulnerability finding(s): {summary}")
 
 
 def _verify_sbom(path: Path) -> None:
@@ -199,7 +245,10 @@ def _verify_evidence_set(
     _verify_licenses(paths["licenses"])
     vulnerability_status = evidence.get("vulnerabilities", {}).get("status")
     if vulnerability_status in (None, "complete"):
-        _verify_vulnerability_report(paths["vulnerabilities"])
+        try:
+            _verify_vulnerability_report(paths["vulnerabilities"])
+        except VerificationError as exc:
+            raise VerificationError(f"{prefix}: {exc}") from exc
     elif allow_incomplete_vulnerability_scan:
         unavailable = _read_json(paths["vulnerabilities"])
         if unavailable.get("status") != "unavailable" or unavailable.get("ok") is not False:

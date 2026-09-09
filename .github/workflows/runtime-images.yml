@@ -80,6 +80,18 @@ jobs:
       - name: Verify reproducibility and security evidence
         run: python scripts/verify_runtime_images.py --build-report build/runtime-images/image-build-report.json
 
+      - name: Preserve failed security-gate diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: plwc-r27-security-gate-failure-${{ github.sha }}
+          path: |
+            build/runtime-images/image-build-report.json
+            build/runtime-images/evidence/*/vulnerabilities.sarif.json
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
+
       - name: Push only commit-scoped staging tags
         shell: bash
         run: |

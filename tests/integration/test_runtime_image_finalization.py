@@ -141,6 +141,8 @@ def test_high_vulnerability_fails_closed(tmp_path: Path) -> None:
         verifier.verify_build_report(report_path)
     except verifier.VerificationError as exc:
         assert "critical/high" in str(exc)
+        assert "document_worker" in str(exc)
+        assert "CVE-test" in str(exc)
     else:
         raise AssertionError("A HIGH vulnerability must fail the release gate")
 
