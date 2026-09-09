@@ -98,7 +98,7 @@ def _build_once(
     round_root = output_root / f"round-{round_number}" / image_id
     round_root.mkdir(parents=True, exist_ok=True)
     metadata_path = round_root / "build-metadata.json"
-    archive_path = round_root / "image.oci.tar"
+    archive_path = round_root / "image.docker.tar"
     archive_cli_path = archive_path.relative_to(ROOT).as_posix() if archive_path.is_relative_to(ROOT) else str(archive_path)
     tag = f"{image['repository']}:r27-build-{round_number}"
     arguments = [
@@ -119,7 +119,7 @@ def _build_once(
         "--metadata-file",
         str(metadata_path),
         "--output",
-        f"type=oci,dest={archive_cli_path},rewrite-timestamp=true,name={tag}",
+        f"type=docker,dest={archive_cli_path},rewrite-timestamp=true,name={tag}",
         "--tag",
         tag,
         str(ROOT / image["context"]),
@@ -130,8 +130,12 @@ def _build_once(
     observed = json.loads(
         _run(("docker", "image", "inspect", tag, "--format", "{{json .}}"), capture=True).stdout
     )
-    if observed.get("Os") != "linux" or observed.get("Architecture") != "amd64" or observed.get("Id") != digest:
-        raise RuntimeError(f"Loaded {image_id} does not match its build digest/platform")
+    if (
+        observed.get("Os") != "linux"
+        or observed.get("Architecture") != "amd64"
+        or observed.get("Id") not in {digest, config_digest}
+    ):
+        raise RuntimeError(f"Loaded {image_id} does not match its build identity/platform")
     return {
         "round": round_number,
         "tag": tag,

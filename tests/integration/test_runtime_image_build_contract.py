@@ -64,7 +64,8 @@ def test_build_script_has_no_push_or_registry_login_path() -> None:
     assert '"push"' not in text
     assert "--no-cache" in text
     assert "--platform" in text and "linux/amd64" in text
-    assert "type=oci" in text and "rewrite-timestamp=true" in text
+    assert "type=docker" in text and "rewrite-timestamp=true" in text
+    assert 'observed.get("Id") not in {digest, config_digest}' in text
     assert '("docker", "load", "--input"' in text
     assert "Non-reproducible image build" in text
     assert '"source_clean": source_clean' in text
