@@ -94,6 +94,24 @@ jobs:
             docker image push "${repository}:${staging_tag}"
           done
 
+      - name: Verify every GHCR staging package is private
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for package in \
+            plwc-document-worker \
+            plwc-node-runner \
+            plwc-python-runner
+          do
+            visibility="$(gh api "/user/packages/container/${package}" --jq .visibility)"
+            if [[ "$visibility" != "private" ]]; then
+              echo "::error title=Unsafe GHCR visibility::${package} is ${visibility}, expected private"
+              exit 1
+            fi
+          done
+
       - name: Bind exact staged GHCR digests into the installer lock
         run: >-
           python scripts/finalize_runtime_image_manifest.py
