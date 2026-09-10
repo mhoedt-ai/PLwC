@@ -731,21 +731,38 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _fallback_report(args: argparse.Namespace, exc: BaseException, *, exit_code: int) -> dict[str, Any]:
+def _fallback_report(
+    args: argparse.Namespace,
+    exc: BaseException,
+    *,
+    exit_code: int,
+    started_at: str | None = None,
+    started_monotonic: float | None = None,
+) -> dict[str, Any]:
+    phase = "image_acquisition" if getattr(args, "operation", "") == "acquire" else "image_inventory"
     report = {
         "schema_version": SCHEMA_VERSION,
         "build_id": str(getattr(args, "build_id", "unknown")),
         "plan_id": str(getattr(args, "plan_id", "unknown")),
-        "phase": "image_acquisition" if getattr(args, "operation", "") == "acquire" else "image_inventory",
+        "manifest_sha256": str(getattr(args, "manifest_sha256", "")),
+        "phase": phase,
         "category": "docker",
+        "command_id": f"runtime-image-manager-{getattr(args, 'operation', 'unknown')}",
         "started": True,
-        "started_at": _utc_now(),
+        "started_at": started_at or _utc_now(),
         "finished_at": _utc_now(),
+        "duration_ms": (
+            max(0, int((time.monotonic() - started_monotonic) * 1000))
+            if started_monotonic is not None
+            else 0
+        ),
         "exit_code": exit_code,
         "timed_out": bool(getattr(exc, "timed_out", False)),
         "cancelled": bool(getattr(exc, "cancelled", False)),
         "stdout": "",
         "stderr": "",
+        "stdout_truncated": False,
+        "stderr_truncated": False,
         "exception_type": type(exc).__name__,
         "error_category": getattr(exc, "category", "unexpected_error"),
         "error": _redact_text(str(exc)),
@@ -764,6 +781,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     args.plan_id = uuid.uuid4().hex
     report_path = Path(args.report)
+    started_at = _utc_now()
+    started_monotonic = time.monotonic()
     try:
         if args.timeout_seconds < 1 or args.timeout_seconds > 3600:
             raise ManifestError("timeout-seconds must be between 1 and 3600")
@@ -795,15 +814,54 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "build_id": args.build_id,
                 "plan_id": args.plan_id,
                 "manifest_sha256": args.manifest_sha256,
+                "category": "docker",
+                "command_id": f"runtime-image-manager-{args.operation}",
+                "started": True,
+                "started_at": started_at,
+                "finished_at": _utc_now(),
+                "duration_ms": max(0, int((time.monotonic() - started_monotonic) * 1000)),
+                "exit_code": 0,
+                "timed_out": False,
+                "cancelled": False,
+                "stdout": "",
+                "stderr": "",
+                "stdout_truncated": False,
+                "stderr_truncated": False,
+                "exception_type": None,
+                "error_category": None,
                 "report_path": str(report_path.resolve(strict=False)),
             }
         )
         final = _with_report_id(result)
         _atomic_write_json(report_path, final)
         return 0
+    except KeyboardInterrupt:
+        interrupted = CancelledOrTimedOutError(
+            "Runtime image acquisition was cancelled",
+            cancelled=True,
+            timed_out=False,
+        )
+        report = _fallback_report(
+            args,
+            interrupted,
+            exit_code=interrupted.exit_code,
+            started_at=started_at,
+            started_monotonic=started_monotonic,
+        )
+        try:
+            _atomic_write_json(report_path, report)
+        except OSError:
+            pass
+        return interrupted.exit_code
     except Exception as exc:
         exit_code = int(getattr(exc, "exit_code", 40))
-        report = _fallback_report(args, exc, exit_code=exit_code)
+        report = _fallback_report(
+            args,
+            exc,
+            exit_code=exit_code,
+            started_at=started_at,
+            started_monotonic=started_monotonic,
+        )
         try:
             _atomic_write_json(report_path, report)
         except OSError:

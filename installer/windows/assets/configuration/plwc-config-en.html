@@ -169,6 +169,27 @@
       <p id="component-inventory-note" class="path-line"></p>
     </section>
 
+    <section aria-labelledby="runtime-images-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">Docker runtimes</p>
+          <h2 id="runtime-images-title">PLwC runtime images</h2>
+          <p>Missing Document, Node, and Python images can be installed later from the installed, hash-verified r27 manifest. Without confirmation, PLwC remains in Safe Mode.</p>
+        </div>
+      </div>
+      <div class="update-actions">
+        <button id="runtime-images-review-button" class="button primary" type="button" disabled>Review installation plan</button>
+      </div>
+      <dl class="detail-list update-details">
+        <div><dt>Status</dt><dd id="runtime-images-state">Unavailable</dd></div>
+        <div><dt>Source / platform</dt><dd id="runtime-images-source">-</dd></div>
+        <div><dt>Download / storage</dt><dd id="runtime-images-size">-</dd></div>
+        <div><dt>Per-image states</dt><dd id="runtime-images-components">-</dd></div>
+        <div><dt>Diagnostic report</dt><dd id="runtime-images-report">-</dd></div>
+      </dl>
+      <p id="runtime-images-error" class="error-text" hidden></p>
+    </section>
+
     <section aria-labelledby="update-title">
       <div class="section-heading">
         <div>
@@ -222,6 +243,31 @@
       </details>
     </section>
   </main>
+
+  <dialog id="runtime-images-dialog" aria-labelledby="runtime-images-dialog-title">
+    <form method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Confirmed Docker acquisition</p>
+          <h2 id="runtime-images-dialog-title">Install runtime images</h2>
+        </div>
+        <button class="close-button" value="cancel" aria-label="Close" title="Close" type="submit" formnovalidate>×</button>
+      </div>
+      <p>The plan uses only the three installed <code>ghcr.io/mhoedt-ai</code> references with complete SHA-256 digests. Digest, platform, and networkless probes are verified after download.</p>
+      <dl class="plan-details">
+        <div><dt>Plan ID</dt><dd id="runtime-images-plan-id"></dd></div>
+        <div><dt>Planned actions</dt><dd id="runtime-images-plan-actions"></dd></div>
+        <div><dt>Download / storage</dt><dd id="runtime-images-plan-size"></dd></div>
+      </dl>
+      <label class="confirmation" for="runtime-images-confirmation">
+        <input id="runtime-images-confirmation" type="checkbox">
+        <span>I confirm the download and verification of exactly these digest-locked runtime images.</span>
+      </label>
+      <div class="dialog-actions">
+        <button id="runtime-images-apply-button" class="button primary" type="button" disabled>Start installation</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="update-dialog" aria-labelledby="update-dialog-title">
     <form method="dialog">

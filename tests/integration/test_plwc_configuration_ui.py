@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import http.client
 import importlib.util
 import io
 import json
+import shutil
 import subprocess
 import threading
 import zipfile
@@ -12,6 +14,8 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+
+from test_runtime_image_manifest import valid_manifest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -122,6 +126,44 @@ def _editable_settings(**overrides: object) -> dict[str, object]:
     }
     settings.update(overrides)
     return settings
+
+
+def _install_runtime_image_contract(root: Path) -> dict[str, object]:
+    installation = root / "app" / "installation"
+    installation.mkdir(parents=True, exist_ok=True)
+    manager_path = installation / "runtime-image-manager.py"
+    shutil.copy2(
+        REPO_ROOT / "installer" / "windows" / "assets" / "runtime-image-manager.py",
+        manager_path,
+    )
+    manifest = valid_manifest()
+    manifest_path = installation / "runtime-images.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    def sha256(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    (installation / "payload-manifest.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "files": [
+                    {
+                        "path": "common/installation/runtime-image-manager.py",
+                        "sha256": sha256(manager_path),
+                        "size": manager_path.stat().st_size,
+                    },
+                    {
+                        "path": "common/installation/runtime-images.json",
+                        "sha256": sha256(manifest_path),
+                        "size": manifest_path.stat().st_size,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manifest
 
 
 def _apply_workspace(service, workspace: Path) -> dict[str, object]:
@@ -481,6 +523,8 @@ def test_optional_component_probes_report_docker_and_document_worker_versions(
     configuration_module: ModuleType,
 ) -> None:
     image_id = "sha256:" + "c" * 64
+    locked_reference = "ghcr.io/mhoedt-ai/plwc-document-worker@sha256:" + "d" * 64
+    observed_inspect_references: list[str] = []
 
     def runner(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
         if args[1:] == ["--version"]:
@@ -488,12 +532,14 @@ def test_optional_component_probes_report_docker_and_document_worker_versions(
         if args[1:] == ["version", "--format", "{{.Server.Version}}"]:
             return subprocess.CompletedProcess(args, 0, "29.3.1\n", "")
         if args[1:3] == ["image", "inspect"]:
+            observed_inspect_references.append(args[3])
             return subprocess.CompletedProcess(args, 0, image_id + "\n", "")
         raise AssertionError(f"Unexpected probe: {args!r}")
 
     docker, worker = configuration_module._docker_component_observations(
         "C:/Docker/docker.exe",
         installer_selected=True,
+        worker_image=locked_reference,
         runner=runner,
     )
 
@@ -506,6 +552,7 @@ def test_optional_component_probes_report_docker_and_document_worker_versions(
     assert worker["build_id"] == image_id
     assert worker["postflight_verified"] is True
     assert worker["source"]["trust"] == "observed_local"
+    assert observed_inspect_references == [locked_reference]
 
 
 def test_document_worker_probe_distinguishes_missing_image_from_unavailable_daemon(
@@ -687,6 +734,187 @@ def test_snapshot_exposes_actual_component_values_and_persisted_launcher_result(
     assert snapshot["launcher_last_result"]["state_file"] == str(launcher_state)
     assert snapshot["browser_extension_last_contact"]["extensionId"] == "feceodobnhefdbfgmbinkndhogpfkicb"
     assert snapshot["browser_extension_last_contact"]["stale"] is False
+
+
+def test_runtime_image_center_reuses_trusted_manager_with_separate_confirmation(
+    configuration_module: ModuleType,
+    configured_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = _install_runtime_image_contract(configured_root)
+    monkeypatch.setattr(configuration_module, "resolve_docker_executable", lambda: "C:/Docker/docker.exe")
+    commands: list[list[str]] = []
+
+    def fake_runner(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(list(command))
+        operation = command[2]
+        report_path = Path(command[command.index("--report") + 1])
+        manifest_sha256 = command[command.index("--manifest-sha256") + 1]
+        build_id = command[command.index("--build-id") + 1]
+        states = "download_required" if operation == "inventory" else "probe_passed"
+        report: dict[str, object] = {
+            "schema_version": "1.0.0",
+            "build_id": build_id,
+            "plan_id": "a" * 32,
+            "phase": "image_inventory" if operation == "inventory" else "image_acquisition",
+            "category": "docker",
+            "command_id": f"runtime-image-manager-{operation}",
+            "manifest_sha256": manifest_sha256,
+            "started": True,
+            "started_at": "2026-09-10T10:00:00+00:00",
+            "finished_at": "2026-09-10T10:00:01+00:00",
+            "duration_ms": 1000,
+            "exit_code": 0,
+            "timed_out": False,
+            "cancelled": False,
+            "stdout": "",
+            "stderr": "",
+            "stdout_truncated": False,
+            "stderr_truncated": False,
+            "exception_type": None,
+            "error_category": None,
+            "ok": True,
+            "state": "ready" if operation == "acquire" else "inventory_complete",
+            "report_path": str(report_path.resolve()),
+            "diagnostic_note": "Größe geprüft",
+            "images": [
+                {"id": image["id"], "reference": image["reference"], "state": states}
+                for image in manifest["images"]
+            ],
+        }
+        report["report_id"] = configuration_module._canonical_report_digest(report)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report), encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    service = configuration_module.PlwcConfigurationService(
+        configured_root,
+        doctor_system_probes=False,
+        runtime_image_runner=fake_runner,
+    )
+    snapshot = service.snapshot()["runtime_image_center"]
+    assert snapshot["state"] == "safe_mode"
+    assert snapshot["can_plan"] is True
+    assert snapshot["manifest_sha256"] == hashlib.sha256(
+        (configured_root / "app" / "installation" / "runtime-images.json").read_bytes()
+    ).hexdigest()
+
+    first_plan = service.plan_runtime_image_acquisition()
+    plan = service.plan_runtime_image_acquisition()
+    assert first_plan["plan_id"] != plan["plan_id"]
+    assert first_plan["state_digest"] == plan["state_digest"]
+    assert plan["confirmation_required"] is True
+    assert [action["action"] for action in plan["actions"]] == ["download_verify_and_probe"] * 3
+    assert all("@sha256:" in action["reference"] for action in plan["actions"])
+    with pytest.raises(configuration_module.ConfigurationError, match="explicit confirmation"):
+        service.apply_runtime_image_acquisition(plan["plan_id"], False)
+
+    result = service.apply_runtime_image_acquisition(plan["plan_id"], True)
+    assert result["ok"] is True
+    assert result["runtime_images"]["state"] == "ready"
+    assert [command[2] for command in commands] == ["inventory", "inventory", "inventory", "acquire"]
+    assert all(configuration_module.RUNTIME_IMAGE_CONSENT_TOKEN not in command for command in commands[:3])
+    assert configuration_module.RUNTIME_IMAGE_CONSENT_TOKEN in commands[3]
+    selection = service._read_installer_selection()
+    assert selection.get("RuntimeImages", "Outcome") == "ready"
+    assert selection.get("RuntimeImages", "DocumentWorkerState") == "probe_passed"
+
+
+def test_runtime_image_center_rejects_tampered_installed_manager_before_execution(
+    configuration_module: ModuleType,
+    configured_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_runtime_image_contract(configured_root)
+    manager_path = configured_root / "app" / "installation" / "runtime-image-manager.py"
+    manager_path.write_text(manager_path.read_text(encoding="utf-8") + "\n# tampered\n", encoding="utf-8")
+    monkeypatch.setattr(configuration_module, "resolve_docker_executable", lambda: "C:/Docker/docker.exe")
+
+    def must_not_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("tampered manager must not be executed")
+
+    service = configuration_module.PlwcConfigurationService(
+        configured_root,
+        doctor_system_probes=False,
+        runtime_image_runner=must_not_run,
+    )
+    snapshot = service.snapshot()["runtime_image_center"]
+    assert snapshot["available"] is False
+    assert "hash check" in snapshot["error"]
+    with pytest.raises(configuration_module.ConfigurationError, match="hash check"):
+        service.plan_runtime_image_acquisition()
+
+
+def test_runtime_image_center_rejects_development_lock_override(
+    configuration_module: ModuleType,
+    configured_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = _install_runtime_image_contract(configured_root)
+    override = configured_root / "external-runtime-images.json"
+    override.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setenv("PLWC_RUNTIME_IMAGES_MANIFEST", str(override))
+    monkeypatch.setenv(
+        "PLWC_RUNTIME_IMAGES_MANIFEST_SHA256",
+        hashlib.sha256(override.read_bytes()).hexdigest(),
+    )
+
+    service = configuration_module.PlwcConfigurationService(
+        configured_root,
+        doctor_system_probes=False,
+    )
+
+    snapshot = service.snapshot()["runtime_image_center"]
+    assert snapshot["available"] is False
+    assert "installed runtime image lock" in snapshot["error"]
+
+
+def test_runtime_image_report_rejects_success_with_failure_exit(
+    configuration_module: ModuleType,
+    tmp_path: Path,
+) -> None:
+    manifest = valid_manifest()
+    report_path = tmp_path / "runtime-images-acquire.json"
+    report: dict[str, object] = {
+        "schema_version": "1.0.0",
+        "build_id": "fixture-r27",
+        "plan_id": "c" * 32,
+        "manifest_sha256": "d" * 64,
+        "phase": "image_acquisition",
+        "category": "docker",
+        "command_id": "runtime-image-manager-acquire",
+        "started": True,
+        "started_at": "2026-09-10T10:00:00+00:00",
+        "finished_at": "2026-09-10T10:00:01+00:00",
+        "duration_ms": 1000,
+        "exit_code": 23,
+        "timed_out": False,
+        "cancelled": False,
+        "stdout": "",
+        "stderr": "",
+        "stdout_truncated": False,
+        "stderr_truncated": False,
+        "exception_type": None,
+        "error_category": None,
+        "ok": True,
+        "state": "ready",
+        "report_path": str(report_path.resolve()),
+        "images": [
+            {"id": image["id"], "reference": image["reference"], "state": "probe_passed"}
+            for image in manifest["images"]
+        ],
+    }
+    report["report_id"] = configuration_module._canonical_report_digest(report)
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(configuration_module.ConfigurationError, match="inconsistent"):
+        configuration_module.PlwcConfigurationService._validated_runtime_image_report(
+            report_path,
+            operation="acquire",
+            manifest_sha256="d" * 64,
+            build_id="fixture-r27",
+            manifest=manifest,
+        )
 
 
 def test_configuration_doctor_diagnosis_plan_apply_and_idempotence(
@@ -1091,6 +1319,80 @@ def test_loopback_update_endpoints_preserve_separate_confirmations(
         thread.join(timeout=5)
 
 
+def test_loopback_runtime_image_endpoints_preserve_separate_confirmation(
+    configuration_module: ModuleType,
+    configured_root: Path,
+) -> None:
+    service = configuration_module.PlwcConfigurationService(
+        configured_root,
+        doctor_system_probes=False,
+    )
+    confirmations: list[bool] = []
+    service.plan_runtime_image_acquisition = lambda: {
+        "plan_id": "b" * 64,
+        "confirmation_required": True,
+        "actions": [],
+    }
+
+    def apply_runtime_images(plan_id: object, confirmed: object) -> dict[str, object]:
+        assert plan_id == "b" * 64
+        confirmations.append(confirmed is True)
+        if confirmed is not True:
+            raise configuration_module.ConfigurationError("explicit confirmation required")
+        return {"ok": True, "state": "ready", "runtime_images": {"state": "ready"}}
+
+    service.apply_runtime_image_acquisition = apply_runtime_images
+    server = configuration_module.create_http_server(
+        service,
+        CONFIGURATION_ROOT,
+        session_token="runtime-image-session-token",
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        status, _, headers = _request(server, "GET", "/?token=runtime-image-session-token")
+        assert status == 303
+        cookie = headers["set-cookie"].split(";", 1)[0]
+
+        status, plan, _ = _request(
+            server,
+            "POST",
+            "/api/runtime-images/plan",
+            cookie=cookie,
+            origin=server.origin,
+            body={},
+        )
+        assert status == 200
+        assert plan is not None and plan["confirmation_required"] is True
+
+        status, rejected, _ = _request(
+            server,
+            "POST",
+            "/api/runtime-images/apply",
+            cookie=cookie,
+            origin=server.origin,
+            body={"plan_id": "b" * 64, "confirmed": False},
+        )
+        assert status == 400
+        assert rejected is not None and rejected["ok"] is False
+
+        status, applied, _ = _request(
+            server,
+            "POST",
+            "/api/runtime-images/apply",
+            cookie=cookie,
+            origin=server.origin,
+            body={"plan_id": "b" * 64, "confirmed": True},
+        )
+        assert status == 200
+        assert applied is not None and applied["state"] == "ready"
+        assert confirmations == [False, True]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_static_configuration_ui_is_bilingual_local_and_feature_complete() -> None:
     english = (CONFIGURATION_ROOT / "plwc-config-en.html").read_text(encoding="utf-8")
     german = (CONFIGURATION_ROOT / "plwc-config-de.html").read_text(encoding="utf-8")
@@ -1125,6 +1427,10 @@ def test_static_configuration_ui_is_bilingual_local_and_feature_complete() -> No
         'id="doctor-dialog"',
         'id="doctor-confirmation"',
         'id="doctor-apply-button"',
+        'id="runtime-images-review-button"',
+        'id="runtime-images-dialog"',
+        'id="runtime-images-confirmation"',
+        'id="runtime-images-apply-button"',
         'id="update-check-button"',
         'id="update-review-button"',
         'id="update-dialog"',
@@ -1144,8 +1450,8 @@ def test_static_configuration_ui_is_bilingual_local_and_feature_complete() -> No
     assert 'class="app-link"' not in guide_english and 'class="app-link"' not in guide_german
     assert "Create a new profile" in guide_english
     assert "Neues Profil anlegen" in guide_german
-    assert english.count("formnovalidate") == 10
-    assert german.count("formnovalidate") == 10
+    assert english.count("formnovalidate") == 11
+    assert german.count("formnovalidate") == 11
     assert "[hidden]" in styles
     assert 'typeof write === "object"' in javascript
     assert "http://" not in combined
@@ -1163,6 +1469,8 @@ def test_static_configuration_ui_is_bilingual_local_and_feature_complete() -> No
         "/api/doctor/export",
         "/api/doctor/plan",
         "/api/doctor/apply",
+        "/api/runtime-images/plan",
+        "/api/runtime-images/apply",
         "/api/update/check",
         "/api/update/download/plan",
         "/api/update/download",

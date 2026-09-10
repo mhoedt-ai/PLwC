@@ -61,6 +61,7 @@ from plwc_gateway.installation.update_center import (
     UpdateContractError,
     load_trusted_release_keys,
 )
+from plwc_gateway.runtime_images import RuntimeImageLockError, load_runtime_image_lock
 from plwc_gateway.mcp.server import (
     clu_doctor_diagnose,
     plwc_governor,
@@ -111,6 +112,7 @@ SESSION_COOKIE = "plwc_config_session"
 DEFAULT_RELEASE_MANIFEST_URL = (
     "https://github.com/mhoedt-ai/PLwC/releases/latest/download/plwc-release-manifest.json"
 )
+RUNTIME_IMAGE_CONSENT_TOKEN = "I_ACCEPT_PLWC_RUNTIME_IMAGE_DOWNLOAD_R27"
 
 
 class ConfigurationError(ValueError):
@@ -220,6 +222,11 @@ def _canonical_digest(value: Any) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def _canonical_report_digest(value: Any) -> str:
+    content = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
 def _workspace_plan_digest(data: dict[str, Any]) -> str:
     return _canonical_digest(
         {
@@ -293,6 +300,7 @@ def _docker_component_observations(
     docker_path: str | None,
     *,
     installer_selected: bool,
+    worker_image: str = DOCUMENT_WORKER_IMAGE,
     runner: Any = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Observe Docker and the prepared worker image without changing local state."""
@@ -310,7 +318,7 @@ def _docker_component_observations(
         worker_observation = {
             "present": None if installer_selected else False,
             "source": (
-                _unavailable_source("docker_image_inspect", DOCUMENT_WORKER_IMAGE)
+                _unavailable_source("docker_image_inspect", worker_image)
                 if installer_selected
                 else _observed_source("docker_image_inspect", "Docker CLI not detected")
             ),
@@ -350,26 +358,26 @@ def _docker_component_observations(
     if not daemon_ready:
         return docker_observation, {
             "present": None,
-            "source": _unavailable_source("docker_image_inspect", DOCUMENT_WORKER_IMAGE),
+            "source": _unavailable_source("docker_image_inspect", worker_image),
         }
 
     inspect_result = _run_local_probe(
-        [docker_path, "image", "inspect", DOCUMENT_WORKER_IMAGE, "--format", "{{.Id}}"],
+        [docker_path, "image", "inspect", worker_image, "--format", "{{.Id}}"],
         runner=runner,
     )
     if inspect_result is None:
         return docker_observation, {
             "present": None,
-            "source": _unavailable_source("docker_image_inspect", DOCUMENT_WORKER_IMAGE),
+            "source": _unavailable_source("docker_image_inspect", worker_image),
         }
     if inspect_result.returncode != 0:
         return docker_observation, {
             "present": False,
-            "source": _observed_source("docker_image_inspect", DOCUMENT_WORKER_IMAGE),
+            "source": _observed_source("docker_image_inspect", worker_image),
         }
 
     image_id = inspect_result.stdout.strip()
-    image_version = DOCUMENT_WORKER_IMAGE.rpartition(":")[2] or None
+    image_version = "0.1.0" if "@sha256:" in worker_image else worker_image.rpartition(":")[2] or None
     return docker_observation, {
         "present": True,
         "semantic_version": image_version,
@@ -377,7 +385,7 @@ def _docker_component_observations(
         "postflight_verified": bool(image_id),
         "source": _observed_source(
             "docker_image_inspect",
-            f"{DOCUMENT_WORKER_IMAGE}@{image_id}" if image_id else DOCUMENT_WORKER_IMAGE,
+            f"{worker_image}#{image_id}" if image_id else worker_image,
         ),
     }
 
@@ -489,6 +497,7 @@ class PlwcConfigurationService:
         language: str = "en",
         doctor_system_probes: bool = True,
         update_center: UpdateCenter | None = None,
+        runtime_image_runner: Any = None,
     ) -> None:
         self.project_root = project_root.resolve(strict=False)
         self.installer_config_root = (
@@ -504,7 +513,10 @@ class PlwcConfigurationService:
         self._write_lock = threading.Lock()
         self._doctor_diagnoses: dict[str, dict[str, Any]] = {}
         self._doctor_plans: dict[str, dict[str, Any]] = {}
+        self._runtime_image_plans: dict[str, dict[str, Any]] = {}
+        self._runtime_image_operation_lock = threading.Lock()
         self.update_center = update_center or self._create_update_center()
+        self.runtime_image_runner = runtime_image_runner or subprocess.run
 
     def _compatibility_matrix_path(self) -> Path | None:
         candidates: list[Path] = []
@@ -680,6 +692,7 @@ class PlwcConfigurationService:
         docker_observation, document_worker_observation = _docker_component_observations(
             docker_path,
             installer_selected=docker_selected == "true",
+            worker_image=config.document_worker_image or DOCUMENT_WORKER_IMAGE,
         )
         qdrant_observation = _python_distribution_observation(
             "qdrant-client",
@@ -893,6 +906,7 @@ class PlwcConfigurationService:
             "component_inventory": self._component_inventory(status, config),
             "launcher_last_result": self._last_launcher_result(),
             "browser_extension_last_contact": self._browser_extension_contact(),
+            "runtime_image_center": self._runtime_image_center_snapshot(),
             "update_center": self.update_center.snapshot(),
         }
 
@@ -913,6 +927,363 @@ class PlwcConfigurationService:
         if not isinstance(plan_id, str) or not plan_id.strip():
             raise ConfigurationError("Choose a verified update before installation.")
         return self.update_center.install(plan_id.strip(), confirmed=confirmed is True)
+
+    def _payload_file_sha256(self, payload_path: str) -> str:
+        payload_manifest_path = self.project_root / "app" / "installation" / "payload-manifest.json"
+        payload = self._read_json_object(payload_manifest_path)
+        if payload is None or payload.get("schemaVersion") != 1 or not isinstance(payload.get("files"), list):
+            raise ConfigurationError("The installed PLwC payload manifest is missing or invalid.")
+        matches = [
+            entry
+            for entry in payload["files"]
+            if isinstance(entry, dict) and entry.get("path") == payload_path
+        ]
+        if len(matches) != 1:
+            raise ConfigurationError(f"The installed PLwC payload does not own {payload_path}.")
+        expected = matches[0].get("sha256")
+        if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+            raise ConfigurationError(f"The installed PLwC payload hash is invalid for {payload_path}.")
+        return expected
+
+    def _runtime_image_contract(self) -> dict[str, Any]:
+        try:
+            lock = load_runtime_image_lock(self.project_root)
+        except RuntimeImageLockError as exc:
+            raise ConfigurationError(str(exc)) from exc
+        installed_lock_path = (
+            self.project_root / "app" / "installation" / "runtime-images.json"
+        ).resolve(strict=False)
+        if lock.path.resolve(strict=False) != installed_lock_path:
+            raise ConfigurationError(
+                "The configuration UI accepts only the installed runtime image lock."
+            )
+        manager_path = self.project_root / "app" / "installation" / "runtime-image-manager.py"
+        expected_manager_sha256 = self._payload_file_sha256(
+            "common/installation/runtime-image-manager.py"
+        )
+        actual_manager_sha256 = _sha256_file(manager_path)
+        if actual_manager_sha256 != expected_manager_sha256:
+            raise ConfigurationError("The installed runtime image manager failed its payload hash check.")
+        manifest = self._read_json_object(lock.path)
+        if manifest is None or not isinstance(manifest.get("images"), list):
+            raise ConfigurationError("The installed runtime image lock could not be read.")
+        return {
+            "lock": lock,
+            "manifest": manifest,
+            "manager_path": manager_path,
+            "manager_sha256": expected_manager_sha256,
+        }
+
+    def _runtime_image_center_snapshot(self) -> dict[str, Any]:
+        try:
+            contract = self._runtime_image_contract()
+        except ConfigurationError as exc:
+            return {
+                "available": False,
+                "state": "unavailable",
+                "can_plan": False,
+                "error": str(exc),
+                "images": [],
+            }
+        docker_path = resolve_docker_executable()
+        selection = self._read_installer_selection()
+        stored_states = {
+            "document_worker": selection.get("RuntimeImages", "DocumentWorkerState", fallback="safe_mode"),
+            "node_runner": selection.get("RuntimeImages", "NodeRunnerState", fallback="safe_mode"),
+            "python_runner": selection.get("RuntimeImages", "PythonRunnerState", fallback="safe_mode"),
+        }
+        images = [
+            {
+                "id": str(image.get("id")),
+                "display_tag": str(image.get("display_tag")),
+                "reference": str(image.get("reference")),
+                "download_bytes": int(image.get("download_bytes", 0)),
+                "content_bytes": int(image.get("content_bytes", 0)),
+                "state": stored_states.get(str(image.get("id")), "safe_mode"),
+            }
+            for image in contract["manifest"]["images"]
+            if isinstance(image, dict)
+        ]
+        ready = len(images) == 3 and all(image["state"] == "probe_passed" for image in images)
+        report_path = selection.get("RuntimeImages", "ReportPath", fallback="").strip()
+        return {
+            "available": True,
+            "state": "ready" if ready else "safe_mode",
+            "can_plan": bool(docker_path),
+            "docker_available": bool(docker_path),
+            "source": "ghcr.io/mhoedt-ai",
+            "platform": "linux/amd64",
+            "manifest_sha256": contract["lock"].sha256,
+            "source_commit": contract["lock"].source_commit,
+            "download_bytes": sum(image["download_bytes"] for image in images),
+            "content_bytes": sum(image["content_bytes"] for image in images),
+            "images": images,
+            "report_path": report_path if report_path and Path(report_path).is_file() else None,
+            "error": None if docker_path else "Docker CLI is unavailable. Start Docker Desktop before retrying.",
+        }
+
+    @staticmethod
+    def _validated_runtime_image_report(
+        path: Path,
+        *,
+        operation: str,
+        manifest_sha256: str,
+        build_id: str,
+        manifest: dict[str, Any],
+    ) -> dict[str, Any]:
+        try:
+            report = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ConfigurationError("The runtime image manager did not create a readable report.") from exc
+        if not isinstance(report, dict):
+            raise ConfigurationError("The runtime image manager report is invalid.")
+        report_id = report.get("report_id")
+        unsigned_report = dict(report)
+        unsigned_report.pop("report_id", None)
+        if not isinstance(report_id, str) or not hmac.compare_digest(
+            report_id,
+            _canonical_report_digest(unsigned_report),
+        ):
+            raise ConfigurationError("The runtime image manager report failed its integrity check.")
+        expected_phase = "image_acquisition" if operation == "acquire" else "image_inventory"
+        required_values = {
+            "schema_version": "1.0.0",
+            "build_id": build_id,
+            "phase": expected_phase,
+            "category": "docker",
+            "command_id": f"runtime-image-manager-{operation}",
+            "manifest_sha256": manifest_sha256,
+        }
+        if any(report.get(key) != value for key, value in required_values.items()):
+            raise ConfigurationError("The runtime image manager report contract is invalid.")
+        if (
+            report.get("started") is not True
+            or type(report.get("exit_code")) is not int
+            or type(report.get("ok")) is not bool
+            or type(report.get("timed_out")) is not bool
+            or type(report.get("cancelled")) is not bool
+            or not isinstance(report.get("started_at"), str)
+            or not isinstance(report.get("finished_at"), str)
+            or type(report.get("duration_ms")) is not int
+            or report["duration_ms"] < 0
+            or not isinstance(report.get("stdout"), str)
+            or not isinstance(report.get("stderr"), str)
+            or type(report.get("stdout_truncated")) is not bool
+            or type(report.get("stderr_truncated")) is not bool
+            or not isinstance(report.get("plan_id"), str)
+            or re.fullmatch(r"[0-9a-f]{32}", report["plan_id"]) is None
+        ):
+            raise ConfigurationError("The runtime image manager diagnostic envelope is invalid.")
+        report_location = report.get("report_path")
+        if not isinstance(report_location, str) or Path(report_location).resolve(strict=False) != path.resolve(
+            strict=False
+        ):
+            raise ConfigurationError("The runtime image manager report path is invalid.")
+        expected_images = {
+            str(image["id"]): str(image["reference"])
+            for image in manifest["images"]
+            if isinstance(image, dict)
+        }
+        raw_images = report.get("images")
+        if not isinstance(raw_images, list):
+            raise ConfigurationError("The runtime image manager report has no image states.")
+        observed_images: dict[str, dict[str, Any]] = {}
+        for image in raw_images:
+            if not isinstance(image, dict):
+                raise ConfigurationError("The runtime image manager report has an invalid image state.")
+            image_id = image.get("id")
+            if (
+                image_id not in expected_images
+                or image_id in observed_images
+                or image.get("reference") != expected_images[image_id]
+            ):
+                raise ConfigurationError("The runtime image manager report has an unexpected image state.")
+            observed_images[str(image_id)] = image
+        if report["ok"] is True:
+            if set(observed_images) != set(expected_images):
+                raise ConfigurationError("The runtime image manager success report is incomplete.")
+            allowed_states = {"present", "download_required"} if operation == "inventory" else {"probe_passed"}
+            if any(image.get("state") not in allowed_states for image in observed_images.values()):
+                raise ConfigurationError("The runtime image manager success state is invalid.")
+            expected_state = "inventory_complete" if operation == "inventory" else "ready"
+            if report.get("exit_code") != 0 or report.get("state") != expected_state:
+                raise ConfigurationError("The runtime image manager success result is inconsistent.")
+        elif report.get("exit_code") == 0 or report.get("state") != "safe_mode":
+            raise ConfigurationError("The runtime image manager failure result is inconsistent.")
+        return report
+
+    def _run_runtime_image_manager(self, operation: str, *, confirmed: bool) -> dict[str, Any]:
+        contract = self._runtime_image_contract()
+        docker_path = resolve_docker_executable()
+        if not docker_path:
+            raise ConfigurationError("Docker CLI is unavailable. Start Docker Desktop before retrying.")
+        report_path = self.project_root / "logs" / "setup" / f"r27-runtime-images-{operation}.json"
+        process_report_dir = (
+            self.project_root / "logs" / "setup" / f"r27-runtime-image-processes-{operation}"
+        )
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        process_report_dir.mkdir(parents=True, exist_ok=True)
+        selection = self._read_installer_selection()
+        build_id = selection.get("BuildIdentity", "BuildId", fallback="plwc-configuration-r27").strip()
+        python_path = Path(sys.executable)
+        console_python = python_path.with_name("python.exe")
+        if console_python.is_file():
+            python_path = console_python
+        command = [
+            str(python_path),
+            str(contract["manager_path"]),
+            operation,
+            "--manifest",
+            str(contract["lock"].path),
+            "--manifest-sha256",
+            contract["lock"].sha256,
+            "--docker",
+            str(docker_path),
+            "--report",
+            str(report_path),
+            "--process-report-dir",
+            str(process_report_dir),
+            "--build-id",
+            build_id or "plwc-configuration-r27",
+            "--timeout-seconds",
+            "900",
+            "--inactivity-timeout-seconds",
+            "120",
+        ]
+        if confirmed:
+            command.extend(("--consent-token", RUNTIME_IMAGE_CONSENT_TOKEN))
+        try:
+            completed = self.runtime_image_runner(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=960,
+                shell=False,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise ConfigurationError(f"The runtime image manager could not be started: {type(exc).__name__}.") from exc
+        report = self._validated_runtime_image_report(
+            report_path,
+            operation=operation,
+            manifest_sha256=contract["lock"].sha256,
+            build_id=build_id or "plwc-configuration-r27",
+            manifest=contract["manifest"],
+        )
+        if completed.returncode == 0 and report.get("ok") is not True:
+            raise ConfigurationError("The runtime image manager exit code disagrees with its report.")
+        if completed.returncode != 0 and report.get("exit_code") != completed.returncode:
+            raise ConfigurationError("The runtime image manager failure code disagrees with its report.")
+        return report
+
+    def _build_runtime_image_plan(self, *, store: bool) -> dict[str, Any]:
+        contract = self._runtime_image_contract()
+        inventory = self._run_runtime_image_manager("inventory", confirmed=False)
+        if inventory.get("ok") is not True:
+            raise ConfigurationError(str(inventory.get("error") or "Runtime image inventory failed."))
+        manifest_by_id = {
+            str(image["id"]): image
+            for image in contract["manifest"]["images"]
+            if isinstance(image, dict) and image.get("id")
+        }
+        actions = []
+        for state in inventory.get("images", []):
+            if not isinstance(state, dict) or state.get("id") not in manifest_by_id:
+                raise ConfigurationError("Runtime image inventory returned an unexpected image entry.")
+            image = manifest_by_id[str(state["id"])]
+            current_state = str(state.get("state"))
+            if current_state not in {"present", "download_required"}:
+                raise ConfigurationError("Runtime image inventory returned an unsupported state.")
+            actions.append(
+                {
+                    "id": str(state["id"]),
+                    "reference": str(image["reference"]),
+                    "current_state": current_state,
+                    "action": "verify_and_probe" if current_state == "present" else "download_verify_and_probe",
+                    "download_bytes": 0 if current_state == "present" else int(image["download_bytes"]),
+                    "content_bytes": 0 if current_state == "present" else int(image["content_bytes"]),
+                }
+            )
+        state_contract = {
+            "plan_type": "runtime_image_acquisition",
+            "manifest_sha256": contract["lock"].sha256,
+            "source_commit": contract["lock"].source_commit,
+            "actions": actions,
+        }
+        state_digest = _canonical_digest(state_contract)
+        attempt_id = secrets.token_hex(16)
+        plan = {
+            **state_contract,
+            "state_digest": state_digest,
+            "attempt_id": attempt_id,
+            "plan_id": _canonical_digest(
+                {"state_digest": state_digest, "attempt_id": attempt_id}
+            ),
+            "confirmation_required": True,
+            "source": "ghcr.io/mhoedt-ai",
+            "platform": "linux/amd64",
+            "download_bytes": sum(action["download_bytes"] for action in actions),
+            "content_bytes": sum(action["content_bytes"] for action in actions),
+            "inventory_report": inventory.get("report_path"),
+        }
+        if store:
+            self._runtime_image_plans = {plan["plan_id"]: plan}
+        return plan
+
+    def plan_runtime_image_acquisition(self) -> dict[str, Any]:
+        if not self._runtime_image_operation_lock.acquire(blocking=False):
+            raise ConfigurationError("A runtime image operation is already active.")
+        try:
+            return self._build_runtime_image_plan(store=True)
+        finally:
+            self._runtime_image_operation_lock.release()
+
+    def _store_runtime_image_outcome(self, report: dict[str, Any]) -> None:
+        selection = self._read_installer_selection()
+        if not selection.has_section("RuntimeImages"):
+            selection.add_section("RuntimeImages")
+        states = {
+            str(image.get("id")): str(image.get("state"))
+            for image in report.get("images", [])
+            if isinstance(image, dict) and image.get("id")
+        }
+        selection.set("RuntimeImages", "ManifestIncluded", "true")
+        selection.set("RuntimeImages", "ConsentGiven", "true")
+        selection.set("RuntimeImages", "Outcome", "ready" if report.get("ok") is True else "failed")
+        selection.set("RuntimeImages", "DocumentWorkerState", states.get("document_worker", "safe_mode"))
+        selection.set("RuntimeImages", "NodeRunnerState", states.get("node_runner", "safe_mode"))
+        selection.set("RuntimeImages", "PythonRunnerState", states.get("python_runner", "safe_mode"))
+        selection.set("RuntimeImages", "ReportPath", str(report.get("report_path") or ""))
+        self._write_installer_selection(selection)
+
+    def apply_runtime_image_acquisition(self, plan_id: Any, confirmed: Any) -> dict[str, Any]:
+        if confirmed is not True:
+            raise ConfigurationError("Runtime image acquisition requires explicit confirmation.")
+        if not isinstance(plan_id, str) or len(plan_id) != 64:
+            raise ConfigurationError("Runtime image acquisition plan ID is invalid.")
+        plan = self._runtime_image_plans.get(plan_id)
+        if plan is None:
+            raise ConfigurationError("Runtime image acquisition plan is no longer available. Review a new plan.")
+        if not self._runtime_image_operation_lock.acquire(blocking=False):
+            raise ConfigurationError("A runtime image operation is already active.")
+        try:
+            current_plan = self._build_runtime_image_plan(store=False)
+            if current_plan["state_digest"] != plan["state_digest"]:
+                self._runtime_image_plans.clear()
+                raise ConfigurationError("Runtime image state changed. Review the new plan before applying it.")
+            self._runtime_image_plans.clear()
+            report = self._run_runtime_image_manager("acquire", confirmed=True)
+            with self._write_lock:
+                self._store_runtime_image_outcome(report)
+            return {
+                "ok": report.get("ok") is True,
+                "state": "ready" if report.get("ok") is True else "safe_mode",
+                "report": report,
+                "runtime_images": self._runtime_image_center_snapshot(),
+            }
+        finally:
+            self._runtime_image_operation_lock.release()
 
     def _installation_doctor(self, config: Any) -> InstallationDoctor:
         workspace = Path(config.allowed_roots[0]) if config.allowed_roots else None
@@ -1596,6 +1967,13 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
                 result = self.server.service.plan_doctor_repair(payload.get("snapshot_id"))
             elif self.path == "/api/doctor/apply":
                 result = self.server.service.apply_doctor_repair(
+                    payload.get("plan_id"),
+                    payload.get("confirmed"),
+                )
+            elif self.path == "/api/runtime-images/plan":
+                result = self.server.service.plan_runtime_image_acquisition()
+            elif self.path == "/api/runtime-images/apply":
+                result = self.server.service.apply_runtime_image_acquisition(
                     payload.get("plan_id"),
                     payload.get("confirmed"),
                 )

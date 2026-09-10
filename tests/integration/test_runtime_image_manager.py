@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import sys
@@ -260,3 +261,64 @@ def test_process_runner_timeout_writes_final_report(tmp_path: Path) -> None:
     assert result["ok"] is False
     assert result["timed_out"] is True
     assert Path(result["report_path"]).is_file()
+
+
+def test_successful_manager_report_uses_complete_diagnostic_envelope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = valid_manifest()
+    manifest_path = tmp_path / "runtime-images.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    docker_path = tmp_path / "docker.exe"
+    docker_path.write_bytes(b"fixture")
+    report_path = tmp_path / "runtime-image-report.json"
+
+    class SuccessfulManager:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        @staticmethod
+        def inventory() -> dict[str, object]:
+            return {
+                "ok": True,
+                "phase": "image_inventory",
+                "state": "inventory_complete",
+                "images": [],
+            }
+
+    monkeypatch.setattr(manager, "RuntimeImageManager", SuccessfulManager)
+    exit_code = manager.main(
+        [
+            "inventory",
+            "--manifest",
+            str(manifest_path),
+            "--manifest-sha256",
+            hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            "--docker",
+            str(docker_path),
+            "--report",
+            str(report_path),
+            "--process-report-dir",
+            str(tmp_path / "process-reports"),
+            "--build-id",
+            "fixture-installer-r27",
+        ]
+    )
+
+    assert exit_code == 0
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["ok"] is True
+    assert report["started"] is True
+    assert report["exit_code"] == 0
+    assert report["timed_out"] is False
+    assert report["cancelled"] is False
+    assert report["stdout"] == report["stderr"] == ""
+    assert report["stdout_truncated"] is report["stderr_truncated"] is False
+    assert report["exception_type"] is report["error_category"] is None
+    assert report["command_id"] == "runtime-image-manager-inventory"
+    assert report["started_at"] and report["finished_at"]
+    assert report["duration_ms"] >= 0
+    unsigned = dict(report)
+    report_id = unsigned.pop("report_id")
+    assert report_id == manager._sha256_bytes(manager._canonical_json(unsigned))

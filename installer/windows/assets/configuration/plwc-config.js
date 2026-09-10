@@ -45,6 +45,9 @@ const text = {
     doctorNoChanges: "Der Reparaturplan enthält keine Änderungen.",
     doctorRolledBack: "Die Reparatur ist fehlgeschlagen; ausgeführte Schritte wurden zurückgerollt.",
     doctorExported: "Der Diagnosebericht wurde zum Download bereitgestellt.",
+    runtimeImagesPlanError: "Der Nachinstallationsplan für die Laufzeit-Images konnte nicht erstellt werden.",
+    runtimeImagesApplyError: "Die Laufzeit-Images konnten nicht vollständig vorbereitet werden.",
+    runtimeImagesComplete: "Alle drei Laufzeit-Images wurden geprüft und sind bereit.",
     updateCheckError: "Die Updateprüfung ist fehlgeschlagen.",
     updatePlanError: "Der verifizierte Downloadplan konnte nicht erstellt werden.",
     updateDownloadError: "Das Update konnte nicht sicher heruntergeladen werden.",
@@ -96,6 +99,9 @@ const text = {
     doctorNoChanges: "The repair plan contains no changes.",
     doctorRolledBack: "The repair failed; completed steps were rolled back.",
     doctorExported: "The diagnosis report was prepared for download.",
+    runtimeImagesPlanError: "The runtime image installation plan could not be created.",
+    runtimeImagesApplyError: "The runtime images could not be prepared completely.",
+    runtimeImagesComplete: "All three runtime images were verified and are ready.",
     updateCheckError: "The update check failed.",
     updatePlanError: "The verified download plan could not be created.",
     updateDownloadError: "The update could not be downloaded safely.",
@@ -115,6 +121,11 @@ const elements = Object.fromEntries([
   "doctor-diagnose-button", "doctor-plan-button", "doctor-export-button", "doctor-summary",
   "doctor-findings", "doctor-dialog", "doctor-plan-id", "doctor-snapshot-id",
   "doctor-plan-actions", "doctor-confirmation", "doctor-apply-button",
+  "runtime-images-review-button", "runtime-images-state", "runtime-images-source",
+  "runtime-images-size", "runtime-images-components", "runtime-images-report",
+  "runtime-images-error", "runtime-images-dialog", "runtime-images-plan-id",
+  "runtime-images-plan-actions", "runtime-images-plan-size", "runtime-images-confirmation",
+  "runtime-images-apply-button",
   "workspace-plan-validation", "workspace-plan-writes", "workspace-plan-migration",
   "workspace-confirmation", "apply-workspace-button",
   "memory-threshold", "persona-threshold", "temperament-threshold", "memory-source",
@@ -143,6 +154,7 @@ let currentCreationPlan = null;
 let currentWorkspacePlan = null;
 let currentDoctorDiagnosis = null;
 let currentDoctorPlan = null;
+let currentRuntimeImagePlan = null;
 let currentUpdatePlan = null;
 let currentUpdateDownloaded = false;
 
@@ -159,6 +171,7 @@ function setBusy(isBusy) {
     elements["new-profile-button"], elements["review-create-profile-button"],
     elements["review-workspace-button"], elements["doctor-diagnose-button"],
     elements["doctor-plan-button"], elements["doctor-export-button"],
+    elements["runtime-images-review-button"],
     elements["update-check-button"], elements["update-review-button"]
   ].forEach((button) => {
     if (button) {
@@ -169,6 +182,7 @@ function setBusy(isBusy) {
     updateProfileButton();
     updateWorkspaceButton();
     updateDoctorButtons();
+    updateRuntimeImageButton();
     updateUpdateButtons();
   }
 }
@@ -265,6 +279,7 @@ function renderState(state) {
   renderComponentInventory(state.component_inventory);
   renderLauncherResult(state.launcher_last_result);
   renderBrowserExtensionContact(state.browser_extension_last_contact);
+  renderRuntimeImageCenter(state.runtime_image_center);
   renderUpdateCenter(state.update_center);
   if (!profileSelect.value && runtime.active_profile_name) {
     const option = document.createElement("option");
@@ -359,6 +374,88 @@ function renderBrowserExtensionContact(contact) {
     `protocol ${contact.protocolVersion || text.unknown}`,
     contact.stale ? (language === "de" ? "veraltet" : "stale") : (language === "de" ? "aktuell" : "current")
   ].join(" · ");
+}
+
+function formatMiB(value) {
+  const bytes = Number(value);
+  return Number.isFinite(bytes) && bytes >= 0 ? `${Math.ceil(bytes / (1024 * 1024))} MiB` : "-";
+}
+
+function renderRuntimeImageCenter(center) {
+  const value = center || {};
+  elements["runtime-images-state"].textContent = value.state || "unavailable";
+  elements["runtime-images-state"].className = `component-status status-${String(value.state || "unavailable")}`;
+  elements["runtime-images-source"].textContent = value.source && value.platform
+    ? `${value.source} · ${value.platform}`
+    : "-";
+  elements["runtime-images-size"].textContent = value.available
+    ? `${formatMiB(value.download_bytes)} / ${formatMiB(value.content_bytes)}`
+    : "-";
+  const images = Array.isArray(value.images) ? value.images : [];
+  elements["runtime-images-components"].textContent = images.map((image) =>
+    `${image.id || text.unknown}: ${image.state || text.unknown}`
+  ).join(" · ") || "-";
+  elements["runtime-images-report"].textContent = value.report_path || "-";
+  elements["runtime-images-error"].textContent = value.error || "";
+  elements["runtime-images-error"].hidden = !value.error;
+  updateRuntimeImageButton();
+}
+
+function updateRuntimeImageButton() {
+  const busy = document.body.classList.contains("busy");
+  const center = currentState?.runtime_image_center;
+  elements["runtime-images-review-button"].disabled = busy || center?.can_plan !== true;
+}
+
+async function reviewRuntimeImageAcquisition() {
+  clearNotice();
+  setBusy(true);
+  try {
+    currentRuntimeImagePlan = await request("/api/runtime-images/plan", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    const actions = Array.isArray(currentRuntimeImagePlan.actions) ? currentRuntimeImagePlan.actions : [];
+    elements["runtime-images-plan-id"].textContent = currentRuntimeImagePlan.plan_id || "-";
+    elements["runtime-images-plan-actions"].textContent = actions.map((action) =>
+      `${action.id || text.unknown}: ${action.action || text.unknown} (${action.reference || "-"})`
+    ).join(" | ") || "-";
+    elements["runtime-images-plan-size"].textContent =
+      `${formatMiB(currentRuntimeImagePlan.download_bytes)} / ${formatMiB(currentRuntimeImagePlan.content_bytes)}`;
+    elements["runtime-images-confirmation"].checked = false;
+    elements["runtime-images-apply-button"].disabled = true;
+    elements["runtime-images-dialog"].showModal();
+  } catch (error) {
+    displayError(error, text.runtimeImagesPlanError);
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function applyRuntimeImageAcquisition() {
+  if (!currentRuntimeImagePlan || !elements["runtime-images-confirmation"].checked) return;
+  setBusy(true);
+  try {
+    const result = await request("/api/runtime-images/apply", {
+      method: "POST",
+      body: JSON.stringify({ plan_id: currentRuntimeImagePlan.plan_id, confirmed: true })
+    }, { allowBusinessRejection: true });
+    elements["runtime-images-dialog"].close();
+    if (currentState && result.runtime_images) {
+      currentState.runtime_image_center = result.runtime_images;
+      renderRuntimeImageCenter(result.runtime_images);
+    }
+    const reportPath = result.report?.report_path || result.runtime_images?.report_path || "";
+    showNotice(
+      result.ok ? text.runtimeImagesComplete : `${text.runtimeImagesApplyError} ${reportPath}`.trim(),
+      result.ok !== true
+    );
+  } catch (error) {
+    elements["runtime-images-dialog"].close();
+    displayError(error, text.runtimeImagesApplyError);
+  } finally {
+    setBusy(false);
+  }
 }
 
 function renderUpdateCenter(update) {
@@ -964,6 +1061,16 @@ elements["review-create-profile-button"].addEventListener("click", reviewProfile
 elements["doctor-diagnose-button"].addEventListener("click", runDoctorDiagnosis);
 elements["doctor-plan-button"].addEventListener("click", reviewDoctorRepair);
 elements["doctor-export-button"].addEventListener("click", exportDoctorDiagnosis);
+elements["runtime-images-review-button"].addEventListener("click", reviewRuntimeImageAcquisition);
+elements["runtime-images-confirmation"].addEventListener("change", () => {
+  elements["runtime-images-apply-button"].disabled = !elements["runtime-images-confirmation"].checked ||
+    !currentRuntimeImagePlan;
+});
+elements["runtime-images-apply-button"].addEventListener("click", applyRuntimeImageAcquisition);
+elements["runtime-images-dialog"].addEventListener("close", () => {
+  currentRuntimeImagePlan = null;
+  elements["runtime-images-confirmation"].checked = false;
+});
 elements["update-check-button"].addEventListener("click", checkUpdates);
 elements["update-review-button"].addEventListener("click", reviewUpdateDownload);
 elements["update-download-confirmation"].addEventListener("change", () => {

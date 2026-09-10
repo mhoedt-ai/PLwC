@@ -1039,14 +1039,32 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
 
         $python = Get-Content -LiteralPath (Join-Path $configurationRoot "plwc-config.py") -Raw -Encoding UTF8
         $javascript = Get-Content -LiteralPath (Join-Path $configurationRoot "plwc-config.js") -Raw -Encoding UTF8
+        $english = Get-Content -LiteralPath (Join-Path $configurationRoot "plwc-config-en.html") -Raw -Encoding UTF8
+        $german = Get-Content -LiteralPath (Join-Path $configurationRoot "plwc-config-de.html") -Raw -Encoding UTF8
         $python | Should Match '\("127\.0\.0\.1",\s*0\)'
         $python | Should Match '_bootstrap_gateway_import_path'
         $python | Should Match 'SameSite=Strict'
         $python | Should Match 'plwc_governor\('
         $python | Should Match 'confirmed=True'
+        $python | Should Match 'load_runtime_image_lock'
+        $python | Should Match 'common/installation/runtime-image-manager\.py'
+        $python | Should Match 'installed runtime image lock'
+        $python | Should Match '_canonical_report_digest'
+        $python | Should Match '_runtime_image_operation_lock'
+        $python | Should Match 'secrets\.token_hex\(16\)'
+        $python | Should Match 'I_ACCEPT_PLWC_RUNTIME_IMAGE_DOWNLOAD_R27'
+        $python | Should Match '/api/runtime-images/plan'
+        $python | Should Match '/api/runtime-images/apply'
         $javascript | Should Match '/api/settings'
         $javascript | Should Match '/api/profile/plan'
         $javascript | Should Match '/api/profile/apply'
+        $javascript | Should Match '/api/runtime-images/plan'
+        $javascript | Should Match '/api/runtime-images/apply'
+        $javascript | Should Match 'runtime-images-confirmation'
+        $english | Should Match 'id="runtime-images-review-button"'
+        $english | Should Match 'digest-locked runtime images'
+        $german | Should Match 'id="runtime-images-review-button"'
+        $german | Should Match 'digest-fixierten Laufzeit-Images'
 
         $buildSource = Get-Content -LiteralPath $buildScript -Raw -Encoding UTF8
         foreach ($file in $configurationFiles) {
