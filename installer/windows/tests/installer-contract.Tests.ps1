@@ -812,12 +812,19 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $codeSection | Should Match "(?is)RunRuntimeImageManager\('inventory',\s*False"
         $codeSection | Should Match "(?is)RuntimeImagesPage\.Values\[0\].*?AcquireRuntimeImages"
         $codeSection | Should Match 'I_ACCEPT_PLWC_RUNTIME_IMAGE_DOWNLOAD_R27'
+        $customMessageSection | Should Match '(?im)^english\.RuntimeImagesInsufficientDisk='
+        $customMessageSection | Should Match '(?im)^german\.RuntimeImagesInsufficientDisk='
+        $codeSection | Should Match "RuntimeImageReportHasErrorCategory\('insufficient_disk'\)"
         $codeSection | Should Match '(?is)procedure\s+CancelButtonClick.*?RuntimeImagesOperationBusy.*?SaveStringToFile\(RuntimeImagesCancelFile'
 
         $managerSource | Should Match 'EXPECTED_IDS\s*=\s*\("document_worker",\s*"node_runner",\s*"python_runner"\)'
         $managerSource | Should Match '\["pull",\s*"--platform",\s*"linux/amd64",\s*str\(image\["reference"\]\)\]'
         $managerSource | Should Match '\["image",\s*"inspect",\s*"--format",\s*"\{\{json \.\}\}",\s*str\(image\["reference"\]\)\]'
         $managerSource | Should Match 'image\["reference"\]\s+in\s+repo_digests'
+        $managerSource | Should Match 'required_bytes\s*=\s*sum'
+        $managerSource | Should Match 'available_bytes\s*=\s*self\.free_space_provider'
+        $managerSource | Should Match 'if\s+available_bytes\s*<\s*required_bytes'
+        $managerSource | Should Match 'InsufficientDiskError'
         $managerSource | Should Match '"--pull",\s*"never"'
         $managerSource | Should Match 'shell=False'
         $managerSource | Should Not Match '(?i)\[\s*["'']login["'']'

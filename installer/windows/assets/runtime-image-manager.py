@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -12,7 +13,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 
 SCHEMA_VERSION = "1.0.0"
@@ -54,6 +55,15 @@ class DockerUnavailableError(RuntimeImageError):
 class PullVerificationError(RuntimeImageError):
     exit_code = 23
     category = "pull_or_verification_failed"
+
+
+class InsufficientDiskError(RuntimeImageError):
+    exit_code = 23
+    category = "insufficient_disk"
+
+    def __init__(self, message: str, *, disk_space: Mapping[str, Any]) -> None:
+        super().__init__(message)
+        self.disk_space = dict(disk_space)
 
 
 class ProbeError(RuntimeImageError):
@@ -476,12 +486,17 @@ class RuntimeImageManager:
         runner: ProcessRunner,
         timeout_seconds: int,
         inactivity_timeout_seconds: int,
+        *,
+        space_probe_path: Path | None = None,
+        free_space_provider: Callable[[Path], int] | None = None,
     ) -> None:
         self.manifest = dict(manifest)
         self.docker = docker
         self.runner = runner
         self.timeout_seconds = timeout_seconds
         self.inactivity_timeout_seconds = inactivity_timeout_seconds
+        self.space_probe_path = (space_probe_path or _default_space_probe_path()).resolve(strict=False)
+        self.free_space_provider = free_space_provider or (lambda path: int(shutil.disk_usage(path).free))
 
     def _run(self, arguments: Sequence[str], *, phase: str, command_id: str) -> dict[str, Any]:
         return self.runner.run(
@@ -550,6 +565,8 @@ class RuntimeImageManager:
     def acquire(self) -> dict[str, Any]:
         daemon = self.ensure_daemon()
         states: list[dict[str, Any]] = []
+        acquisition_plan: list[tuple[Mapping[str, Any], dict[str, Any], dict[str, Any] | None]] = []
+        disk_space: dict[str, Any] | None = None
         try:
             for image in self.manifest["images"]:
                 image_id = str(image["id"])
@@ -560,6 +577,63 @@ class RuntimeImageManager:
                     "state": "present" if self._verified(image, payload_before) else "download_required",
                     "inspect_before_report": inspect_before["report_path"],
                 }
+                acquisition_plan.append((image, state, payload_before))
+
+            required_bytes = sum(
+                int(image["content_bytes"])
+                for image, state, _payload in acquisition_plan
+                if state["state"] == "download_required"
+            )
+            if required_bytes > 0:
+                try:
+                    available_bytes = self.free_space_provider(self.space_probe_path)
+                    if (
+                        isinstance(available_bytes, bool)
+                        or not isinstance(available_bytes, int)
+                        or available_bytes < 0
+                    ):
+                        raise ValueError("free-space provider returned an invalid byte count")
+                except (OSError, ValueError) as exc:
+                    disk_space = {
+                        "probe_path": str(self.space_probe_path),
+                        "required_bytes": required_bytes,
+                        "available_bytes": None,
+                        "sufficient": False,
+                    }
+                    failed_states = []
+                    for _image, state, _payload in acquisition_plan:
+                        failed_state = dict(state)
+                        if failed_state["state"] == "download_required":
+                            failed_state["state"] = "safe_mode"
+                        failed_states.append(failed_state)
+                    error = InsufficientDiskError(
+                        f"Available Docker host storage could not be determined: {type(exc).__name__}",
+                        disk_space=disk_space,
+                    )
+                    error.images = failed_states
+                    raise error from exc
+                disk_space = {
+                    "probe_path": str(self.space_probe_path),
+                    "required_bytes": required_bytes,
+                    "available_bytes": available_bytes,
+                    "sufficient": available_bytes >= required_bytes,
+                }
+                if available_bytes < required_bytes:
+                    failed_states = []
+                    for _image, state, _payload in acquisition_plan:
+                        failed_state = dict(state)
+                        if failed_state["state"] == "download_required":
+                            failed_state["state"] = "safe_mode"
+                        failed_states.append(failed_state)
+                    error = InsufficientDiskError(
+                        "Insufficient Docker host storage for the missing PLwC runtime images",
+                        disk_space=disk_space,
+                    )
+                    error.images = failed_states
+                    raise error
+
+            for image, state, payload_before in acquisition_plan:
+                image_id = str(image["id"])
                 if state["state"] == "download_required":
                     pull = self._run(
                         ["pull", "--platform", "linux/amd64", str(image["reference"])],
@@ -611,22 +685,34 @@ class RuntimeImageManager:
                 state["observed_image_id"] = payload_after.get("Id") if payload_after else None
                 states.append(state)
         except RuntimeImageError as exc:
-            exc.images = [
-                *states,
-                *(
-                    {"id": image["id"], "reference": image["reference"], "state": "unattempted"}
-                    for image in self.manifest["images"]
-                    if image["id"] not in {state["id"] for state in states}
-                ),
-            ]
+            if not exc.images:
+                exc.images = [
+                    *states,
+                    *(
+                        {"id": image["id"], "reference": image["reference"], "state": "unattempted"}
+                        for image in self.manifest["images"]
+                        if image["id"] not in {state["id"] for state in states}
+                    ),
+                ]
             raise
         return {
             "ok": True,
             "phase": "image_acquisition",
             "state": "ready",
             "daemon_report": daemon["report_path"],
+            "disk_space": disk_space,
             "images": states,
         }
+
+
+def _default_space_probe_path() -> Path:
+    candidates = [os.environ.get("LOCALAPPDATA"), os.environ.get("TEMP"), os.environ.get("TMP")]
+    for raw_path in candidates:
+        if raw_path:
+            path = Path(raw_path).expanduser()
+            if path.exists():
+                return path
+    return Path.home()
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -646,30 +732,32 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _fallback_report(args: argparse.Namespace, exc: BaseException, *, exit_code: int) -> dict[str, Any]:
-    return _with_report_id(
-        {
-            "schema_version": SCHEMA_VERSION,
-            "build_id": str(getattr(args, "build_id", "unknown")),
-            "plan_id": str(getattr(args, "plan_id", "unknown")),
-            "phase": "image_acquisition" if getattr(args, "operation", "") == "acquire" else "image_inventory",
-            "category": "docker",
-            "started": True,
-            "started_at": _utc_now(),
-            "finished_at": _utc_now(),
-            "exit_code": exit_code,
-            "timed_out": bool(getattr(exc, "timed_out", False)),
-            "cancelled": bool(getattr(exc, "cancelled", False)),
-            "stdout": "",
-            "stderr": "",
-            "exception_type": type(exc).__name__,
-            "error_category": getattr(exc, "category", "unexpected_error"),
-            "error": _redact_text(str(exc)),
-            "report_path": str(Path(getattr(args, "report", "runtime-image-error.json")).resolve(strict=False)),
-            "ok": False,
-            "state": "safe_mode",
-            "images": list(getattr(exc, "images", [])),
-        }
-    )
+    report = {
+        "schema_version": SCHEMA_VERSION,
+        "build_id": str(getattr(args, "build_id", "unknown")),
+        "plan_id": str(getattr(args, "plan_id", "unknown")),
+        "phase": "image_acquisition" if getattr(args, "operation", "") == "acquire" else "image_inventory",
+        "category": "docker",
+        "started": True,
+        "started_at": _utc_now(),
+        "finished_at": _utc_now(),
+        "exit_code": exit_code,
+        "timed_out": bool(getattr(exc, "timed_out", False)),
+        "cancelled": bool(getattr(exc, "cancelled", False)),
+        "stdout": "",
+        "stderr": "",
+        "exception_type": type(exc).__name__,
+        "error_category": getattr(exc, "category", "unexpected_error"),
+        "error": _redact_text(str(exc)),
+        "report_path": str(Path(getattr(args, "report", "runtime-image-error.json")).resolve(strict=False)),
+        "ok": False,
+        "state": "safe_mode",
+        "images": list(getattr(exc, "images", [])),
+    }
+    disk_space = getattr(exc, "disk_space", None)
+    if isinstance(disk_space, Mapping):
+        report["disk_space"] = dict(disk_space)
+    return _with_report_id(report)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -713,6 +713,8 @@ english.RuntimeImagesCancelled=The runtime image download was cancelled. PLwC wi
 german.RuntimeImagesCancelled=Der Download der Laufzeit-Images wurde abgebrochen. PLwC bleibt im Safe Mode.
 english.RuntimeImagesFailed=A runtime image could not be prepared. PLwC will remain in Safe Mode.
 german.RuntimeImagesFailed=Ein Laufzeit-Image konnte nicht vorbereitet werden. PLwC bleibt im Safe Mode.
+english.RuntimeImagesInsufficientDisk=There is not enough free storage for the missing runtime images. No image download was started; PLwC will remain in Safe Mode.
+german.RuntimeImagesInsufficientDisk=Für die fehlenden Laufzeit-Images ist nicht genügend freier Speicher vorhanden. Es wurde kein Image-Download gestartet; PLwC bleibt im Safe Mode.
 english.RuntimeImagesRetry=Review the diagnostic report and click Next to start a new attempt.
 german.RuntimeImagesRetry=Prüfen Sie den Diagnosebericht und klicken Sie für einen neuen Versuch auf „Weiter“.
 english.RuntimeImagesReady=All three runtime images passed their offline probes.
@@ -2641,6 +2643,15 @@ begin
   end;
 end;
 
+function RuntimeImageReportHasErrorCategory(CategoryName: String): Boolean;
+var
+  ReportText: AnsiString;
+begin
+  Result := FileExists(RuntimeImagesReportPath) and
+    LoadStringFromFile(RuntimeImagesReportPath, ReportText) and
+    (Pos('"error_category": "' + CategoryName + '"', String(ReportText)) > 0);
+end;
+
 procedure WriteRuntimeImageFallbackReport(OperationName, ErrorText: String);
 var
   Content: String;
@@ -2814,7 +2825,10 @@ begin
   else
   begin
     RuntimeImagesOutcome := 'failed';
-    MessageText := CustomMessage('RuntimeImagesFailed');
+    if RuntimeImageReportHasErrorCategory('insufficient_disk') then
+      MessageText := CustomMessage('RuntimeImagesInsufficientDisk')
+    else
+      MessageText := CustomMessage('RuntimeImagesFailed');
   end;
   LoadRuntimeImageStatesFromReport;
   RuntimeImagesInfoMemo.Lines.Text := BuildRuntimeImagesInfoText;

@@ -44,7 +44,9 @@ manual first-dialog override are separate cases.
 | `RuntimeImagesReady` | All three runtime images passed their offline probes. | Alle drei Laufzeit-Images haben ihre Offline-Tests bestanden. |
 | `RuntimeImagesReportLocation` | Diagnostic report: | Diagnosebericht: |
 
-These 20 IDs raise the expected r27 inventory to **313 paired IDs**, unless an
+| `RuntimeImagesInsufficientDisk` | There is not enough free storage for the missing runtime images. No image download was started; PLwC will remain in Safe Mode. | Für die fehlenden Laufzeit-Images ist nicht genügend freier Speicher vorhanden. Es wurde kein Image-Download gestartet; PLwC bleibt im Safe Mode. |
+
+These 21 IDs raise the expected r27 inventory to **314 paired IDs**, unless an
 implementation change deliberately adds another visible message. Any addition
 requires an English and German literal, a reviewed expectation update and a G2
 design update before G4.

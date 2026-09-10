@@ -77,8 +77,16 @@ class FakeRunner:
         raise AssertionError(f"Unexpected fake Docker call: {args}")
 
 
-def _image_manager(fake: FakeRunner):
-    return manager.RuntimeImageManager(valid_manifest(), Path("docker.exe"), fake, 30, 5)
+def _image_manager(fake: FakeRunner, *, available_bytes: int = 10**12):
+    return manager.RuntimeImageManager(
+        valid_manifest(),
+        Path("docker.exe"),
+        fake,
+        30,
+        5,
+        space_probe_path=Path.cwd(),
+        free_space_provider=lambda _path: available_bytes,
+    )
 
 
 def test_all_missing_pulls_exact_digests_then_runs_hardened_probes() -> None:
@@ -109,13 +117,96 @@ def test_matching_local_digests_skip_pull_but_not_probe() -> None:
     assert len([call for call in fake.calls if call[1] == "run"]) == 3
 
 
+def test_insufficient_disk_enters_safe_mode_before_first_pull() -> None:
+    manifest = valid_manifest()
+    required_bytes = sum(image["content_bytes"] for image in manifest["images"])
+    fake = FakeRunner()
+    with pytest.raises(manager.InsufficientDiskError) as captured:
+        _image_manager(fake, available_bytes=required_bytes - 1).acquire()
+    assert captured.value.category == "insufficient_disk"
+    assert captured.value.disk_space == {
+        "probe_path": str(Path.cwd().resolve()),
+        "required_bytes": required_bytes,
+        "available_bytes": required_bytes - 1,
+        "sufficient": False,
+    }
+    assert [item["state"] for item in captured.value.images] == ["safe_mode"] * 3
+    assert not [call for call in fake.calls if call[1] in {"pull", "run"}]
+
+
+def test_disk_gate_counts_only_missing_images() -> None:
+    manifest = valid_manifest()
+    present_reference = manifest["images"][0]["reference"]
+    required_bytes = sum(image["content_bytes"] for image in manifest["images"][1:])
+    fake = FakeRunner(present=(present_reference,))
+    runtime_manager = manager.RuntimeImageManager(
+        manifest,
+        Path("docker.exe"),
+        fake,
+        30,
+        5,
+        space_probe_path=Path.cwd(),
+        free_space_provider=lambda _path: required_bytes,
+    )
+    result = runtime_manager.acquire()
+    assert result["disk_space"]["required_bytes"] == required_bytes
+    assert result["disk_space"]["sufficient"] is True
+    assert len([call for call in fake.calls if call[1] == "pull"]) == 2
+
+
+def test_all_present_images_do_not_require_a_disk_space_probe() -> None:
+    manifest = valid_manifest()
+    refs = [image["reference"] for image in manifest["images"]]
+    fake = FakeRunner(present=refs)
+
+    def fail_if_called(_path: Path) -> int:
+        raise AssertionError("free-space probe must not run when no image is missing")
+
+    result = manager.RuntimeImageManager(
+        manifest,
+        Path("docker.exe"),
+        fake,
+        30,
+        5,
+        space_probe_path=Path.cwd(),
+        free_space_provider=fail_if_called,
+    ).acquire()
+    assert result["disk_space"] is None
+    assert result["state"] == "ready"
+
+
+def test_unavailable_disk_measurement_fails_closed_before_pull() -> None:
+    fake = FakeRunner()
+
+    def unavailable(_path: Path) -> int:
+        raise OSError("synthetic disk probe failure")
+
+    runtime_manager = manager.RuntimeImageManager(
+        valid_manifest(),
+        Path("docker.exe"),
+        fake,
+        30,
+        5,
+        space_probe_path=Path.cwd(),
+        free_space_provider=unavailable,
+    )
+    with pytest.raises(manager.InsufficientDiskError) as captured:
+        runtime_manager.acquire()
+    assert captured.value.disk_space["available_bytes"] is None
+    assert captured.value.disk_space["sufficient"] is False
+    assert not [call for call in fake.calls if call[1] in {"pull", "run"}]
+
+
 def test_pull_failure_stops_later_network_and_records_unattempted() -> None:
     fake = FakeRunner(fail_pull_id="node_runner")
     with pytest.raises(manager.PullVerificationError) as captured:
         _image_manager(fake).acquire()
     states = {item["id"]: item["state"] for item in captured.value.images}
     assert states == {"document_worker": "probe_passed", "node_runner": "safe_mode", "python_runner": "unattempted"}
-    assert not any("python-runner" in " ".join(call) for call in fake.calls)
+    assert not any(
+        call[1] in {"pull", "run"} and "python-runner" in " ".join(call)
+        for call in fake.calls
+    )
 
 
 def test_probe_failure_never_becomes_ready() -> None:
