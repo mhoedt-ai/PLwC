@@ -25,6 +25,10 @@ RUN rm -rf \
         /usr/local/bin/npm \
         /usr/local/bin/npx \
         /usr/local/bin/yarn \
-        /usr/local/bin/yarnpkg
+        /usr/local/bin/yarnpkg \
+    && dpkg --purge --force-remove-essential --force-depends perl-base \
+    && test ! -e /usr/bin/perl \
+    && ! dpkg-query -W perl-base \
+    && rm -f /var/log/dpkg.log
 
 WORKDIR /work

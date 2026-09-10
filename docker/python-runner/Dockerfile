@@ -1,4 +1,4 @@
-FROM python:3.12.14-slim-bookworm@sha256:9c47360a2a0355e2da18516d0b1c2126ec22c195d2185e97347c9d98398c5bef
+FROM python:3.12.14-slim-trixie@sha256:2fe5997d249a808b8eeea52c58a1dbffbba28754dc11699ef5c029f2d818ce79
 
 ARG OCI_CREATED="1970-01-01T00:00:00Z"
 ARG SOURCE_REVISION="unknown"
@@ -15,5 +15,12 @@ LABEL org.opencontainers.image.title="PLwC Python Runner" \
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
+
+# Perl is not a PLwC runtime dependency. Removing the incidental Debian
+# essential package eliminates an otherwise executable, unused interpreter.
+RUN dpkg --purge --force-remove-essential --force-depends perl-base \
+    && test ! -e /usr/bin/perl \
+    && ! dpkg-query -W perl-base \
+    && rm -f /var/log/dpkg.log
 
 WORKDIR /work

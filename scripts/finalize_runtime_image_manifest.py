@@ -163,31 +163,32 @@ def finalize(
         )
         _atomic_json(provenance_path, registry_provenance)
         relative_provenance = provenance_path.relative_to(build_report_path.parent).as_posix()
-        images.append(
-            {
-                "id": image["id"],
-                "repository": repository,
+        manifest_image = {
+            "id": image["id"],
+            "repository": repository,
+            "version": image["version"],
+            "display_tag": f"{repository}:{image['version']}",
+            "digest": registry["digest"],
+            "reference": f"{repository}@{registry['digest']}",
+            "platform": {"os": "linux", "architecture": "amd64"},
+            "download_bytes": registry["download_bytes"],
+            "content_bytes": image["content_bytes"],
+            "probe_id": f"{image['id']}_v1",
+            "oci_labels": {
+                "source": "https://github.com/mhoedt-ai/PLwC",
+                "revision": source_commit,
                 "version": image["version"],
-                "display_tag": f"{repository}:{image['version']}",
-                "digest": registry["digest"],
-                "reference": f"{repository}@{registry['digest']}",
-                "platform": {"os": "linux", "architecture": "amd64"},
-                "download_bytes": registry["download_bytes"],
-                "content_bytes": image["content_bytes"],
-                "probe_id": f"{image['id']}_v1",
-                "oci_labels": {
-                    "source": "https://github.com/mhoedt-ai/PLwC",
-                    "revision": source_commit,
-                    "version": image["version"],
-                    "licenses": "Apache-2.0",
-                    "created": report["created"],
-                },
-                "sbom": {key: evidence["sbom"][key] for key in ("path", "sha256")},
-                "licenses": {key: evidence["licenses"][key] for key in ("path", "sha256")},
-                "vulnerabilities": {key: evidence["vulnerabilities"][key] for key in ("path", "sha256")},
-                "provenance": {"path": relative_provenance, "sha256": _sha256_file(provenance_path)},
-            }
-        )
+                "licenses": "Apache-2.0",
+                "created": report["created"],
+            },
+            "sbom": {key: evidence["sbom"][key] for key in ("path", "sha256")},
+            "licenses": {key: evidence["licenses"][key] for key in ("path", "sha256")},
+            "vulnerabilities": {key: evidence["vulnerabilities"][key] for key in ("path", "sha256")},
+            "provenance": {"path": relative_provenance, "sha256": _sha256_file(provenance_path)},
+        }
+        if evidence.get("vex") is not None:
+            manifest_image["vex"] = {key: evidence["vex"][key] for key in ("path", "sha256")}
+        images.append(manifest_image)
     manifest = {
         "$schema": "./runtime-images.schema.json",
         "schema_version": "1.0.0",

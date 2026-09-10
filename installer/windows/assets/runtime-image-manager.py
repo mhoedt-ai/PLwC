@@ -208,6 +208,7 @@ def validate_manifest(value: Any) -> dict[str, Any]:
         "sbom",
         "licenses",
         "vulnerabilities",
+        "vex",
         "provenance",
     }
     for index, raw_image in enumerate(raw_images):
@@ -253,6 +254,8 @@ def validate_manifest(value: Any) -> dict[str, Any]:
             raise ManifestError(f"{image_id} created label is required")
         for evidence_key in ("sbom", "licenses", "vulnerabilities", "provenance"):
             _validate_evidence(image.get(evidence_key), f"{image_id}.{evidence_key}")
+        if image.get("vex") is not None:
+            _validate_evidence(image.get("vex"), f"{image_id}.vex")
         images.append(image)
     if seen != set(EXPECTED_IDS):
         raise ManifestError("manifest does not contain the exact required image IDs")

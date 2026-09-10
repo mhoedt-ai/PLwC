@@ -22,6 +22,16 @@ SECRET_PATTERNS = (
 )
 BLOCKING_VULNERABILITY_SEVERITIES = frozenset({"CRITICAL"})
 BLOCKING_CVSS_MINIMUM = 9.0
+VEX_CONTEXT = "https://openvex.dev/ns/v0.2.0"
+VEX_EXCEPTION_POLICY = {
+    ("document_worker", "CVE-2026-52490"): {
+        "product": "pkg:docker/mhoedt-ai/plwc-document-worker@0.1.0",
+        "package": "tiff",
+        "package_version": "4.7.0-3+deb13u3",
+        "justification": "vulnerable_code_not_present",
+        "probe_id": "document_worker_v1",
+    }
+}
 
 
 class VerificationError(RuntimeError):
@@ -153,9 +163,21 @@ def _has_unaccepted_severity(value: Any) -> bool:
     )
 
 
-def _sarif_gate_findings(payload: Mapping[str, Any]) -> list[str]:
-    findings: list[str] = []
-    seen: set[str] = set()
+def _purl_component(raw_purl: str) -> tuple[str, str] | None:
+    if not raw_purl.startswith("pkg:"):
+        return None
+    package_and_version = raw_purl.split("?", 1)[0].rsplit("/", 1)[-1]
+    if "@" not in package_and_version:
+        return None
+    package, version = package_and_version.rsplit("@", 1)
+    package = unquote(package)
+    version = unquote(version)
+    return (package, version) if package and version else None
+
+
+def _sarif_gate_records(payload: Mapping[str, Any]) -> list[dict[str, str]]:
+    findings: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str, str, str]] = set()
     for run in payload.get("runs", []):
         if not isinstance(run, Mapping):
             continue
@@ -170,44 +192,139 @@ def _sarif_gate_findings(payload: Mapping[str, Any]) -> list[str]:
             rule_id = str(rule.get("id", "unknown-rule"))
             severity = str(properties.get("cvssV3_severity", "CRITICAL"))
             fixed = str(properties.get("fixed_version", "unknown"))
+            package_version = "unknown"
             help_value = rule.get("help", {})
             help_text = str(help_value.get("text", "")) if isinstance(help_value, Mapping) else ""
             package_match = re.search(r"(?im)^\s*Package\s*:\s*([^\r\n]+)", help_text)
             package = package_match.group(1).strip() if package_match else ""
-            if not package:
-                purls = properties.get("purls", [])
-                if isinstance(purls, list):
-                    for raw_purl in purls:
-                        if not isinstance(raw_purl, str) or not raw_purl.startswith("pkg:"):
-                            continue
-                        package_path = raw_purl.split("?", 1)[0].rsplit("@", 1)[0]
-                        package = unquote(package_path.rsplit("/", 1)[-1])
-                        if package:
-                            break
+            purls = properties.get("purls", [])
+            if isinstance(purls, list):
+                for raw_purl in purls:
+                    if not isinstance(raw_purl, str):
+                        continue
+                    component = _purl_component(raw_purl)
+                    if component is not None:
+                        package, package_version = component
+                        break
             package = package or "unknown"
-            detail = f"{rule_id} severity={severity} package={package} fixed={fixed}"
-            if detail not in seen:
-                seen.add(detail)
-                findings.append(detail)
+            key = (rule_id, severity, package, package_version, fixed)
+            if key not in seen:
+                seen.add(key)
+                findings.append(
+                    {
+                        "rule_id": rule_id,
+                        "severity": severity,
+                        "package": package,
+                        "package_version": package_version,
+                        "fixed": fixed,
+                    }
+                )
         for result in run.get("results", []):
             if not isinstance(result, Mapping) or not _has_unaccepted_severity(result):
                 continue
             rule_id = str(result.get("ruleId", "unknown-rule"))
-            detail = f"{rule_id} severity=CRITICAL"
-            if detail not in seen:
-                seen.add(detail)
-                findings.append(detail)
+            key = (rule_id, "CRITICAL", "unknown", "unknown", "unknown")
+            if key not in seen:
+                seen.add(key)
+                findings.append(
+                    {
+                        "rule_id": rule_id,
+                        "severity": "CRITICAL",
+                        "package": "unknown",
+                        "package_version": "unknown",
+                        "fixed": "unknown",
+                    }
+                )
     return findings
 
 
-def _verify_vulnerability_report(path: Path) -> None:
+def _sarif_gate_findings(payload: Mapping[str, Any]) -> list[str]:
+    return [
+        f"{item['rule_id']} severity={item['severity']} package={item['package']} fixed={item['fixed']}"
+        for item in _sarif_gate_records(payload)
+    ]
+
+
+def _verify_vex(
+    path: Path,
+    *,
+    image_id: str,
+    repository: str,
+    version: str,
+    probe_id: str,
+) -> set[tuple[str, str, str]]:
+    payload = _read_json(path)
+    if (
+        not isinstance(payload, Mapping)
+        or payload.get("@context") != VEX_CONTEXT
+        or not isinstance(payload.get("@id"), str)
+        or not str(payload.get("@id", "")).startswith("https://")
+        or not isinstance(payload.get("author"), str)
+        or not str(payload.get("author", "")).strip()
+        or not isinstance(payload.get("timestamp"), str)
+        or payload.get("version") != 1
+        or not isinstance(payload.get("statements"), list)
+        or not payload["statements"]
+    ):
+        raise VerificationError("OpenVEX exception evidence is invalid")
+    accepted: set[tuple[str, str, str]] = set()
+    for statement in payload["statements"]:
+        if not isinstance(statement, Mapping):
+            raise VerificationError("OpenVEX statement is invalid")
+        vulnerability = statement.get("vulnerability")
+        cve = str(vulnerability.get("name", "")) if isinstance(vulnerability, Mapping) else ""
+        policy = VEX_EXCEPTION_POLICY.get((image_id, cve))
+        products = statement.get("products")
+        if policy is None:
+            raise VerificationError(f"OpenVEX statement is outside the approved exception policy: {image_id}/{cve}")
+        if (
+            statement.get("status") != "not_affected"
+            or statement.get("justification") != policy["justification"]
+            or probe_id != policy["probe_id"]
+            or not isinstance(statement.get("impact_statement"), str)
+            or "tiffcrop" not in str(statement.get("impact_statement", "")).casefold()
+            or not isinstance(products, list)
+            or len(products) != 1
+            or not isinstance(products[0], Mapping)
+            or products[0].get("@id") != policy["product"]
+            or policy["product"] != f"pkg:docker/{repository.removeprefix('ghcr.io/')}@{version}"
+        ):
+            raise VerificationError(f"OpenVEX statement does not satisfy the approved exception policy: {image_id}/{cve}")
+        subcomponents = products[0].get("subcomponents")
+        if not isinstance(subcomponents, list) or len(subcomponents) != 1 or not isinstance(subcomponents[0], Mapping):
+            raise VerificationError(f"OpenVEX statement must identify one exact vulnerable component: {image_id}/{cve}")
+        component = _purl_component(str(subcomponents[0].get("@id", "")))
+        expected_component = (str(policy["package"]), str(policy["package_version"]))
+        if component != expected_component:
+            raise VerificationError(f"OpenVEX component does not match the approved exception policy: {image_id}/{cve}")
+        accepted.add((cve, component[0], component[1]))
+    return accepted
+
+
+def _verify_vulnerability_report(
+    path: Path,
+    *,
+    accepted_exceptions: set[tuple[str, str, str]] | None = None,
+) -> None:
     payload = _read_json(path)
     if not isinstance(payload, Mapping) or not isinstance(payload.get("runs"), list):
         raise VerificationError("Vulnerability report is not SARIF")
     if payload.get("ok") is False or payload.get("status") == "unavailable":
         raise VerificationError("Vulnerability scan was unavailable")
     if _has_unaccepted_severity(payload):
-        details = _sarif_gate_findings(payload)
+        accepted = accepted_exceptions or set()
+        records = _sarif_gate_records(payload)
+        unaccepted = [
+            item
+            for item in records
+            if (item["rule_id"], item["package"], item["package_version"]) not in accepted
+        ]
+        if records and not unaccepted:
+            return
+        details = [
+            f"{item['rule_id']} severity={item['severity']} package={item['package']} fixed={item['fixed']}"
+            for item in unaccepted
+        ]
         summary = "; ".join(details[:10]) if details else "details unavailable"
         if len(details) > 10:
             summary += f"; plus {len(details) - 10} more"
@@ -249,6 +366,10 @@ def _verify_evidence_set(
     root: Path,
     evidence: Mapping[str, Any],
     *,
+    image_id: str,
+    repository: str,
+    version: str,
+    probe_id: str,
     subject_digest: str,
     source_commit: str,
     prefix: str,
@@ -260,10 +381,20 @@ def _verify_evidence_set(
     }
     _verify_sbom(paths["sbom"])
     _verify_licenses(paths["licenses"])
+    accepted_exceptions: set[tuple[str, str, str]] = set()
+    if evidence.get("vex") is not None:
+        vex_path = _resolve_evidence(root, evidence.get("vex"), f"{prefix}.vex")
+        accepted_exceptions = _verify_vex(
+            vex_path,
+            image_id=image_id,
+            repository=repository,
+            version=version,
+            probe_id=probe_id,
+        )
     vulnerability_status = evidence.get("vulnerabilities", {}).get("status")
     if vulnerability_status in (None, "complete"):
         try:
-            _verify_vulnerability_report(paths["vulnerabilities"])
+            _verify_vulnerability_report(paths["vulnerabilities"], accepted_exceptions=accepted_exceptions)
         except VerificationError as exc:
             raise VerificationError(f"{prefix}: {exc}") from exc
     elif allow_incomplete_vulnerability_scan:
@@ -338,6 +469,10 @@ def verify_build_report(path: Path, *, allow_development_only: bool = False) -> 
         _verify_evidence_set(
             path.parent,
             evidence,
+            image_id=image_id,
+            repository=str(image["repository"]),
+            version=str(image["version"]),
+            probe_id=str(probe["id"]),
             subject_digest=str(image["digest"]),
             source_commit=source_commit,
             prefix=image_id,
@@ -360,6 +495,10 @@ def verify_manifest(path: Path, *, require_current_commit: bool = True) -> dict[
         _verify_evidence_set(
             path.parent,
             image,
+            image_id=str(image["id"]),
+            repository=str(image["repository"]),
+            version=str(image["version"]),
+            probe_id=str(image["probe_id"]),
             subject_digest=str(image["digest"]),
             source_commit=source_commit,
             prefix=str(image["id"]),

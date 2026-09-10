@@ -15,7 +15,7 @@
       "version": "0.1.0",
       "context": "docker/document-worker",
       "repository": "ghcr.io/mhoedt-ai/plwc-document-worker",
-      "base": "docker.io/library/python:3.12.14-slim-bookworm@sha256:9c47360a2a0355e2da18516d0b1c2126ec22c195d2185e97347c9d98398c5bef"
+      "base": "docker.io/library/python:3.12.14-slim-trixie@sha256:2fe5997d249a808b8eeea52c58a1dbffbba28754dc11699ef5c029f2d818ce79"
     },
     {
       "id": "node_runner",
@@ -29,7 +29,7 @@
       "version": "0.1.0",
       "context": "docker/python-runner",
       "repository": "ghcr.io/mhoedt-ai/plwc-python-runner",
-      "base": "docker.io/library/python:3.12.14-slim-bookworm@sha256:9c47360a2a0355e2da18516d0b1c2126ec22c195d2185e97347c9d98398c5bef"
+      "base": "docker.io/library/python:3.12.14-slim-trixie@sha256:2fe5997d249a808b8eeea52c58a1dbffbba28754dc11699ef5c029f2d818ce79"
     }
   ]
 }

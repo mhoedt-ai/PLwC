@@ -77,6 +77,16 @@ def test_valid_manifest_has_exact_allowlisted_contract() -> None:
     assert all(":latest" not in image["reference"] for image in value["images"])
 
 
+def test_manifest_allows_hashed_vex_evidence_only() -> None:
+    value = valid_manifest()
+    value["images"][0]["vex"] = {"path": "evidence/document_worker/openvex.json", "sha256": "f" * 64}
+    validated = manager.validate_manifest(value)
+    assert validated["images"][0]["vex"]["sha256"] == "f" * 64
+    value["images"][0]["vex"]["path"] = "../untrusted.json"
+    with pytest.raises(manager.ManifestError, match="repository-relative"):
+        manager.validate_manifest(value)
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
@@ -125,14 +135,14 @@ def test_document_worker_uses_fixed_snapshot_and_direct_versions() -> None:
     assert "snapshot.debian.org/archive/debian/20260909T000000Z" in dockerfile
     assert "snapshot.debian.org/archive/debian-security/20260909T000000Z" in dockerfile
     for package in (
-        "fonts-dejavu-core=2.37-6",
-        "libcairo2=1.16.0-7",
-        "libffi8=3.4.4-1",
-        "libgdk-pixbuf-2.0-0=2.42.10+dfsg-1+deb12u4",
-        "libglib2.0-0=2.74.6-2+deb12u9",
-        "libpango-1.0-0=1.50.12+ds-1",
-        "libpangoft2-1.0-0=1.50.12+ds-1",
-        "libpcre2-8-0=10.42-1+deb12u1",
-        "shared-mime-info=2.2-1",
+        "fonts-dejavu-core=2.37-8",
+        "libcairo2=1.18.4-1+b1",
+        "libffi8=3.4.8-2",
+        "libgdk-pixbuf-2.0-0=2.42.12+dfsg-4+deb13u1",
+        "libglib2.0-0t64=2.84.4-3~deb13u3",
+        "libpango-1.0-0=1.56.3-1",
+        "libpangoft2-1.0-0=1.56.3-1",
+        "libpcre2-8-0=10.46-1~deb13u1",
+        "shared-mime-info=2.4-5+b2",
     ):
         assert package in dockerfile

@@ -63,6 +63,18 @@ def test_node_runner_exposes_node_but_removes_package_managers() -> None:
         assert f"/usr/local/bin/{executable}" in text
 
 
+def test_every_runtime_image_removes_incidental_perl_runtime() -> None:
+    paths = sorted((ROOT / "docker").glob("*-runner/Dockerfile")) + [
+        ROOT / "docker" / "document-worker" / "Dockerfile"
+    ]
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert "dpkg --purge --force-remove-essential --force-depends perl-base" in text
+        assert "test ! -e /usr/bin/perl" in text
+        assert "! dpkg-query -W perl-base" in text
+        assert "rm -f /var/log/dpkg.log" in text
+
+
 def test_build_script_has_no_push_or_registry_login_path() -> None:
     path = ROOT / "scripts" / "build_runtime_images.py"
     text = path.read_text(encoding="utf-8")
@@ -82,6 +94,34 @@ def test_build_script_has_no_push_or_registry_login_path() -> None:
     assert '"--pull",' in text and '"never",' in text
     assert '"--network",' in text and '"none",' in text
     assert "npm npx corepack yarn yarnpkg" in text
+    assert "test ! -e /usr/bin/perl" in text
+    assert "! command -v perl" in text
+    assert "! command -v tiffcrop" in text
+    assert "ssl.OPENSSL_VERSION_INFO == (3, 5, 0, 7, 0)" in text
+    assert "VEX_DOCUMENTS" in text
+    assert 'evidence["vex"]' in text
+
+
+def test_tiff_exception_is_narrow_openvex_evidence() -> None:
+    path = ROOT / "security" / "vex" / "document-worker-CVE-2026-52490.openvex.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["@context"] == "https://openvex.dev/ns/v0.2.0"
+    assert len(payload["statements"]) == 1
+    statement = payload["statements"][0]
+    assert statement["vulnerability"]["name"] == "CVE-2026-52490"
+    assert statement["status"] == "not_affected"
+    assert statement["justification"] == "vulnerable_code_not_present"
+    assert statement["products"] == [
+        {
+            "@id": "pkg:docker/mhoedt-ai/plwc-document-worker@0.1.0",
+            "subcomponents": [
+                {
+                    "@id": "pkg:deb/debian/tiff@4.7.0-3%2Bdeb13u3?os_distro=trixie&os_name=debian&os_version=13"
+                }
+            ],
+        }
+    ]
+    assert "tiffcrop" in statement["impact_statement"]
 
 
 def test_wheelhouse_builder_and_worker_acceptance_test_exist() -> None:

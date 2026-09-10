@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -117,6 +119,65 @@ def _build_report(tmp_path: Path) -> Path:
     return path
 
 
+def _attach_approved_vex(report_path: Path) -> dict:
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    image = next(item for item in report["images"] if item["id"] == "document_worker")
+    vex_path = report_path.parent / "evidence" / "document_worker" / "openvex.json"
+    vex_payload = json.loads(
+        (ROOT / "security" / "vex" / "document-worker-CVE-2026-52490.openvex.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    vex_path.write_text(json.dumps(vex_payload, indent=2) + "\n", encoding="utf-8")
+    image["evidence"]["vex"] = {
+        "path": vex_path.relative_to(report_path.parent).as_posix(),
+        "sha256": _sha256(vex_path),
+    }
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return vex_payload
+
+
+def _write_tiff_critical(report_path: Path) -> None:
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    image = next(item for item in report["images"] if item["id"] == "document_worker")
+    descriptor = image["evidence"]["vulnerabilities"]
+    vulnerability_path = report_path.parent / descriptor["path"]
+    vulnerability_path.write_text(
+        json.dumps(
+            {
+                "version": "2.1.0",
+                "runs": [
+                    {
+                        "tool": {
+                            "driver": {
+                                "name": "fixture",
+                                "rules": [
+                                    {
+                                        "id": "CVE-2026-52490",
+                                        "properties": {
+                                            "cvssV3_severity": "CRITICAL",
+                                            "fixed_version": "not fixed",
+                                            "purls": [
+                                                "pkg:deb/debian/tiff@4.7.0-3%2Bdeb13u3?os_distro=trixie&os_name=debian&os_version=13"
+                                            ],
+                                        },
+                                    }
+                                ],
+                            }
+                        },
+                        "results": [],
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    descriptor["sha256"] = _sha256(vulnerability_path)
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+
 def test_source_lock_and_release_build_report_verify(tmp_path: Path) -> None:
     assert verifier.verify_source_lock()["target_platform"] == "linux/amd64"
     report = verifier.verify_build_report(_build_report(tmp_path))
@@ -191,6 +252,37 @@ def test_critical_vulnerability_fails_closed_and_extracts_package_from_purl(tmp_
         raise AssertionError("A CRITICAL vulnerability must fail the release gate")
 
 
+def test_exact_openvex_exception_accepts_tiffcrop_false_positive_but_preserves_raw_sarif(tmp_path: Path) -> None:
+    report_path = _build_report(tmp_path)
+    _attach_approved_vex(report_path)
+    _write_tiff_critical(report_path)
+
+    verified = verifier.verify_build_report(report_path)
+    descriptor = verified["images"][0]["evidence"]["vulnerabilities"]
+    raw_payload = json.loads((tmp_path / descriptor["path"]).read_text(encoding="utf-8"))
+    assert verifier._sarif_gate_findings(raw_payload) == [
+        "CVE-2026-52490 severity=CRITICAL package=tiff fixed=not fixed"
+    ]
+
+
+def test_openvex_outside_exact_policy_cannot_bypass_critical_gate(tmp_path: Path) -> None:
+    report_path = _build_report(tmp_path)
+    _attach_approved_vex(report_path)
+    _write_tiff_critical(report_path)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    image = next(item for item in report["images"] if item["id"] == "document_worker")
+    descriptor = image["evidence"]["vex"]
+    vex_path = tmp_path / descriptor["path"]
+    vex_payload = json.loads(vex_path.read_text(encoding="utf-8"))
+    vex_payload["statements"][0]["justification"] = "vulnerable_code_not_in_execute_path"
+    vex_path.write_text(json.dumps(vex_payload), encoding="utf-8")
+    descriptor["sha256"] = _sha256(vex_path)
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(verifier.VerificationError, match="approved exception policy"):
+        verifier.verify_build_report(report_path)
+
+
 def test_cvss_boundary_blocks_only_critical_range() -> None:
     for accepted in ("HIGH", "MEDIUM", "LOW", "UNSPECIFIED"):
         assert verifier._has_unaccepted_severity({"properties": {"severity": accepted}}) is False
@@ -227,6 +319,7 @@ def test_dirty_or_unscanned_build_is_development_only_and_never_release_grade(tm
 
 def test_finalizer_binds_remote_manifest_digest_and_reverifies(tmp_path: Path) -> None:
     report_path = _build_report(tmp_path)
+    _attach_approved_vex(report_path)
     report = json.loads(report_path.read_text(encoding="utf-8"))
     local_by_repository = {
         image["repository"]: {"digest": image["digest"], "config_digest": image["config_digest"]}
@@ -252,6 +345,8 @@ def test_finalizer_binds_remote_manifest_digest_and_reverifies(tmp_path: Path) -
     assert len(manifest["images"]) == 3
     assert all("@sha256:" in image["reference"] for image in manifest["images"])
     assert all(image["download_bytes"] == 2560 for image in manifest["images"])
+    assert "vex" in manifest["images"][0]
+    assert all("vex" not in image for image in manifest["images"][1:])
     verified = verifier.verify_manifest(manifest_path)
     assert verified["installer_revision"] == "r27"
 

@@ -8,5 +8,9 @@ the complete digest from the r27 runtime-image lock, with `--pull never`,
 `--network none`, a read-only root, dropped capabilities, no-new-privileges and
 UID/GID 65532.
 
+The digest-pinned Python 3.12 Trixie base supplies the fixed OpenSSL 3.5.7
+runtime. The incidental Debian `perl-base` interpreter is removed because it
+is not part of the Python sandbox contract.
+
 No package is installed at runtime. User code can import only modules already
 present in the fixed image or supplied under the governed workspace mount.

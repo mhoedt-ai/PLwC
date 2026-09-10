@@ -15,6 +15,8 @@ installer-hashed r27 runtime-image manifest.
 - The upstream `npm`, `npx`, `corepack` and `yarn` installations are removed.
   The caller may supply already reviewed `node_modules` inside the workspace
   mount (`/work`); the sandbox cannot install dependencies itself.
+- The incidental Debian `perl-base` interpreter is also removed; Perl is not
+  part of the Node sandbox contract.
 - The gateway enforces `--user 65532:65532`, `--network none`, `--read-only`,
   `--cap-drop ALL`, `--security-opt no-new-privileges` at runtime.
   These flags are server-owned and cannot be changed by the model.

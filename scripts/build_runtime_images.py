@@ -11,6 +11,9 @@ from typing import Any, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_LOCK = ROOT / "docker" / "runtime-image-sources.json"
+VEX_DOCUMENTS = {
+    "document_worker": ROOT / "security" / "vex" / "document-worker-CVE-2026-52490.openvex.json",
+}
 
 
 def _run(arguments: Sequence[str], *, capture: bool = False) -> subprocess.CompletedProcess[str]:
@@ -177,7 +180,18 @@ def _probe_image(image: dict[str, Any], tag: str) -> dict[str, Any]:
         "/tmp:rw,noexec,nosuid,size=64m",
     ]
     if image_id == "document_worker":
-        arguments.extend((tag, "probe"))
+        arguments.extend(
+            (
+                "--entrypoint",
+                "sh",
+                tag,
+                "-c",
+                "test ! -e /usr/bin/perl && ! command -v perl >/dev/null 2>&1 && "
+                "! command -v tiffcrop >/dev/null 2>&1 && "
+                "python -c 'import ssl; assert ssl.OPENSSL_VERSION_INFO == (3, 5, 0, 7, 0)' && "
+                "python -m plwc_document_worker probe",
+            )
+        )
     elif image_id == "node_runner":
         arguments.extend(
             (
@@ -185,12 +199,23 @@ def _probe_image(image: dict[str, Any], tag: str) -> dict[str, Any]:
                 "sh",
                 tag,
                 "-c",
-                'node --version && for x in npm npx corepack yarn yarnpkg; do '
+                'node --version && test ! -e /usr/bin/perl && '
+                '! command -v perl >/dev/null 2>&1 && for x in npm npx corepack yarn yarnpkg; do '
                 'if command -v "$x" >/dev/null 2>&1; then exit 19; fi; done',
             )
         )
     elif image_id == "python_runner":
-        arguments.extend(("--entrypoint", "sh", tag, "-c", 'python --version && test "$(id -u)" = 65532'))
+        arguments.extend(
+            (
+                "--entrypoint",
+                "sh",
+                tag,
+                "-c",
+                "python -c 'import ssl; assert ssl.OPENSSL_VERSION_INFO == (3, 5, 0, 7, 0)' && "
+                'python --version && test "$(id -u)" = 65532 && test ! -e /usr/bin/perl && '
+                "! command -v perl >/dev/null 2>&1",
+            )
+        )
     else:
         raise RuntimeError(f"No governed runtime probe exists for {image_id}")
     completed = _run(arguments, capture=True)
@@ -254,7 +279,7 @@ def _security_evidence(image: dict[str, Any], tag: str, output_root: Path, diges
         },
     }
     _atomic_json(provenance_path, provenance)
-    return {
+    evidence = {
         "sbom": {"path": str(sbom_path.relative_to(output_root)), "sha256": _sha256(sbom_path)},
         "licenses": {"path": str(licenses_path.relative_to(output_root)), "sha256": _sha256(licenses_path)},
         "vulnerabilities": {
@@ -264,6 +289,12 @@ def _security_evidence(image: dict[str, Any], tag: str, output_root: Path, diges
         },
         "provenance": {"path": str(provenance_path.relative_to(output_root)), "sha256": _sha256(provenance_path)},
     }
+    vex_source = VEX_DOCUMENTS.get(image_id)
+    if vex_source is not None:
+        vex_path = evidence_root / "openvex.json"
+        _atomic_json(vex_path, json.loads(vex_source.read_text(encoding="utf-8")))
+        evidence["vex"] = {"path": str(vex_path.relative_to(output_root)), "sha256": _sha256(vex_path)}
+    return evidence
 
 
 def main() -> int:

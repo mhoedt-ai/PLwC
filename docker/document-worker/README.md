@@ -22,6 +22,13 @@ server and must be invoked only through PLwC-controlled policy and audit code.
 - The r27 installer may acquire the manifest-locked GHCR digest only after the
   user explicitly opts in. Gateway execution never pulls an image.
 - Generated artifacts must remain under `/work`.
+- The digest-pinned Python 3.12 Trixie base supplies the fixed OpenSSL runtime.
+  Incidental `perl-base` is removed because Perl is not part of the worker
+  contract.
+- The required `libtiff6` runtime library does not install the vulnerable
+  `tiffcrop` tool. The governed probe fails if `tiffcrop` is present. The raw
+  scanner report and the exact OpenVEX assessment for `CVE-2026-52490` remain
+  separate, hashed release evidence.
 
 ## Offline Wheelhouse Build Strategy
 
@@ -35,7 +42,7 @@ python scripts\build_document_worker_wheelhouse.py --clean --download
 This command downloads only the exact files recorded in
 `wheelhouse-manifest.json`, verifies every hash and copies the deterministic,
 vendored `odfpy==1.4.1` wheel. It never rewrites the lock or manifests.
-Bookworm supports the recorded `manylinux_2_28_x86_64` wheels as well as the
+Trixie supports the recorded `manylinux_2_28_x86_64` wheels as well as the
 older `manylinux2014_x86_64` wheels retained by unchanged dependencies.
 
 A dependency refresh is a separate, deliberate maintainer operation:

@@ -112,6 +112,7 @@
         "sbom": { "$ref": "#/$defs/evidence" },
         "licenses": { "$ref": "#/$defs/evidence" },
         "vulnerabilities": { "$ref": "#/$defs/evidence" },
+        "vex": { "$ref": "#/$defs/evidence" },
         "provenance": { "$ref": "#/$defs/evidence" }
       }
     }

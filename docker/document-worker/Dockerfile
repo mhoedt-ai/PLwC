@@ -1,4 +1,4 @@
-FROM python:3.12.14-slim-bookworm@sha256:9c47360a2a0355e2da18516d0b1c2126ec22c195d2185e97347c9d98398c5bef
+FROM python:3.12.14-slim-trixie@sha256:2fe5997d249a808b8eeea52c58a1dbffbba28754dc11699ef5c029f2d818ce79
 
 ARG OCI_CREATED="1970-01-01T00:00:00Z"
 ARG SOURCE_REVISION="unknown"
@@ -23,21 +23,21 @@ WORKDIR /opt/plwc-document-worker
 
 RUN rm -f /etc/apt/sources.list.d/debian.sources \
     && printf '%s\n' \
-        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/20260909T000000Z bookworm main' \
-        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/20260909T000000Z bookworm-updates main' \
-        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian-security/20260909T000000Z bookworm-security main' \
+        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/20260909T000000Z trixie main' \
+        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/20260909T000000Z trixie-updates main' \
+        'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian-security/20260909T000000Z trixie-security main' \
         > /etc/apt/sources.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-        fonts-dejavu-core=2.37-6 \
-        libcairo2=1.16.0-7 \
-        libffi8=3.4.4-1 \
-        libgdk-pixbuf-2.0-0=2.42.10+dfsg-1+deb12u4 \
-        libglib2.0-0=2.74.6-2+deb12u9 \
-        libpango-1.0-0=1.50.12+ds-1 \
-        libpangoft2-1.0-0=1.50.12+ds-1 \
-        libpcre2-8-0=10.42-1+deb12u1 \
-        shared-mime-info=2.2-1 \
+        fonts-dejavu-core=2.37-8 \
+        libcairo2=1.18.4-1+b1 \
+        libffi8=3.4.8-2 \
+        libgdk-pixbuf-2.0-0=2.42.12+dfsg-4+deb13u1 \
+        libglib2.0-0t64=2.84.4-3~deb13u3 \
+        libpango-1.0-0=1.56.3-1 \
+        libpangoft2-1.0-0=1.56.3-1 \
+        libpcre2-8-0=10.46-1~deb13u1 \
+        shared-mime-info=2.4-5+b2 \
     && rm -rf \
         /var/lib/apt/lists/* \
         /var/cache/apt/* \
@@ -56,7 +56,11 @@ COPY worker/ /opt/plwc-document-worker/
 RUN python -m pip install --no-index --find-links=/opt/plwc-wheelhouse --require-hashes -r requirements-doc-worker.lock
 
 RUN useradd --no-log-init --no-create-home --uid 10001 --shell /usr/sbin/nologin plwcworker \
-    && chage -d 0 plwcworker
+    && chage -d 0 plwcworker \
+    && dpkg --purge --force-remove-essential --force-depends perl-base \
+    && test ! -e /usr/bin/perl \
+    && ! dpkg-query -W perl-base \
+    && rm -f /var/log/dpkg.log
 USER 10001:10001
 
 WORKDIR /work

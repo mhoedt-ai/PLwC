@@ -88,6 +88,7 @@ jobs:
           path: |
             build/runtime-images/image-build-report.json
             build/runtime-images/evidence/*/vulnerabilities.sarif.json
+            build/runtime-images/evidence/*/openvex.json
           if-no-files-found: warn
           retention-days: 7
           compression-level: 9

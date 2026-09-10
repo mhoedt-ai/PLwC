@@ -72,6 +72,11 @@ Freigabedigests.
     ausschließlich `CRITICAL` beziehungsweise CVSS-Werte ab 9,0 das r27-Gate.
     `HIGH`, `MEDIUM`, `LOW` und `UNSPECIFIED` werden bewusst akzeptiert, aber
     weder aus dem SARIF-Bericht entfernt noch als behoben dargestellt.
+12. Eine Critical-Ausnahme ist nur als gehashte OpenVEX-Evidenz zulässig. Der
+    Verifier akzeptiert ausschließlich die im Code festgelegte Kombination aus
+    Image, CVE, Paket, Paketversion, Begründung und bestandenem Realprobe-Vertrag.
+    Der unveränderte rohe SARIF-Bericht bleibt daneben erhalten; eine generische
+    Allowlist oder das Entfernen eines Fundes aus der Evidenz ist verboten.
 
 ## 3. Phasenfolge
 
@@ -171,42 +176,42 @@ nächste Gate nicht.
 | G0 – Anforderungsbaseline | r26-Befund, neues Image-Opt-in, exaktes Inventar, GHCR-/Sichtbarkeitsregeln, Freigabepunkte und Traceability reviewed | UR-015, UR-016 und SR-011 sind in V-Modell und vollständiger G0-Traceability ergänzt; Konflikt zu SR-008 ist durch standardmäßig ausgeschaltetes ausdrückliches Opt-in aufgelöst; keine blockierende Entscheidung offen. | **PASS / GO zu G1** |
 | G1 – Architektur und Security | Digest-only, drei kontrollierte Runtime-Images, reproduzierbare Basen/Pakete, Manifest, anonymer öffentlicher Pull, Diagnose-, Safe-Mode- und Rollbackdesign reviewed | Die fünf G1-Reviews legen Single-Source-Manifest, drei feste GHCR-Repositories, reproduzierbare Buildgrenzen, standardmäßig ausgeschaltetes Opt-in, gehärtete Realprobes, Safe Mode, Besitzgrenzen, Threat Controls und vollständige Diagnose-/Exportverträge ohne offene Security- oder UX-Entscheidung fest. | **PASS / GO zu G2** |
 | G2 – Implementierungs-/Testfreigabe | vollständiges Design, Tests für alle Erfolgs-/Fehlerpfade, saubere Testdaten und Freigabe zur Implementierung | 27/27 Anforderungen sind automatisierten und systemischen Tests zugeordnet; 16/16 Komponentenauswahlen, 30 Image-Akquisitionsfälle, 24 Diagnose-Faults, neun disposable Windows-Umgebungen sowie das vollständige Deutsch-/Englisch- und Redaktionsdesign sind festgelegt. Die beiden fehlenden README-Dateien sind explizite, nicht verzichtbare G3-Implementierungsobjekte. | **PASS / GO zu G3-Implementierung** |
-| G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | r27-Implementierung, drei digest-gepinnte Dockerfiles, Source Lock, Wheelhouseprüfung, Build-/Verifikations-/Finalisierungsskripte und ein ausschließlich manuell auslösbarer, SHA-gepinnter privater Staging-Workflow sind vorhanden. Beide Inno-Zweige kompilieren isoliert. Der GitHub-Lauf `34390503813` aus Commit `d33f543e2e6feb34f8273329dfbf7a459c245073` erzeugte vollständige SBOM-, Lizenz-, Provenienz-, Realprobe- und Schwachstellenevidenz, stoppte aber vor dem privaten Push am damaligen High/Critical-Gate. Seit der Product-Owner-Entscheidung vom 10. September blockiert nur noch Critical; die vorhandenen Berichte enthalten weiterhin Critical-Funde. Ein erfolgreicher Lauf und der GHCR-Stagingdigest fehlen daher noch. | **FAIL / STOP** |
-| G4 – Komponentenverifikation | alle automatisierten Image-, Installer-, Security-, Diagnose- und Regressionsprüfungen PASS | Aktueller Zwischenstand nach Änderung des Schweregrad-Gates: Python `156 PASS / 12 umgebungsbedingt SKIP`, Installer-Pester `73/73`, Bridge `26/26`, Extension `190/190`; neue Image-/Diagnoseverträge sind darin enthalten. Der Gate-Status bleibt gesperrt, bis G3 geschlossen ist und ein vollständiger Image-Security-/Realprobe-Lauf unter der freigegebenen Critical-only-Regel bestanden wurde. | **STOP – G3 VORGESCHALTET** |
+| G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | Die technische Critical-Bereinigung liegt lokal vor: Python-Basen und Document-Worker-Pakete sind auf den gepinnten Trixie-Stand angehoben, das nicht benötigte Perl ist aus allen drei Images entfernt, und der nur `tools/tiffcrop.c` betreffende TIFF-Fund besitzt eine eng festgelegte OpenVEX-Bewertung. Roher SARIF und VEX werden getrennt gehasht. Ein lokaler Doppelbuild aller drei Images einschließlich gehärteter Realprobes ist reproduzierbar; er ist wegen uncommitted Quellen und lokal nicht authentifiziertem Scout ausdrücklich nur Entwicklungsevidenz. Ein sauberer, authentifizierter GitHub-Lauf und der GHCR-Stagingdigest fehlen noch. | **FAIL / STOP** |
+| G4 – Komponentenverifikation | alle automatisierten Image-, Installer-, Security-, Diagnose- und Regressionsprüfungen PASS | Aktueller lokaler Zwischenstand nach der Critical-Bereinigung: Python `161 PASS / 12 umgebungsbedingt SKIP`, Bridge `26/26`, Extension `190/190`; der frühere Installer-Pester-Stand ist `73/73`, muss für den neuen Commit aber in GitHub CI erneut bestätigt werden, weil Pester 3.4.0 lokal nicht installiert ist. Der Gate-Status bleibt gesperrt, bis G3 geschlossen ist und ein vollständiger Image-Security-/Realprobe-Lauf unter der freigegebenen Critical-only-Regel bestanden wurde. | **STOP – G3 VORGESCHALTET** |
 | G5 – Systemvalidierung | Clean-Windows- und Upgrade-Matrix einschließlich echter Dokument-/Sandboxoperation, anonymer GHCR-Pull, Offline/Proxy/Abbruch/Neustart und Datenerhalt PASS | Realer Nutzerbefund zeigt `worker_missing`. Der r26→r27-Pfad existiert noch nicht. Der separate Preflight-Exitcode 1 ist nicht vollständig diagnostiziert, weil der referenzierte JSON-Bericht im Export fehlt. | **FAIL / STOP** |
 | G6 – Release Acceptance | G0–G5 PASS; exakte Image- und EXE-Digests, Signaturstatus, Claims, Known Limitations und Product-Owner-GO vollständig | Kein r27-Artefakt; r26 durch neuen Feldbefund zurückgezogen; keine Veröffentlichungsfreigabe. | **BLOCKED / NO-GO** |
 
 ## 5. Heutige technische Baseline
 
-- Git: `a4c4457ddc56013dac475931a683bbdd027df8bd`, Branch
-  `codex/plwc-chat-bridge-rc19`; Arbeitsbaum vor dieser Dokumentation sauber.
+- Branch: `codex/plwc-chat-bridge-rc19`; letzter eingecheckter Stand vor der
+  Critical-Bereinigung: `87e278e778dbb9536bc4902f6c316d5bf6585bfc`.
 - GitHub-Repository: `mhoedt-ai/PLwC`, öffentlich; Standardbranch `main`.
-- Bestehende CI baut und veröffentlicht keine Container-Images.
-- Lokales Document-Worker-Image:
-  `sha256:c81b8c2bd3a4b697453e8d31585ffad2e1540e10fb6941dd2ea02ba5a9470344`,
-  ca. 190 MB; netzwerkloser `probe` PASS.
-- Lokales Node-Runner-Image:
-  `sha256:08e261ae3c44d5bee285f732fd05615420b1bafbf62614ec9bcffe39c0107cf4`,
-  ca. 80 MB; gehärteter Versionsprobe PASS.
-- Lokales `python:3.12-slim`:
-  `sha256:46cb7cc2877e60fbd5e21a9ae6115c30ace7a077b9f8772da879e4590c18c2e3`,
-  ca. 43 MB; gehärteter Versionsprobe PASS.
-- Diese lokalen IDs sind nicht aus GHCR bezogen, nicht als r27 signiert und
-  wegen der heutigen mutablen Buildinputs nicht als reproduzierbare
-  Freigabedigests qualifiziert.
+- Der manuelle Workflow baut und prüft alle Images vor einem möglichen privaten
+  Staging-Push; ohne Environment-Freigabe findet kein Upload statt.
+- Der lokale Entwicklungs-Doppelbuild nach der Critical-Bereinigung ergab
+  reproduzierbar `sha256:01c4e259…` (Document Worker), `sha256:22ce0357…`
+  (Node Runner) und `sha256:a218bd0d…` (Python Runner). Alle netzwerklosen,
+  nicht privilegierten Realprobes bestanden. Diese Digests enthalten noch die
+  Identität des vorherigen Commits und sind deshalb keine Freigabedigests.
+- OpenSSL wird in den Python-basierten Images aus dem gepinnten Trixie-Stand
+  bereitgestellt. Perl ist in allen drei Laufzeitimages entfernt und die Probes
+  prüfen zusätzlich, dass `/usr/bin/perl` nicht existiert und `perl` nicht
+  auflösbar ist.
+- `libtiff6` bleibt eine erforderliche Document-Worker-Laufzeitbibliothek. Das
+  vom Scanner gemeldete CVE betrifft ausschließlich das nicht installierte
+  Werkzeug `tiffcrop`; dessen Abwesenheit ist Teil des Realprobes und die
+  Einzelbewertung liegt als OpenVEX-Dokument vor.
 - Der finale r26-Kandidat ist nur 5.494.996 Bytes groß und enthält kein
   importierbares Docker-Imagearchiv.
 
 ## 6. Nächster zulässiger Schritt
 
-G0 bis G2 sind geschlossen; die G3-Implementierungsobjekte und statischen
-Verträge sind erstellt. Der vollständige freigegebene Scan liegt aus Lauf
-`34390503813` vor. High, Medium, Low und Unspecified sind gemäß ausdrücklicher
-Product-Owner-Entscheidung akzeptiert; Critical bleibt blockierend. Nächster
-Schritt ist deshalb die Behebung oder einzeln belegte Bewertung der vorhandenen
-Critical-Funde und danach ein erneuter vollständiger Lauf. G3 bleibt bis zu
-einem erfolgreichen privaten GHCR-Staging-Push geschlossen. Ein neuer Push
-benötigt erneut die ausdrückliche Product-Owner-Freigabe.
+G0 bis G2 sind geschlossen. Nächster zulässiger Schritt ist das Einchecken der
+Critical-Bereinigung, die normale CI-Verifikation und anschließend ein neuer
+vollständiger, authentifizierter Image-Lauf aus exakt diesem sauberen Commit.
+Der private GHCR-Staging-Push und damit das Schließen von G3 benötigen erneut
+die ausdrückliche Product-Owner-Freigabe. Bis dahin werden weder Stagingimages
+hochgeladen noch Freigabedigests in den Installer übernommen.
 
 ## 7. Separat aufgenommener Bridge-Befund
 
