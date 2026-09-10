@@ -109,8 +109,15 @@ Freigabedigests.
 
 - separaten, manuell startbaren und SHA-gepinnten GitHub-Actions-Workflow
   erstellen;
-- Workflowrechte minimal auf `contents: read`, `packages: write` und die
-  tatsächlich verwendeten Attestierungsrechte begrenzen;
+- Workflow-`GITHUB_TOKEN` auf `contents: read` begrenzen; Registryzugriffe
+  ausschließlich über den separaten Environment-PAT ausführen;
+- private Stagingpakete unter getrennten Namen mit einem Environment-PAT
+  anlegen; der PAT braucht ausschließlich `read:packages` und
+  `write:packages`;
+- jedes noch nicht vorhandene Stagingpaket zuerst mit einem nicht zum
+  öffentlichen Quellrepository verknüpften `scratch`-Bootstrap erzeugen und
+  seine Sichtbarkeit als `private` verifizieren, bevor ein Runtime-Image
+  gepusht wird;
 - zuerst nur nach ausdrücklicher Freigabe in einen nicht öffentlichen
   Stagingzustand pushen;
 - Digests aus GHCR zurücklesen und mit Buildmanifest, SBOM und Provenienz
@@ -176,8 +183,8 @@ nächste Gate nicht.
 | G0 – Anforderungsbaseline | r26-Befund, neues Image-Opt-in, exaktes Inventar, GHCR-/Sichtbarkeitsregeln, Freigabepunkte und Traceability reviewed | UR-015, UR-016 und SR-011 sind in V-Modell und vollständiger G0-Traceability ergänzt; Konflikt zu SR-008 ist durch standardmäßig ausgeschaltetes ausdrückliches Opt-in aufgelöst; keine blockierende Entscheidung offen. | **PASS / GO zu G1** |
 | G1 – Architektur und Security | Digest-only, drei kontrollierte Runtime-Images, reproduzierbare Basen/Pakete, Manifest, anonymer öffentlicher Pull, Diagnose-, Safe-Mode- und Rollbackdesign reviewed | Die fünf G1-Reviews legen Single-Source-Manifest, drei feste GHCR-Repositories, reproduzierbare Buildgrenzen, standardmäßig ausgeschaltetes Opt-in, gehärtete Realprobes, Safe Mode, Besitzgrenzen, Threat Controls und vollständige Diagnose-/Exportverträge ohne offene Security- oder UX-Entscheidung fest. | **PASS / GO zu G2** |
 | G2 – Implementierungs-/Testfreigabe | vollständiges Design, Tests für alle Erfolgs-/Fehlerpfade, saubere Testdaten und Freigabe zur Implementierung | 27/27 Anforderungen sind automatisierten und systemischen Tests zugeordnet; 16/16 Komponentenauswahlen, 30 Image-Akquisitionsfälle, 24 Diagnose-Faults, neun disposable Windows-Umgebungen sowie das vollständige Deutsch-/Englisch- und Redaktionsdesign sind festgelegt. Die beiden fehlenden README-Dateien sind explizite, nicht verzichtbare G3-Implementierungsobjekte. | **PASS / GO zu G3-Implementierung** |
-| G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | Die technische Critical-Bereinigung liegt lokal vor: Python-Basen und Document-Worker-Pakete sind auf den gepinnten Trixie-Stand angehoben, das nicht benötigte Perl ist aus allen drei Images entfernt, und der nur `tools/tiffcrop.c` betreffende TIFF-Fund besitzt eine eng festgelegte OpenVEX-Bewertung. Roher SARIF und VEX werden getrennt gehasht. Ein lokaler Doppelbuild aller drei Images einschließlich gehärteter Realprobes ist reproduzierbar; er ist wegen uncommitted Quellen und lokal nicht authentifiziertem Scout ausdrücklich nur Entwicklungsevidenz. Ein sauberer, authentifizierter GitHub-Lauf und der GHCR-Stagingdigest fehlen noch. | **FAIL / STOP** |
-| G4 – Komponentenverifikation | alle automatisierten Image-, Installer-, Security-, Diagnose- und Regressionsprüfungen PASS | Aktueller lokaler Zwischenstand nach der Critical-Bereinigung: Python `161 PASS / 12 umgebungsbedingt SKIP`, Bridge `26/26`, Extension `190/190`; der frühere Installer-Pester-Stand ist `73/73`, muss für den neuen Commit aber in GitHub CI erneut bestätigt werden, weil Pester 3.4.0 lokal nicht installiert ist. Der Gate-Status bleibt gesperrt, bis G3 geschlossen ist und ein vollständiger Image-Security-/Realprobe-Lauf unter der freigegebenen Critical-only-Regel bestanden wurde. | **STOP – G3 VORGESCHALTET** |
+| G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | Commit `e82d4f61bdcde48a0a63e4e34f55f8cdd2082c55` bestand im authentifizierten Lauf `34453363104` Doppelbuild, Realprobes, SBOM, Lizenzen, Provenienz und das Critical-Gate. Die drei commitgebundenen Tags wurden jedoch in bereits öffentliche, vom öffentlichen Repository geerbte Pakete gepusht; die nachgelagerte Sichtbarkeitsprüfung stoppte den Lauf deshalb korrekt vor Digestlock und Evidenzartefakt. Ein einmal öffentliches GitHub-Containerpaket kann nicht auf privat zurückgestellt werden. Die Korrektur trennt Stagingpaketnamen, Zugangsdaten und Bootstrap von den späteren öffentlichen Zielpaketen. Ein bestandener Wiederholungslauf und dessen Stagingdigests fehlen noch. | **FAIL / STOP** |
+| G4 – Komponentenverifikation | alle automatisierten Image-, Installer-, Security-, Diagnose- und Regressionsprüfungen PASS | Für Commit `e82d4f61bdcde48a0a63e4e34f55f8cdd2082c55` bestand der normale GitHub-CI-Lauf `34451186627` alle sechs Jobs einschließlich der isolierten Windows-Installer-Verträge. Nach Ergänzung des privaten Stagingvertrags bestanden lokal Python `162 PASS / 12 umgebungsbedingt SKIP`, Bridge `26/26` und Extension `190/190`. Der authentifizierte Image-Lauf bestand das vollständige Critical-Gate, bleibt aber wegen des vorgeschalteten G3-Sichtbarkeitsfehlers noch nicht freigabefähig. | **STOP – G3 VORGESCHALTET** |
 | G5 – Systemvalidierung | Clean-Windows- und Upgrade-Matrix einschließlich echter Dokument-/Sandboxoperation, anonymer GHCR-Pull, Offline/Proxy/Abbruch/Neustart und Datenerhalt PASS | Realer Nutzerbefund zeigt `worker_missing`. Der r26→r27-Pfad existiert noch nicht. Der separate Preflight-Exitcode 1 ist nicht vollständig diagnostiziert, weil der referenzierte JSON-Bericht im Export fehlt. | **FAIL / STOP** |
 | G6 – Release Acceptance | G0–G5 PASS; exakte Image- und EXE-Digests, Signaturstatus, Claims, Known Limitations und Product-Owner-GO vollständig | Kein r27-Artefakt; r26 durch neuen Feldbefund zurückgezogen; keine Veröffentlichungsfreigabe. | **BLOCKED / NO-GO** |
 
@@ -187,7 +194,11 @@ nächste Gate nicht.
   Critical-Bereinigung: `87e278e778dbb9536bc4902f6c316d5bf6585bfc`.
 - GitHub-Repository: `mhoedt-ai/PLwC`, öffentlich; Standardbranch `main`.
 - Der manuelle Workflow baut und prüft alle Images vor einem möglichen privaten
-  Staging-Push; ohne Environment-Freigabe findet kein Upload statt.
+  Staging-Push; ohne Environment-Freigabe findet kein Upload statt. Ein eigener
+  `GHCR_STAGING_PAT` verhindert, dass der Repository-`GITHUB_TOKEN` neue
+  Stagingpakete automatisch an das öffentliche Repository bindet. Getrennte
+  Paketnamen und ein quellrepositoryfreier Bootstrap erzwingen die private
+  Ausgangssichtbarkeit vor dem ersten Runtime-Push.
 - Der lokale Entwicklungs-Doppelbuild nach der Critical-Bereinigung ergab
   reproduzierbar `sha256:01c4e259…` (Document Worker), `sha256:22ce0357…`
   (Node Runner) und `sha256:a218bd0d…` (Python Runner). Alle netzwerklosen,
@@ -206,12 +217,13 @@ nächste Gate nicht.
 
 ## 6. Nächster zulässiger Schritt
 
-G0 bis G2 sind geschlossen. Nächster zulässiger Schritt ist das Einchecken der
-Critical-Bereinigung, die normale CI-Verifikation und anschließend ein neuer
-vollständiger, authentifizierter Image-Lauf aus exakt diesem sauberen Commit.
-Der private GHCR-Staging-Push und damit das Schließen von G3 benötigen erneut
-die ausdrückliche Product-Owner-Freigabe. Bis dahin werden weder Stagingimages
-hochgeladen noch Freigabedigests in den Installer übernommen.
+G0 bis G2 sind geschlossen. Critical-Bereinigung und normale CI sind grün. Der
+erste authentifizierte Lauf stoppte wie vorgesehen an der falschen
+Paketsichtbarkeit. Nächster zulässiger Schritt ist die Verifikation und das
+Einchecken der getrennten privaten Stagingstrecke, das Hinterlegen eines
+minimalen `GHCR_STAGING_PAT` im geschützten Environment und danach ein erneut
+ausdrücklich freigegebener vollständiger Lauf aus dem neuen sauberen Commit.
+Bis zu dessen Erfolg werden keine Freigabedigests in den Installer übernommen.
 
 ## 7. Separat aufgenommener Bridge-Befund
 

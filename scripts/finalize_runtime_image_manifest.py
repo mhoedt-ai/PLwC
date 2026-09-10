@@ -19,6 +19,7 @@ from verify_runtime_images import VerificationError, verify_build_report, verify
 
 Runner = Callable[..., subprocess.CompletedProcess[bytes]]
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+STAGING_REPOSITORY_PREFIX_RE = re.compile(r"^ghcr\.io/mhoedt-ai/[a-z0-9][a-z0-9_.-]{0,127}$")
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -130,11 +131,23 @@ def _registry_provenance(
     }
 
 
+def _staging_repository(image_id: str, release_repository: str, prefix: str | None) -> str:
+    if prefix is None:
+        return release_repository
+    if not STAGING_REPOSITORY_PREFIX_RE.fullmatch(prefix):
+        raise VerificationError("Staging repository prefix is not an approved GHCR path")
+    component = image_id.replace("_", "-")
+    if component not in {"document-worker", "node-runner", "python-runner"}:
+        raise VerificationError(f"Unexpected runtime image id for staging: {image_id}")
+    return f"{prefix}-{component}"
+
+
 def finalize(
     build_report_path: Path,
     output_path: Path,
     *,
     staging_suffix: str | None = None,
+    staging_repository_prefix: str | None = None,
     runner: Runner = subprocess.run,
 ) -> dict[str, Any]:
     report = verify_build_report(build_report_path)
@@ -145,7 +158,8 @@ def finalize(
     images: list[dict[str, Any]] = []
     for image in report["images"]:
         repository = str(image["repository"])
-        staging_reference = f"{repository}:{suffix}"
+        staging_repository = _staging_repository(str(image["id"]), repository, staging_repository_prefix)
+        staging_reference = f"{staging_repository}:{suffix}"
         registry = inspect_remote_image(staging_reference, runner=runner)
         if registry["digest"] != image["digest"]:
             raise VerificationError(f"GHCR manifest digest does not match reproducible local build: {image['id']}")
@@ -209,6 +223,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--build-report", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--staging-suffix")
+    parser.add_argument("--staging-repository-prefix")
     return parser
 
 
@@ -219,6 +234,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.build_report.resolve(),
             args.output.resolve(),
             staging_suffix=args.staging_suffix,
+            staging_repository_prefix=args.staging_repository_prefix,
         )
     except (OSError, subprocess.SubprocessError, VerificationError) as exc:
         print(json.dumps({"status": "fail", "error": str(exc)}, indent=2), file=sys.stderr)

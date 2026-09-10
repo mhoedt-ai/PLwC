@@ -150,11 +150,24 @@ def test_registry_staging_workflow_is_manual_pinned_and_commit_scoped() -> None:
     assert not re.search(r"(?m)^\s{2}(?:push|pull_request|schedule):", text)
     assert "PUBLISH_PRIVATE_R27_STAGING" in text
     assert "environment: r27-runtime-images-staging" in text
-    assert "packages: write" in text
+    assert "GHCR_STAGING_PAT" in text
+    assert "secrets.GITHUB_TOKEN" not in text
+    assert "plwc-r27-private-staging" in text
+    assert "docker/staging-bootstrap" in text
+    assert "packages: write" not in text
+    assert text.index("Bootstrap absent private GHCR package shells") < text.index(
+        "Push only commit-scoped staging tags"
+    )
     assert "r27-staging-${GITHUB_SHA::12}" in text
-    assert "docker image push \"${repository}:${staging_tag}\"" in text
+    assert "docker image push \"${staging_repository}:${staging_tag}\"" in text
     assert "docker image push \"${repository}:0.1.0\"" not in text
     assert "public" not in text.casefold().replace("publish_private", "")
     uses = re.findall(r"(?m)^\s*uses:\s*([^\s#]+)", text)
     assert uses
     assert all(re.fullmatch(r"[^@]+@[0-9a-f]{40}", value) for value in uses)
+
+
+def test_staging_bootstrap_cannot_link_private_packages_to_the_source_repository() -> None:
+    text = (ROOT / "docker" / "staging-bootstrap" / "Dockerfile").read_text(encoding="utf-8")
+    assert text.splitlines()[0] == "FROM scratch"
+    assert "org.opencontainers.image.source" not in text

@@ -24,6 +24,7 @@ def _load(name: str, path: Path):
 
 verifier = _load("plwc_verify_runtime_images_test", ROOT / "scripts" / "verify_runtime_images.py")
 finalizer = _load("plwc_finalize_runtime_images_test", ROOT / "scripts" / "finalize_runtime_image_manifest.py")
+STAGING_REPOSITORY_PREFIX = "ghcr.io/mhoedt-ai/plwc-r27-private-staging"
 
 
 def _sha256(path: Path) -> str:
@@ -178,6 +179,15 @@ def _write_tiff_critical(report_path: Path) -> None:
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
+def _release_repository_for_staging_reference(report: dict, reference: str) -> str:
+    staging_repository = reference.rsplit(":", 1)[0]
+    for image in report["images"]:
+        expected = f"{STAGING_REPOSITORY_PREFIX}-{image['id'].replace('_', '-')}"
+        if staging_repository == expected:
+            return str(image["repository"])
+    raise AssertionError(f"Unexpected staging reference: {reference}")
+
+
 def test_source_lock_and_release_build_report_verify(tmp_path: Path) -> None:
     assert verifier.verify_source_lock()["target_platform"] == "linux/amd64"
     report = verifier.verify_build_report(_build_report(tmp_path))
@@ -328,7 +338,7 @@ def test_finalizer_binds_remote_manifest_digest_and_reverifies(tmp_path: Path) -
 
     def runner(argv, **_kwargs):
         reference = argv[-1]
-        repository = reference.split(":r27-staging-", 1)[0]
+        repository = _release_repository_for_staging_reference(report, reference)
         if "--raw" in argv:
             payload = {
                 "schemaVersion": 2,
@@ -341,7 +351,12 @@ def test_finalizer_binds_remote_manifest_digest_and_reverifies(tmp_path: Path) -
         return subprocess.CompletedProcess(argv, 0, stdout=summary.encode(), stderr=b"")
 
     manifest_path = tmp_path / "runtime-images.json"
-    manifest = finalizer.finalize(report_path, manifest_path, runner=runner)
+    manifest = finalizer.finalize(
+        report_path,
+        manifest_path,
+        staging_repository_prefix=STAGING_REPOSITORY_PREFIX,
+        runner=runner,
+    )
     assert len(manifest["images"]) == 3
     assert all("@sha256:" in image["reference"] for image in manifest["images"])
     assert all(image["download_bytes"] == 2560 for image in manifest["images"])
@@ -361,7 +376,7 @@ def test_finalizer_rejects_changed_remote_manifest_digest(tmp_path: Path) -> Non
 
     def runner(argv, **_kwargs):
         reference = argv[-1]
-        repository = reference.split(":r27-staging-", 1)[0]
+        repository = _release_repository_for_staging_reference(report, reference)
         if "--raw" in argv:
             payload = {
                 "schemaVersion": 2,
@@ -375,7 +390,12 @@ def test_finalizer_rejects_changed_remote_manifest_digest(tmp_path: Path) -> Non
         )
 
     try:
-        finalizer.finalize(report_path, tmp_path / "runtime-images.json", runner=runner)
+        finalizer.finalize(
+            report_path,
+            tmp_path / "runtime-images.json",
+            staging_repository_prefix=STAGING_REPOSITORY_PREFIX,
+            runner=runner,
+        )
     except finalizer.VerificationError as exc:
         assert "manifest digest" in str(exc)
     else:
@@ -389,7 +409,7 @@ def test_finalizer_rejects_changed_remote_config_digest(tmp_path: Path) -> None:
 
     def runner(argv, **_kwargs):
         reference = argv[-1]
-        repository = reference.split(":r27-staging-", 1)[0]
+        repository = _release_repository_for_staging_reference(report, reference)
         if "--raw" in argv:
             payload = {
                 "schemaVersion": 2,
@@ -403,8 +423,23 @@ def test_finalizer_rejects_changed_remote_config_digest(tmp_path: Path) -> None:
         )
 
     try:
-        finalizer.finalize(report_path, tmp_path / "runtime-images.json", runner=runner)
+        finalizer.finalize(
+            report_path,
+            tmp_path / "runtime-images.json",
+            staging_repository_prefix=STAGING_REPOSITORY_PREFIX,
+            runner=runner,
+        )
     except finalizer.VerificationError as exc:
         assert "config digest" in str(exc)
     else:
         raise AssertionError("A changed GHCR config digest must fail finalization")
+
+
+def test_finalizer_rejects_unapproved_staging_repository_prefix(tmp_path: Path) -> None:
+    report_path = _build_report(tmp_path)
+    with pytest.raises(finalizer.VerificationError, match="approved GHCR path"):
+        finalizer.finalize(
+            report_path,
+            tmp_path / "runtime-images.json",
+            staging_repository_prefix="ghcr.io/foreign/private-staging",
+        )

@@ -24,10 +24,10 @@ jobs:
     environment: r27-runtime-images-staging
     permissions:
       contents: read
-      packages: write
     env:
       PYTHONHASHSEED: "0"
       SOURCE_DATE_EPOCH: "0"
+      STAGING_REPOSITORY_PREFIX: ghcr.io/mhoedt-ai/plwc-r27-private-staging
     steps:
       - name: Checkout approved commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -64,12 +64,23 @@ jobs:
           username: ${{ secrets.DOCKER_SCOUT_HUB_USER }}
           password: ${{ secrets.DOCKER_SCOUT_HUB_PAT }}
 
+      - name: Require dedicated private GHCR credentials
+        shell: bash
+        env:
+          GHCR_STAGING_PAT: ${{ secrets.GHCR_STAGING_PAT }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$GHCR_STAGING_PAT" ]]; then
+            echo "::error title=Missing staging credential::GHCR_STAGING_PAT is required"
+            exit 1
+          fi
+
       - name: Authenticate private GHCR staging
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_STAGING_PAT }}
 
       - name: Build verified offline wheelhouse
         run: python scripts/build_document_worker_wheelhouse.py --clean --download
@@ -93,30 +104,76 @@ jobs:
           retention-days: 7
           compression-level: 9
 
+      - name: Bootstrap absent private GHCR package shells
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_STAGING_PAT }}
+        run: |
+          set -euo pipefail
+          docker buildx build \
+            --load \
+            --network none \
+            --platform linux/amd64 \
+            --provenance=false \
+            --sbom=false \
+            --tag plwc-r27-staging-bootstrap:v1 \
+            docker/staging-bootstrap
+          for component in document-worker node-runner python-runner
+          do
+            package="plwc-r27-private-staging-${component}"
+            repository="${STAGING_REPOSITORY_PREFIX}-${component}"
+            error_file="$(mktemp)"
+            if package_json="$(gh api "/user/packages/container/${package}" 2>"$error_file")"; then
+              rm -f "$error_file"
+              visibility="$(jq -r .visibility <<<"$package_json")"
+              if [[ "$visibility" != "private" ]]; then
+                echo "::error title=Unsafe staging visibility::${package} is ${visibility}, expected private"
+                exit 1
+              fi
+              continue
+            fi
+            if ! grep --quiet "HTTP 404" "$error_file"; then
+              cat "$error_file" >&2
+              rm -f "$error_file"
+              exit 1
+            fi
+            rm -f "$error_file"
+            docker image tag plwc-r27-staging-bootstrap:v1 "${repository}:bootstrap-v1"
+            docker image push "${repository}:bootstrap-v1"
+            visibility="$(gh api "/user/packages/container/${package}" --jq .visibility)"
+            if [[ "$visibility" != "private" ]]; then
+              echo "::error title=Unsafe staging visibility::${package} is ${visibility}, expected private"
+              exit 1
+            fi
+          done
+
       - name: Push only commit-scoped staging tags
         shell: bash
         run: |
           set -euo pipefail
           staging_tag="r27-staging-${GITHUB_SHA::12}"
-          for repository in \
-            ghcr.io/mhoedt-ai/plwc-document-worker \
-            ghcr.io/mhoedt-ai/plwc-node-runner \
-            ghcr.io/mhoedt-ai/plwc-python-runner
+          for mapping in \
+            ghcr.io/mhoedt-ai/plwc-document-worker=document-worker \
+            ghcr.io/mhoedt-ai/plwc-node-runner=node-runner \
+            ghcr.io/mhoedt-ai/plwc-python-runner=python-runner
           do
-            docker image tag "${repository}:0.1.0" "${repository}:${staging_tag}"
-            docker image push "${repository}:${staging_tag}"
+            release_repository="${mapping%%=*}"
+            component="${mapping#*=}"
+            staging_repository="${STAGING_REPOSITORY_PREFIX}-${component}"
+            docker image tag "${release_repository}:0.1.0" "${staging_repository}:${staging_tag}"
+            docker image push "${staging_repository}:${staging_tag}"
           done
 
       - name: Verify every GHCR staging package is private
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GHCR_STAGING_PAT }}
         run: |
           set -euo pipefail
           for package in \
-            plwc-document-worker \
-            plwc-node-runner \
-            plwc-python-runner
+            plwc-r27-private-staging-document-worker \
+            plwc-r27-private-staging-node-runner \
+            plwc-r27-private-staging-python-runner
           do
             visibility="$(gh api "/user/packages/container/${package}" --jq .visibility)"
             if [[ "$visibility" != "private" ]]; then
@@ -130,6 +187,7 @@ jobs:
           python scripts/finalize_runtime_image_manifest.py
           --build-report build/runtime-images/image-build-report.json
           --output build/runtime-images/runtime-images.json
+          --staging-repository-prefix ghcr.io/mhoedt-ai/plwc-r27-private-staging
           --staging-suffix r27-staging-${GITHUB_SHA::12}
 
       - name: Reverify final digest lock and evidence
