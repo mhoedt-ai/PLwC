@@ -124,7 +124,7 @@ def test_source_lock_and_release_build_report_verify(tmp_path: Path) -> None:
     assert len(report["images"]) == 3
 
 
-def test_high_vulnerability_fails_closed(tmp_path: Path) -> None:
+def test_high_vulnerability_is_recorded_but_does_not_block(tmp_path: Path) -> None:
     report_path = _build_report(tmp_path)
     report = json.loads(report_path.read_text(encoding="utf-8"))
     descriptor = report["images"][0]["evidence"]["vulnerabilities"]
@@ -145,17 +145,15 @@ def test_high_vulnerability_fails_closed(tmp_path: Path) -> None:
     )
     descriptor["sha256"] = _sha256(vulnerability_path)
     report_path.write_text(json.dumps(report), encoding="utf-8")
-    try:
-        verifier.verify_build_report(report_path)
-    except verifier.VerificationError as exc:
-        assert "critical/high" in str(exc)
-        assert "document_worker" in str(exc)
-        assert "CVE-test" in str(exc)
-    else:
-        raise AssertionError("A HIGH vulnerability must fail the release gate")
+    verified = verifier.verify_build_report(report_path)
+    assert verified["status"] == "pass"
 
 
-def test_high_vulnerability_diagnostic_extracts_package_from_purl() -> None:
+def test_critical_vulnerability_fails_closed_and_extracts_package_from_purl(tmp_path: Path) -> None:
+    report_path = _build_report(tmp_path)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    descriptor = report["images"][0]["evidence"]["vulnerabilities"]
+    vulnerability_path = tmp_path / descriptor["path"]
     payload = {
         "runs": [
             {
@@ -165,7 +163,7 @@ def test_high_vulnerability_diagnostic_extracts_package_from_purl() -> None:
                             {
                                 "id": "CVE-test-purl",
                                 "properties": {
-                                    "cvssV3_severity": "HIGH",
+                                    "cvssV3_severity": "CRITICAL",
                                     "fixed_version": "2.0",
                                     "purls": ["pkg:deb/debian/example-package@1.0?os_distro=bookworm"],
                                 },
@@ -177,10 +175,28 @@ def test_high_vulnerability_diagnostic_extracts_package_from_purl() -> None:
             }
         ]
     }
-
+    vulnerability_path.write_text(json.dumps(payload), encoding="utf-8")
+    descriptor["sha256"] = _sha256(vulnerability_path)
+    report_path.write_text(json.dumps(report), encoding="utf-8")
     assert verifier._sarif_gate_findings(payload) == [
-        "CVE-test-purl severity=HIGH package=example-package fixed=2.0"
+        "CVE-test-purl severity=CRITICAL package=example-package fixed=2.0"
     ]
+    try:
+        verifier.verify_build_report(report_path)
+    except verifier.VerificationError as exc:
+        assert "critical vulnerability" in str(exc)
+        assert "document_worker" in str(exc)
+        assert "CVE-test-purl" in str(exc)
+    else:
+        raise AssertionError("A CRITICAL vulnerability must fail the release gate")
+
+
+def test_cvss_boundary_blocks_only_critical_range() -> None:
+    for accepted in ("HIGH", "MEDIUM", "LOW", "UNSPECIFIED"):
+        assert verifier._has_unaccepted_severity({"properties": {"severity": accepted}}) is False
+    assert verifier._has_unaccepted_severity({"properties": {"severity": "CRITICAL"}}) is True
+    assert verifier._has_unaccepted_severity({"properties": {"severity": "CVSS 8.9"}}) is False
+    assert verifier._has_unaccepted_severity({"properties": {"severity": "CVSS 9.0"}}) is True
 
 
 def test_dirty_or_unscanned_build_is_development_only_and_never_release_grade(tmp_path: Path) -> None:

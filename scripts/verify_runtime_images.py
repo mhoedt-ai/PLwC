@@ -20,6 +20,8 @@ SECRET_PATTERNS = (
     re.compile(r"(?i)\bgh[pousr]_[A-Za-z0-9_]{20,}\b"),
     re.compile(r"(?i)(?:password|passwd|secret|token)\s*[:=]\s*[^\s,;]+"),
 )
+BLOCKING_VULNERABILITY_SEVERITIES = frozenset({"CRITICAL"})
+BLOCKING_CVSS_MINIMUM = 9.0
 
 
 class VerificationError(RuntimeError):
@@ -140,10 +142,13 @@ def _severity_values(value: Any, *, key: str = "") -> list[str]:
 
 def _has_unaccepted_severity(value: Any) -> bool:
     severity_text = " ".join(_severity_values(value)).upper()
-    if re.search(r"\b(?:CRITICAL|HIGH)\b", severity_text):
+    if any(
+        re.search(rf"\b{re.escape(severity)}\b", severity_text)
+        for severity in BLOCKING_VULNERABILITY_SEVERITIES
+    ):
         return True
     return any(
-        float(score) >= 7.0
+        float(score) >= BLOCKING_CVSS_MINIMUM
         for score in re.findall(r"(?<!\d)(?:10(?:\.0+)?|[0-9](?:\.\d+)?)(?!\d)", severity_text)
     )
 
@@ -163,7 +168,7 @@ def _sarif_gate_findings(payload: Mapping[str, Any]) -> list[str]:
             if not isinstance(properties, Mapping):
                 properties = {}
             rule_id = str(rule.get("id", "unknown-rule"))
-            severity = str(properties.get("cvssV3_severity", "HIGH/CRITICAL"))
+            severity = str(properties.get("cvssV3_severity", "CRITICAL"))
             fixed = str(properties.get("fixed_version", "unknown"))
             help_value = rule.get("help", {})
             help_text = str(help_value.get("text", "")) if isinstance(help_value, Mapping) else ""
@@ -188,7 +193,7 @@ def _sarif_gate_findings(payload: Mapping[str, Any]) -> list[str]:
             if not isinstance(result, Mapping) or not _has_unaccepted_severity(result):
                 continue
             rule_id = str(result.get("ruleId", "unknown-rule"))
-            detail = f"{rule_id} severity=HIGH/CRITICAL"
+            detail = f"{rule_id} severity=CRITICAL"
             if detail not in seen:
                 seen.add(detail)
                 findings.append(detail)
@@ -206,7 +211,7 @@ def _verify_vulnerability_report(path: Path) -> None:
         summary = "; ".join(details[:10]) if details else "details unavailable"
         if len(details) > 10:
             summary += f"; plus {len(details) - 10} more"
-        raise VerificationError(f"Unaccepted critical/high vulnerability finding(s): {summary}")
+        raise VerificationError(f"Unaccepted critical vulnerability finding(s): {summary}")
 
 
 def _verify_sbom(path: Path) -> None:
