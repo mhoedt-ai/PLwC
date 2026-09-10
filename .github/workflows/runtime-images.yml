@@ -147,22 +147,13 @@ jobs:
             fi
           done
 
-      - name: Push only commit-scoped staging tags
-        shell: bash
-        run: |
-          set -euo pipefail
-          staging_tag="r27-staging-${GITHUB_SHA::12}"
-          for mapping in \
-            ghcr.io/mhoedt-ai/plwc-document-worker=document-worker \
-            ghcr.io/mhoedt-ai/plwc-node-runner=node-runner \
-            ghcr.io/mhoedt-ai/plwc-python-runner=python-runner
-          do
-            release_repository="${mapping%%=*}"
-            component="${mapping#*=}"
-            staging_repository="${STAGING_REPOSITORY_PREFIX}-${component}"
-            docker image tag "${release_repository}:0.1.0" "${staging_repository}:${staging_tag}"
-            docker image push "${staging_repository}:${staging_tag}"
-          done
+      - name: Push reproducible commit-scoped staging tags directly with BuildKit
+        run: >-
+          python scripts/push_runtime_images.py
+          --build-report build/runtime-images/image-build-report.json
+          --output build/runtime-images/staging-push-report.json
+          --staging-repository-prefix ghcr.io/mhoedt-ai/plwc-r27-private-staging
+          --staging-suffix r27-staging-${GITHUB_SHA::12}
 
       - name: Verify every GHCR staging package is private
         shell: bash

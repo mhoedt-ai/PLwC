@@ -24,6 +24,7 @@ def _load(name: str, path: Path):
 
 verifier = _load("plwc_verify_runtime_images_test", ROOT / "scripts" / "verify_runtime_images.py")
 finalizer = _load("plwc_finalize_runtime_images_test", ROOT / "scripts" / "finalize_runtime_image_manifest.py")
+pusher = _load("plwc_push_runtime_images_test", ROOT / "scripts" / "push_runtime_images.py")
 STAGING_REPOSITORY_PREFIX = "ghcr.io/mhoedt-ai/plwc-r27-private-staging"
 
 
@@ -442,4 +443,74 @@ def test_finalizer_rejects_unapproved_staging_repository_prefix(tmp_path: Path) 
             report_path,
             tmp_path / "runtime-images.json",
             staging_repository_prefix="ghcr.io/foreign/private-staging",
+        )
+
+
+def test_direct_pusher_rebuilds_and_pushes_exact_verified_manifests(tmp_path: Path) -> None:
+    report_path = _build_report(tmp_path)
+    _attach_approved_vex(report_path)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    expected = {image["id"]: image for image in report["images"]}
+    calls: list[list[str]] = []
+
+    def runner(argv, **_kwargs):
+        calls.append(argv)
+        context = Path(argv[-1]).name
+        image_id = "document_worker" if context == "document-worker" else context.replace("-", "_")
+        metadata_path = Path(argv[argv.index("--metadata-file") + 1])
+        metadata_path.write_text(
+            json.dumps(
+                {
+                    "containerimage.digest": expected[image_id]["digest"],
+                    "containerimage.config.digest": expected[image_id]["config_digest"],
+                    "containerimage.descriptor": {
+                        "platform": {"architecture": "amd64", "os": "linux"}
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    output_path = tmp_path / "staging-push-report.json"
+    result = pusher.push_verified_images(
+        report_path,
+        output_path,
+        staging_repository_prefix=STAGING_REPOSITORY_PREFIX,
+        runner=runner,
+    )
+    assert result["status"] == "pass"
+    assert len(result["images"]) == 3
+    assert len(calls) == 3
+    assert all("--no-cache" in call for call in calls)
+    assert all("--output" in call for call in calls)
+    assert all("type=registry,name=ghcr.io/mhoedt-ai/plwc-r27-private-staging-" in call[call.index("--output") + 1] for call in calls)
+
+
+def test_direct_pusher_rejects_a_nonidentical_registry_build(tmp_path: Path) -> None:
+    report_path = _build_report(tmp_path)
+    _attach_approved_vex(report_path)
+
+    def runner(argv, **_kwargs):
+        metadata_path = Path(argv[argv.index("--metadata-file") + 1])
+        metadata_path.write_text(
+            json.dumps(
+                {
+                    "containerimage.digest": "sha256:" + "9" * 64,
+                    "containerimage.config.digest": "sha256:" + "8" * 64,
+                    "containerimage.descriptor": {
+                        "platform": {"architecture": "amd64", "os": "linux"}
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    with pytest.raises(finalizer.VerificationError, match="not identical"):
+        pusher.push_verified_images(
+            report_path,
+            tmp_path / "staging-push-report.json",
+            staging_repository_prefix=STAGING_REPOSITORY_PREFIX,
+            runner=runner,
         )

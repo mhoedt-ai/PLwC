@@ -156,15 +156,28 @@ def test_registry_staging_workflow_is_manual_pinned_and_commit_scoped() -> None:
     assert "docker/staging-bootstrap" in text
     assert "packages: write" not in text
     assert text.index("Bootstrap absent private GHCR package shells") < text.index(
-        "Push only commit-scoped staging tags"
+        "Push reproducible commit-scoped staging tags directly with BuildKit"
     )
     assert "r27-staging-${GITHUB_SHA::12}" in text
-    assert "docker image push \"${staging_repository}:${staging_tag}\"" in text
+    assert "python scripts/push_runtime_images.py" in text
+    assert "staging-push-report.json" in text
     assert "docker image push \"${repository}:0.1.0\"" not in text
     assert "public" not in text.casefold().replace("publish_private", "")
     uses = re.findall(r"(?m)^\s*uses:\s*([^\s#]+)", text)
     assert uses
     assert all(re.fullmatch(r"[^@]+@[0-9a-f]{40}", value) for value in uses)
+
+
+def test_direct_staging_push_uses_buildkit_registry_export_and_exact_identity_gate() -> None:
+    text = (ROOT / "scripts" / "push_runtime_images.py").read_text(encoding="utf-8")
+    assert "type=registry,name=" in text
+    assert "rewrite-timestamp=true" in text
+    assert "--no-cache" in text
+    assert "--provenance=false" in text
+    assert "--sbom=false" in text
+    assert 'digest != image["digest"]' in text
+    assert 'config_digest != image["config_digest"]' in text
+    assert "docker image push" not in text
 
 
 def test_staging_bootstrap_cannot_link_private_packages_to_the_source_repository() -> None:
