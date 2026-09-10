@@ -2,7 +2,7 @@
 
 Stand: 2026-09-10
 
-Status: **PLAN / G0–G2 PASS / G3–G5 STOP / G6 NO-GO**
+Status: **G0–G2 PASS / G3 REVALIDIERUNG / G4–G5 STOP / G6 NO-GO**
 
 Dieser Plan korrigiert den auf einem realen Windows-11-System beobachteten
 r26-Vertriebsfehler: Docker Desktop war vorhanden, das für
@@ -187,15 +187,15 @@ nächste Gate nicht.
 | G0 – Anforderungsbaseline | r26-Befund, neues Image-Opt-in, exaktes Inventar, GHCR-/Sichtbarkeitsregeln, Freigabepunkte und Traceability reviewed | UR-015, UR-016 und SR-011 sind in V-Modell und vollständiger G0-Traceability ergänzt; Konflikt zu SR-008 ist durch standardmäßig ausgeschaltetes ausdrückliches Opt-in aufgelöst; keine blockierende Entscheidung offen. | **PASS / GO zu G1** |
 | G1 – Architektur und Security | Digest-only, drei kontrollierte Runtime-Images, reproduzierbare Basen/Pakete, Manifest, anonymer öffentlicher Pull, Diagnose-, Safe-Mode- und Rollbackdesign reviewed | Die fünf G1-Reviews legen Single-Source-Manifest, drei feste GHCR-Repositories, reproduzierbare Buildgrenzen, standardmäßig ausgeschaltetes Opt-in, gehärtete Realprobes, Safe Mode, Besitzgrenzen, Threat Controls und vollständige Diagnose-/Exportverträge ohne offene Security- oder UX-Entscheidung fest. | **PASS / GO zu G2** |
 | G2 – Implementierungs-/Testfreigabe | vollständiges Design, Tests für alle Erfolgs-/Fehlerpfade, saubere Testdaten und Freigabe zur Implementierung | 27/27 Anforderungen sind automatisierten und systemischen Tests zugeordnet; 16/16 Komponentenauswahlen, 30 Image-Akquisitionsfälle, 24 Diagnose-Faults, neun disposable Windows-Umgebungen sowie das vollständige Deutsch-/Englisch- und Redaktionsdesign sind festgelegt. Die beiden fehlenden README-Dateien sind explizite, nicht verzichtbare G3-Implementierungsobjekte. | **PASS / GO zu G3-Implementierung** |
-| G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | Commit `e82d4f61bdcde48a0a63e4e34f55f8cdd2082c55` bestand in Lauf `34453363104` Doppelbuild, Realprobes, SBOM, Lizenzen, Provenienz und Critical-Gate, stoppte aber an versehentlich öffentlichen Paketnamen. Die private Korrektur `9cd12efc329ce3742d9791b5308faba39393fee5` bestand in Lauf `34469204576` erneut Doppelbuild, Security-Gate, privaten Bootstrap, Push und Sichtbarkeitsprüfung. Sie stoppte beim Digestlock: Der Docker-Daemon hatte beim Push die vom reproduzierbaren BuildKit-Export erzeugte Manifesthülle neu serialisiert. Der Inhalt wurde nicht als freigegeben gewertet. Die nächste Korrektur nutzt einen direkten deterministischen BuildKit-Registryexport und verlangt weiterhin exakte Manifest- und Konfigurationsdigests. Ein vollständig bestandener Wiederholungslauf und dessen Evidenzartefakt fehlen noch. | **FAIL / STOP** |
-| G4 – Komponentenverifikation | alle automatisierten Image-, Installer-, Security-, Diagnose- und Regressionsprüfungen PASS | Für Commit `e82d4f61bdcde48a0a63e4e34f55f8cdd2082c55` bestand der normale GitHub-CI-Lauf `34451186627` alle sechs Jobs einschließlich der isolierten Windows-Installer-Verträge. Nach Ergänzung des direkten privaten BuildKit-Stagingvertrags bestanden lokal Python `166 PASS / 12 umgebungsbedingt SKIP`, Bridge `26/26` und Extension `190/190`. Der authentifizierte Image-Lauf bestand das vollständige Critical-Gate, bleibt aber wegen des vorgeschalteten G3-Digestfehlers noch nicht freigabefähig. | **STOP – G3 VORGESCHALTET** |
-| G5 – Systemvalidierung | Clean-Windows- und Upgrade-Matrix einschließlich echter Dokument-/Sandboxoperation, anonymer GHCR-Pull, Offline/Proxy/Abbruch/Neustart und Datenerhalt PASS | Realer Nutzerbefund zeigt `worker_missing`. Der r26→r27-Pfad existiert noch nicht. Der separate Preflight-Exitcode 1 ist nicht vollständig diagnostiziert, weil der referenzierte JSON-Bericht im Export fehlt. | **FAIL / STOP** |
+| G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | Der direkte BuildKit-Registryexport bestand für Commit `21d249b92dd579129d0c79905462ef5a87a92b7e` in Lauf `34471329279` vollständig: Doppelbuild, Realprobes, Critical-Gate, privater Push, private Sichtbarkeitsprüfung, identische Manifest-/Konfigurationsdigests und erneut verifizierter Installerlock. Danach schlossen `7e9b300` die Speichervorprüfung und `4c0bb78` die governte Nachinstallation über die Konfigurationsoberfläche. Weil die OCI-Revision an den vollständigen Quellcommit gebunden ist, müssen die drei Images aus dem endgültigen Code-/Evidenzcommit erneut privat gebaut und gestaged werden. | **REVALIDIERUNG ERFORDERLICH / STOP** |
+| G4 – Komponentenverifikation | alle automatisierten Image-, Installer-, Security-, Diagnose- und Regressionsprüfungen PASS | Der Stand `4c0bb78` bestand lokal Python `176 PASS / 12 umgebungsbedingt SKIP` und die isolierten Windows-Installer-Verträge `73/73`. Die neue Konfigurationsfunktion verwendet ausschließlich installierten Lock und hashgeprüften Manager, verlangt einen neuen Plan sowie eine eigene Bestätigung, sperrt parallele Akquisitionen und akzeptiert nur vollständige, integritätsgeprüfte Diagnoseberichte. Bridge- und Extension-Regressionssuite sowie GitHub-CI müssen nach dem abschließenden Evidenzcommit erneut laufen. | **IN ARBEIT / G3 REVALIDIERUNG VORGESCHALTET** |
+| G5 – Systemvalidierung | Clean-Windows- und Upgrade-Matrix einschließlich echter Dokument-/Sandboxoperation, anonymer GHCR-Pull, Offline/Proxy/Abbruch/Neustart und Datenerhalt PASS | r27 besitzt jetzt den direkten r26→r27-Migrations-, Image-Akquisitions-, Safe-Mode- und Nachinstallationspfad. Die definierte disposable Windows-Matrix, anonyme öffentliche GHCR-Pulls und reale r27-Installerläufe fehlen weiterhin; ein Produktionskandidat wurde nicht gebaut. | **NICHT BEGONNEN / STOP** |
 | G6 – Release Acceptance | G0–G5 PASS; exakte Image- und EXE-Digests, Signaturstatus, Claims, Known Limitations und Product-Owner-GO vollständig | Kein r27-Artefakt; r26 durch neuen Feldbefund zurückgezogen; keine Veröffentlichungsfreigabe. | **BLOCKED / NO-GO** |
 
 ## 5. Heutige technische Baseline
 
-- Branch: `codex/plwc-chat-bridge-rc19`; letzter eingecheckter Stand vor der
-  Critical-Bereinigung: `87e278e778dbb9536bc4902f6c316d5bf6585bfc`.
+- Branch: `codex/plwc-chat-bridge-rc19`; aktueller r27-Codeabschluss vor der
+  Evidenzaktualisierung: `4c0bb78`.
 - GitHub-Repository: `mhoedt-ai/PLwC`, öffentlich; Standardbranch `main`.
 - Der manuelle Workflow baut und prüft alle Images vor einem möglichen privaten
   Staging-Push; ohne Environment-Freigabe findet kein Upload statt. Ein eigener
@@ -203,17 +203,22 @@ nächste Gate nicht.
   Stagingpakete automatisch an das öffentliche Repository bindet. Getrennte
   Paketnamen und ein quellrepositoryfreier Bootstrap erzwingen die private
   Ausgangssichtbarkeit vor dem ersten Runtime-Push.
-- Lauf `34469204576` hat die private Sichtbarkeit aller drei neuen
-  Stagingpakete bewiesen. Er hat G3 nicht geöffnet, weil der anschließende
-  Manifestdigest-Vergleich nach einem Docker-Daemon-Reexport fehlschlug. Ein
-  lokaler Gegenversuch belegt, dass der direkte BuildKit-Registryexport den
-  bereits beim reproduzierbaren Build ermittelten Digest unverändert erhält;
-  diese Transportkorrektur wird vor dem nächsten Lauf automatisiert geprüft.
-- Der lokale Entwicklungs-Doppelbuild nach der Critical-Bereinigung ergab
-  reproduzierbar `sha256:01c4e259…` (Document Worker), `sha256:22ce0357…`
-  (Node Runner) und `sha256:a218bd0d…` (Python Runner). Alle netzwerklosen,
-  nicht privilegierten Realprobes bestanden. Diese Digests enthalten noch die
-  Identität des vorherigen Commits und sind deshalb keine Freigabedigests.
+- Lauf `34471329279` hat für `21d249b92dd579129d0c79905462ef5a87a92b7e`
+  den direkten deterministischen Registryexport, private Sichtbarkeit,
+  identische Registry-/Builddigests und den vollständigen Critical-Gate
+  bewiesen. Das unveränderliche Actions-Artefakt bindet Buildbericht,
+  Stagingbericht, SBOM, Lizenzen, Vulnerability-SARIF, OpenVEX und Provenienz.
+- Die dabei geprüften Manifestdigests waren `sha256:0cfa82b4…` (Document
+  Worker), `sha256:b11ef86c…` (Node Runner) und `sha256:f40a209e…` (Python
+  Runner). Sie bleiben gültige Evidenz für genau diesen Commit, sind nach den
+  anschließenden r27-Codeänderungen aber keine Freigabedigests des aktuellen
+  Stands.
+- `7e9b300` prüft den erforderlichen Docker-Speicher vor dem ersten Pull.
+  `4c0bb78` ergänzt die separate Nachinstallation über die lokale
+  Konfigurationsoberfläche mit installiertem hashgeprüftem Lock/Manager,
+  neuem Plan je Versuch, eigener Bestätigung, Serialisierung und vollständiger
+  Diagnosevalidierung. Lokal bestanden danach Python `176` Tests bei `12`
+  umgebungsbedingten Skips und Pester `73/73`.
 - OpenSSL wird in den Python-basierten Images aus dem gepinnten Trixie-Stand
   bereitgestellt. Perl ist in allen drei Laufzeitimages entfernt und die Probes
   prüfen zusätzlich, dass `/usr/bin/perl` nicht existiert und `perl` nicht
@@ -225,13 +230,44 @@ nächste Gate nicht.
 - Der finale r26-Kandidat ist nur 5.494.996 Bytes groß und enthält kein
   importierbares Docker-Imagearchiv.
 
+### 5.1 Verifizierte private Staging-Evidenz
+
+GitHub-Actions-Lauf `34471329279` (`PLwC r27 runtime image staging`) lief für
+Commit `21d249b92dd579129d0c79905462ef5a87a92b7e` vom
+10. September 2026, 11:27:23 UTC bis 11:32:29 UTC vollständig erfolgreich.
+Der Job verifizierte vor und nach dem direkten Registryexport alle drei
+Paket-Sichtbarkeiten als `private`.
+
+| Image | Registry-Manifestdigest | Registry-Konfigurationsdigest |
+| --- | --- | --- |
+| Document Worker | `sha256:0cfa82b41ee2e832d61c488eaeb15f73777da47cbf4ae760095da551fc083a8f` | `sha256:cd7d97f23767fc2748bf43b61f01eecfeebc9c62f32289aab8e3e085715bb7c9` |
+| Node Runner | `sha256:b11ef86cedfaa62475e33c27e51bda61228850d382ac1df9606d8b716dee0089` | `sha256:58fc07235c9afe96e63cc8109bbd5399dc31e1c7a151f015d5d0b10fdc488979` |
+| Python Runner | `sha256:f40a209e69398626f091614aa26b1655606d4c2a6c4f8f1525ec052d983675ee` | `sha256:9e4ddfb9c8e61d8bb71c63537538a495381ecbf2ca51ea3477acb9f8b376d57c` |
+
+Das unveränderliche Actions-Artefakt heißt
+`plwc-r27-runtime-images-21d249b92dd579129d0c79905462ef5a87a92b7e`.
+Nach erneutem Herunterladen wurden folgende SHA-256-Werte beobachtet:
+
+- `image-build-report.json`:
+  `0321D36739AE876F722FC72F7201AA6AD8E4DF4EDF67693670D1227D84A0A11E`
+- `staging-push-report.json`:
+  `8556B5405813ABA7732CD46426BCCEDC11186871AB0A2879152CC4204B455E70`
+- `runtime-images.json`:
+  `DAD9ADA9DF8D80F680FC43C3447E6409CFEC2088990D5A55868FB2DE9CC34EA7`
+
+Diese Werte beweisen den privaten Stagingmechanismus für den genannten Commit.
+Sie werden wegen der späteren r27-Codeänderungen nicht in einen aktuellen
+Installer übernommen. Öffentliche Paketnamen, anonyme Pullbarkeit und ein
+Produktionsartefakt sind damit ausdrücklich nicht freigegeben.
+
 ## 6. Nächster zulässiger Schritt
 
-G0 bis G2 sind geschlossen. Critical-Bereinigung, normale CI und die private
-Paketsichtbarkeit sind grün. Nächster zulässiger Schritt ist die Verifikation
-und das Einchecken des direkten BuildKit-Registryexports und danach ein erneut
-ausdrücklich freigegebener vollständiger Lauf aus dem neuen sauberen Commit.
-Bis zu dessen Erfolg werden keine Freigabedigests in den Installer übernommen.
+G0 bis G2 sind geschlossen. Der private BuildKit-Stagingpfad ist technisch
+bewiesen und die r27-Installerimplementierung ist code-complete. Nächster
+zulässiger Schritt ist der erneute private Staging- und CI-Lauf aus dem
+endgültigen sauberen Code-/Evidenzcommit. Erst nach dessen Erfolg beginnt die
+vollständige G4-Testmatrix. Öffentliche GHCR-Sichtbarkeit, Produktions-EXE und
+Veröffentlichung bleiben gesperrt.
 
 ## 7. Separat aufgenommener Bridge-Befund
 
