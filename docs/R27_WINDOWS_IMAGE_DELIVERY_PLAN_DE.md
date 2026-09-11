@@ -191,7 +191,7 @@ nächste Gate nicht.
 | G2 – Implementierungs-/Testfreigabe | vollständiges Design, Tests für alle Erfolgs-/Fehlerpfade, saubere Testdaten und Freigabe zur Implementierung | 27/27 Anforderungen sind automatisierten und systemischen Tests zugeordnet; 16/16 Komponentenauswahlen, 30 Image-Akquisitionsfälle, 24 Diagnose-Faults, neun disposable Windows-Umgebungen sowie das vollständige Deutsch-/Englisch- und Redaktionsdesign sind festgelegt. Die beiden fehlenden README-Dateien sind explizite, nicht verzichtbare G3-Implementierungsobjekte. | **PASS / GO zu G3-Implementierung** |
 | G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | Der Compilerfix-Freeze `1d8eaa4f82c2aec2fbe7212d446c7ebb05fa9fe8` bestand im privaten Staginglauf `34636663782` Doppelbuild, Realprobes, Critical-Gate, direkten BuildKit-Push, Sichtbarkeitsprüfung, exakte Digestbindung und Evidenzupload vollständig. Das resultierende `runtime-images.json` ist zugleich der unveränderte Lock des real kompilierten unsigned Systemtestkandidaten. | **PASS / GO zu G4** |
 | G4 – Komponentenverifikation | alle automatisierten Image-, Installer-, Security-, Diagnose- und Regressionsprüfungen PASS | Für `1d8eaa4` bestanden lokal Python `211 PASS / 12 umgebungsbedingt SKIP`, Windows-Installer-Verträge `73/73`, der betroffene Clean-Machine-/Security-Block `51/51`, Node-Bridge `26/26`, Browser-Extension `190/190`, Public-Snapshot für 386 Dateien und ein vollständiger unsigned ISCC-Build. GitHub-CI-Lauf `34636660800` bestand alle sechs Jobs; privates Staging `34636663782` war ebenfalls vollständig grün. | **PASS / GO zu G5** |
-| G5 – Systemvalidierung | Clean-Windows- und Upgrade-Matrix einschließlich echter Dokument-/Sandboxoperation, anonymer GHCR-Pull, Offline/Proxy/Abbruch/Neustart und Datenerhalt PASS | Der unsigned Kandidat aus `1d8eaa4` kompiliert und trägt exakt den geprüften Image-Lock. Nach gesonderter Product-Owner-Freigabe wurden die drei unveränderten Stagingmanifeste in Lauf `34638887032` in die Releasepakete kopiert und anschließend sichtbar auf `public` gesetzt. Lauf `34639151326` bewies ohne Registry-Anmeldung für alle drei Tags den erwarteten Manifest- und Konfigurationsdigest. Die disposable Windows-Systemmatrix und die dortigen realen Installations-/Upgrade-/Fehlerpfade stehen noch aus. | **ANONYMER GHCR-PULL PASS / SYSTEMMATRIX OFFEN / STOP** |
+| G5 – Systemvalidierung | Clean-Windows- und Upgrade-Matrix einschließlich echter Dokument-/Sandboxoperation, anonymer GHCR-Pull, Offline/Proxy/Abbruch/Neustart und Datenerhalt PASS | Der unsigned Kandidat aus `1d8eaa4` kompiliert und trägt exakt den geprüften Image-Lock. Nach gesonderter Product-Owner-Freigabe wurden die drei unveränderten Stagingmanifeste in Lauf `34638887032` in die Releasepakete kopiert und anschließend sichtbar auf `public` gesetzt. Lauf `34640119110` lud alle drei Images mit leerer Docker-Konfiguration wirklich per `docker pull` und bewies danach Manifestdigest, lokalen Config-Digest und RepoDigest. Die disposable Windows-Systemmatrix und die dortigen realen Installations-/Upgrade-/Fehlerpfade stehen noch aus. | **ANONYMER GHCR-PULL PASS / SYSTEMMATRIX OFFEN / STOP** |
 | G6 – Release Acceptance | G0–G5 PASS; exakte Image- und EXE-Digests, Signaturstatus, Claims, Known Limitations und Product-Owner-GO vollständig | Öffentliche r27-Images sind digestgebunden verfügbar; ein unsigned Systemtestkandidat existiert. G5 ist nicht geschlossen, der Kandidat ist nicht signiert und weder endgültiger Produktionsbuild noch GitHub-/Store-Veröffentlichung sind freigegeben. | **BLOCKED / NO-GO** |
 
 ## 5. Heutige technische Baseline
@@ -322,8 +322,12 @@ Lauf `34638887032` ausschließlich die drei geprüften Manifeste per
 `imagetools create --prefer-index=false` in zunächst private Releasepakete.
 Er änderte weder Imageinhalt noch Digest. Erst nach erfolgreicher privater
 Verifikation wurden genau diese drei Pakete in der GitHub-Oberfläche dauerhaft
-öffentlich geschaltet. Lauf `34639151326` verwendete eine leere
-Docker-Konfiguration und bestätigte damit den anonymen Zugriff:
+öffentlich geschaltet. Lauf `34639151326` bestätigte zunächst mit leerer
+Docker-Konfiguration den anonymen Manifestzugriff. Der anschließend verstärkte
+Lauf `34640119110` führte für alle drei Referenzen einen echten `docker pull`
+ohne Zugangsdaten aus und verglich danach zusätzlich die lokale Image-ID sowie
+den RepoDigest. Damit ist nicht nur der Manifestabruf, sondern der vollständige
+anonyme Pull belegt:
 
 | Öffentliche Referenz | Manifestdigest | Konfigurationsdigest |
 | --- | --- | --- |
@@ -343,7 +347,14 @@ Download geprüften Dateihashes sind:
   GitHub-Artefaktdigest
   `sha256:e210da1a83e89de47f906c5d8177f04a3b899344de752420fb3e5909f6006669`,
   Bericht-SHA-256
-  `6E4653D630A8CA7ACED9414CD84D293DDE649F82953E4760AC09329709691417`.
+  `6E4653D630A8CA7ACED9414CD84D293DDE649F82953E4760AC09329709691417`
+  (anonymer Manifestabruf);
+- `plwc-r27-public-verification-e54a2019d898cfefaf23bb9eed4e275938e4ff24`,
+  GitHub-Artefaktdigest
+  `sha256:f2ee0fd7dd85dc590ac9862b25f17830635d8fb5d9f551e30c00f23e5ffb7dbf`,
+  Bericht-SHA-256
+  `6E4653D630A8CA7ACED9414CD84D293DDE649F82953E4760AC09329709691417`
+  (vollständiger anonymer Pull plus lokaler Identitätsabgleich).
 
 Der reale unsigned Systemtestkandidat aus diesem Freeze heißt
 `PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-1d8eaa4.exe`, ist 5.516.329

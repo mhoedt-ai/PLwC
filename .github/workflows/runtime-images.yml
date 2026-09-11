@@ -192,11 +192,3 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 9
-
-  verify-approved-public-delivery:
-    if: ${{ inputs.publish_private_staging == false && inputs.confirmation == 'VERIFY_PUBLIC_R27_IMAGES' }}
-    uses: ./.github/workflows/runtime-images-public.yml
-    with:
-      operation: verify-public
-      confirmation: VERIFY_PUBLIC_R27_IMAGES
-    secrets: inherit
