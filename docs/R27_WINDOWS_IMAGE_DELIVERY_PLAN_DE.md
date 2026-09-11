@@ -2,7 +2,7 @@
 
 Stand: 2026-09-11
 
-Status: **G0–G2 PASS / G3 FINAL-REVALIDIERUNG / G4 LOKAL PASS, CI AUSSTEHEND / G5 STOP / G6 NO-GO**
+Status: **G0–G2 PASS / G3–G4 REVALIDIERUNG NACH G5-COMPILERBEFUND / G5 BEGONNEN, STOP / G6 NO-GO**
 
 Dieser Plan korrigiert den auf einem realen Windows-11-System beobachteten
 r26-Vertriebsfehler: Docker Desktop war vorhanden, das für
@@ -187,15 +187,15 @@ nächste Gate nicht.
 | G0 – Anforderungsbaseline | r26-Befund, neues Image-Opt-in, exaktes Inventar, GHCR-/Sichtbarkeitsregeln, Freigabepunkte und Traceability reviewed | UR-015, UR-016 und SR-011 sind in V-Modell und vollständiger G0-Traceability ergänzt; Konflikt zu SR-008 ist durch standardmäßig ausgeschaltetes ausdrückliches Opt-in aufgelöst; keine blockierende Entscheidung offen. | **PASS / GO zu G1** |
 | G1 – Architektur und Security | Digest-only, drei kontrollierte Runtime-Images, reproduzierbare Basen/Pakete, Manifest, anonymer öffentlicher Pull, Diagnose-, Safe-Mode- und Rollbackdesign reviewed | Die fünf G1-Reviews legen Single-Source-Manifest, drei feste GHCR-Repositories, reproduzierbare Buildgrenzen, standardmäßig ausgeschaltetes Opt-in, gehärtete Realprobes, Safe Mode, Besitzgrenzen, Threat Controls und vollständige Diagnose-/Exportverträge ohne offene Security- oder UX-Entscheidung fest. | **PASS / GO zu G2** |
 | G2 – Implementierungs-/Testfreigabe | vollständiges Design, Tests für alle Erfolgs-/Fehlerpfade, saubere Testdaten und Freigabe zur Implementierung | 27/27 Anforderungen sind automatisierten und systemischen Tests zugeordnet; 16/16 Komponentenauswahlen, 30 Image-Akquisitionsfälle, 24 Diagnose-Faults, neun disposable Windows-Umgebungen sowie das vollständige Deutsch-/Englisch- und Redaktionsdesign sind festgelegt. Die beiden fehlenden README-Dateien sind explizite, nicht verzichtbare G3-Implementierungsobjekte. | **PASS / GO zu G3-Implementierung** |
-| G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | Der direkte BuildKit-Registryexport bestand zuletzt für Commit `490246c0c0d09163fc6cc902edcaf0fd5e84d159` in Lauf `34501880750` vollständig: Doppelbuild, Realprobes, Critical-Gate, privater Push, private Sichtbarkeitsprüfung, identische Manifest-/Konfigurationsdigests und erneut verifizierter Installerlock. Die anschließende G4-Diagnosehärtung ändert den Quellcommit erneut. Deshalb ist nach dem finalen Code-/Evidenzcommit genau eine weitere private Revalidierung erforderlich. | **FINAL-REVALIDIERUNG ERFORDERLICH / STOP** |
-| G4 – Komponentenverifikation | alle automatisierten Image-, Installer-, Security-, Diagnose- und Regressionsprüfungen PASS | Der lokale Freeze-Kandidat bestand Python `211 PASS / 12 umgebungsbedingt SKIP`, Windows-Installer-Verträge `73/73`, Node-Bridge `26/26`, Browser-Extension `190/190`, reproduzierbare Store-Paketprüfung und Public-Snapshot für 386 getrackte Dateien. Zusätzlich bestanden ein echter isolierter Docker-Inventarlauf und alle drei vorhandenen lokalen Offline-Probes mit `--pull never`, `--network none`, read-only und ohne Capabilities. Die 30 IMG- und 24 DIA-Fälle sind durch zusätzliche Fault-Injection-Verträge für Abbruch, Timeout, falschen Digest/Plattform, Berichtsausfall, Redaction, Export-Traversal und anonymes `DOCKER_CONFIG` geschlossen. Exakter GitHub-CI- und privater Staginglauf des neuen Freeze-Commits stehen noch aus. | **LOKAL PASS / EXTERNE REVALIDIERUNG AUSSTEHEND** |
-| G5 – Systemvalidierung | Clean-Windows- und Upgrade-Matrix einschließlich echter Dokument-/Sandboxoperation, anonymer GHCR-Pull, Offline/Proxy/Abbruch/Neustart und Datenerhalt PASS | r27 besitzt jetzt den direkten r26→r27-Migrations-, Image-Akquisitions-, Safe-Mode- und Nachinstallationspfad. Die definierte disposable Windows-Matrix, anonyme öffentliche GHCR-Pulls und reale r27-Installerläufe fehlen weiterhin; ein Produktionskandidat wurde nicht gebaut. | **NICHT BEGONNEN / STOP** |
+| G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | Commit `30d87d6b4b7765b7b6343cb9aae5ba071f3f2298` bestand in Lauf `34611364486` Doppelbuild, Realprobes, Critical-Gate, privaten direkten BuildKit-Push, private Sichtbarkeitsprüfung, Digestbindung und Evidenzupload vollständig. Der erste echte G5-Compilerlauf deckte danach zwei ausschließlich lokale Build-/Inno-Harnessfehler auf; deren Korrektur ändert den Quellcommit erneut und erfordert deshalb eine letzte exakte Revalidierung. | **REVALIDIERUNG NACH COMPILERFIX ERFORDERLICH / STOP** |
+| G4 – Komponentenverifikation | alle automatisierten Image-, Installer-, Security-, Diagnose- und Regressionsprüfungen PASS | Der Freeze-Commit `30d87d6` bestand lokal Python `211 PASS / 12 umgebungsbedingt SKIP`, Windows-Installer-Verträge `73/73`, Node-Bridge `26/26`, Browser-Extension `190/190`, reproduzierbare Store-Paketprüfung und Public-Snapshot für 386 getrackte Dateien. GitHub-CI-Lauf `34611339394` bestand alle sechs Jobs; privates Staging `34611364486` bestand ebenfalls vollständig. Nach dem realen Compilerbefund sind der betroffene Clean-Machine-/Security-Vertragsblock `51/51` und ein vollständiger unsigned ISCC-Build lokal grün; Gesamt-Pester und exakte externe Revalidierung des Fix-Commits stehen noch aus. | **FIX LOKAL TEILGEPRÜFT / EXTERNE REVALIDIERUNG AUSSTEHEND** |
+| G5 – Systemvalidierung | Clean-Windows- und Upgrade-Matrix einschließlich echter Dokument-/Sandboxoperation, anonymer GHCR-Pull, Offline/Proxy/Abbruch/Neustart und Datenerhalt PASS | Phase 6 wurde mit einem ausdrücklich unsigned, isolierten Compilerkandidaten begonnen. Dabei wurden die Rückgabekanal-Verunreinigung des Manifestverifiers und eine Inno-Präprozessor-Verwechslung einer Pascal-Arrayliste mit einem Section-Tag gefunden, korrigiert und real kompiliert. Die disposable Windows-Matrix, anonyme öffentliche GHCR-Pulls und reale Installationsläufe fehlen weiterhin; ein Produktionskandidat wurde nicht gebaut. | **BEGONNEN / STOP** |
 | G6 – Release Acceptance | G0–G5 PASS; exakte Image- und EXE-Digests, Signaturstatus, Claims, Known Limitations und Product-Owner-GO vollständig | Kein r27-Artefakt; r26 durch neuen Feldbefund zurückgezogen; keine Veröffentlichungsfreigabe. | **BLOCKED / NO-GO** |
 
 ## 5. Heutige technische Baseline
 
-- Branch: `codex/plwc-chat-bridge-rc19`; letzter eingecheckter r27-Stand vor
-  dem G4-Diagnose-Freeze: `490246c`.
+- Branch: `codex/plwc-chat-bridge-rc19`; geprüfter G4-Freeze vor dem lokalen
+  Phase-6-Compilerfix: `30d87d6`.
 - GitHub-Repository: `mhoedt-ai/PLwC`, öffentlich; Standardbranch `main`.
 - Der manuelle Workflow baut und prüft alle Images vor einem möglichen privaten
   Staging-Push; ohne Environment-Freigabe findet kein Upload statt. Ein eigener
@@ -264,15 +264,50 @@ Sie werden wegen der späteren r27-Codeänderungen nicht in einen aktuellen
 Installer übernommen. Öffentliche Paketnamen, anonyme Pullbarkeit und ein
 Produktionsartefakt sind damit ausdrücklich nicht freigegeben.
 
+### 5.2 Exakte G4-Evidenz und erster Phase-6-Compilerkandidat
+
+GitHub-CI-Lauf `34611339394` und privater Staginglauf `34611364486` liefen für
+Commit `30d87d6b4b7765b7b6343cb9aae5ba071f3f2298` vollständig erfolgreich. Das
+Actions-Artefakt
+`plwc-r27-runtime-images-30d87d6b4b7765b7b6343cb9aae5ba071f3f2298`
+trägt den GitHub-Artefaktdigest
+`sha256:1575a9bde31a3b80380491432a7ee0199610afbafaf77ed875fe90e13cacb04c`.
+Nach erneutem Herunterladen wurden folgende SHA-256-Werte geprüft:
+
+- `image-build-report.json`:
+  `B4D15497A303E545483616A4D375325B5462A4A2A0E820926609747A7D5C2052`
+- `staging-push-report.json`:
+  `BA672CFBE260167DB258AD29BDC9C1E84778CC19D69744DB253FD0282189A895`
+- `runtime-images.json`:
+  `B90ED55A217EBB81E4284E334C29570BE698CF1C3C4C37F4929180289BD92B9E`
+
+| Image | Registry-Manifestdigest | Registry-Konfigurationsdigest |
+| --- | --- | --- |
+| Document Worker | `sha256:dd75468976bf19de9c96107a83441b33dbdd2b58783f250eaf6978e869a118e4` | `sha256:4e890bb0df44dc2e33888eb96810356d0ad1f3afa2af2820b97d87f552bdb39c` |
+| Node Runner | `sha256:8339a35b93e7cb30a2b876384858d1533edea1f8bdf26d073bc054c7de44d84a` | `sha256:905694974c75c513c6e86c06e40767663735e02eaa10baf590deaf8cca4360bf` |
+| Python Runner | `sha256:0886a33e7d9c4e9e789fbb2354c36162ea9b7bc6643a4492907b2f57cda58b20` | `sha256:3e4ba66b7606ba0de9be73e9739366d43107dd531e3d18733385016620d14a99` |
+
+Der erste vollständig kompilierte Phase-6-Kandidat wurde ausschließlich als
+lokaler unsigned Testbuild erzeugt. Seine EXE hatte 5.516.102 Bytes und den
+SHA-256-Wert
+`AA6CBDB55700C7EA7812EEFB78E90265E4902390FEA95440A9939B1D9F38995B`;
+Authenticode meldete erwartungsgemäß `NotSigned`. Der eingebettete Image-Lock
+war bytegleich mit `runtime-images.json` aus Lauf `34611364486`. Dieser Hash
+ist keine Releaseidentität: Der Kandidat entstand aus dem noch nicht
+eingecheckten Compilerfix und dient nur als Nachweis, dass der reale
+unsigned-Buildpfad kompiliert.
+
 ## 6. Nächster zulässiger Schritt
 
-G0 bis G2 sind geschlossen; die vollständige lokale G4-Matrix ist grün. Der
-nächste zulässige Schritt ist der exakte Code-/Evidenz-Freeze, danach ein
+G0 bis G2 sind geschlossen; Phase 6 hat mit dem realen unsigned Compilerlauf
+begonnen. Der nächste zulässige Schritt ist der vollständige lokale
+Vertragstest und der exakte Code-/Evidenz-Freeze des Compilerfixes, danach ein
 GitHub-CI-Lauf und die bereits freigegebene ausschließlich private
-BuildKit-Staging-Revalidierung aus genau diesem Commit. Erst wenn beide Läufe
-vollständig erfolgreich sind, kann G4 geschlossen und Phase 6 begonnen werden.
-Öffentliche GHCR-Sichtbarkeit, Produktions-EXE und Veröffentlichung bleiben
-gesperrt.
+BuildKit-Staging-Revalidierung aus genau diesem Commit. Anschließend kann die
+Windows-Systemmatrix mit den Varianten fortgesetzt werden, die keine
+öffentliche Registrysichtbarkeit voraussetzen. Öffentliche GHCR-Sichtbarkeit,
+anonymer Endnutzer-Pull, Produktions-EXE und Veröffentlichung bleiben eigene
+gesperrte Freigabepunkte.
 
 ## 7. Separat aufgenommener Bridge-Befund
 

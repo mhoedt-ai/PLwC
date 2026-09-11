@@ -315,7 +315,7 @@ function Get-RuntimeImagesManifest {
     Invoke-CheckedCommand `
         -FilePath $pythonCommand.Source `
         -ArgumentList @($runtimeImageVerifier, "--manifest", $resolvedPath) `
-        -WorkingDirectory $repoRoot
+        -WorkingDirectory $repoRoot | Out-Host
 
     return [pscustomobject]@{
         Path = $resolvedPath
@@ -571,7 +571,7 @@ function Assert-AuthenticodeSignature {
     Invoke-CheckedCommand `
         -FilePath $Context.SignToolPath `
         -ArgumentList @("verify", "/pa", "/all", "/tw", $Path) `
-        -WorkingDirectory (Split-Path -Parent $Path)
+        -WorkingDirectory (Split-Path -Parent $Path) | Out-Host
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
     if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
         $null -eq $signature.SignerCertificate -or
@@ -611,7 +611,7 @@ function Invoke-AuthenticodeSigning {
             "/d", $Description,
             $Path
         ) `
-        -WorkingDirectory (Split-Path -Parent $Path)
+        -WorkingDirectory (Split-Path -Parent $Path) | Out-Host
     return Assert-AuthenticodeSignature -Path $Path -Context $Context
 }
 

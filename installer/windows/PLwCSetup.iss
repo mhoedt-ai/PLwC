@@ -2577,9 +2577,8 @@ var
   SystemTime: TSystemTime;
 begin
   GetSystemTime(SystemTime);
-  Result := Format(
-    '%.4d-%.2d-%.2dT%.2d:%.2d:%.2dZ',
-    [SystemTime.Year, SystemTime.Month, SystemTime.Day,
+  Result := Format('%.4d-%.2d-%.2dT%.2d:%.2d:%.2dZ', [SystemTime.Year,
+    SystemTime.Month, SystemTime.Day,
      SystemTime.Hour, SystemTime.Minute, SystemTime.Second]);
 end;
 

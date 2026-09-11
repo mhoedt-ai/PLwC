@@ -834,8 +834,10 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $codeSection | Should Match '(?is)function\s+IsValidDiagnosticReportFile.*?schema_version.*?report_path.*?command_id.*?report_id.*?IsLowercaseSha256'
         $codeSection | Should Match '(?is)function\s+BuildInnoFallbackDiagnosticReport.*?GetSHA256OfString\(Utf8Encode\(Canonical\)\)'
         $codeSection | Should Match '(?is)function\s+GetUtcDiagnosticTimestamp.*?GetSystemTime.*?Z'
+        $codeSection | Should Not Match '(?m)^\s*\[SystemTime\.'
         $codeSection | Should Match '(?is)function\s+RunRuntimeImageManager.*?DeleteFile\(RuntimeImagesReportPath\).*?did not create a valid report.*?ResultCode\s*:=\s*40'
         $buildSource | Should Match 'A release-grade r27 build requires -RuntimeImagesManifestPath'
+        $buildSource | Should Match '(?is)function\s+Get-RuntimeImagesManifest.*?Invoke-CheckedCommand.*?-WorkingDirectory\s+\$repoRoot\s*\|\s*Out-Host.*?return\s+\[pscustomobject\]'
         $buildSource | Should Match '/DRuntimeImagesManifestSha256='
     }
 
@@ -1258,6 +1260,8 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $buildSource | Should Match '"/tr",\s*\$Context\.TimestampUrl'
         $buildSource | Should Match '"/td",\s*"SHA256"'
         $buildSource | Should Match '@\("verify",\s*"/pa",\s*"/all",\s*"/tw"'
+        $buildSource | Should Match '(?is)function\s+Assert-AuthenticodeSignature.*?Invoke-CheckedCommand.*?\|\s*Out-Host.*?return\s+\[ordered\]'
+        $buildSource | Should Match '(?is)function\s+Invoke-AuthenticodeSigning.*?Invoke-CheckedCommand.*?\|\s*Out-Host.*?return\s+Assert-AuthenticodeSignature'
         $buildSource | Should Match '(?is)Build-NativeLauncher.*?Invoke-AuthenticodeSigning.*?Write-PayloadManifest'
         $buildSource | Should Match '(?is)Invoke-CheckedCommand\s+-FilePath\s+\$iscc.*?Invoke-AuthenticodeSigning.*?Write-InstallerBuildIdentity'
         $buildSource | Should Match '(?is)\$Unsigned.*?Assert-UnsignedArtifact.*?Write-InstallerBuildIdentity'
