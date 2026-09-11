@@ -9,13 +9,18 @@ on:
         type: boolean
         default: false
       confirmation:
-        description: "Enter PUBLISH_PRIVATE_R27_STAGING after Product Owner approval"
+        description: "Enter the approved staging, promotion, or public-verification confirmation phrase"
         required: true
         type: string
 
 concurrency:
   group: plwc-r27-runtime-image-staging
   cancel-in-progress: false
+
+env:
+  APPROVED_SOURCE_COMMIT: 1d8eaa4f82c2aec2fbe7212d446c7ebb05fa9fe8
+  APPROVED_STAGING_SUFFIX: r27-staging-1d8eaa4f82c2
+  APPROVED_STAGING_PREFIX: ghcr.io/mhoedt-ai/plwc-r27-private-staging
 
 jobs:
   build-verify-stage:
@@ -189,6 +194,218 @@ jobs:
         with:
           name: plwc-r27-runtime-images-${{ github.sha }}
           path: build/runtime-images/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9
+
+  promote-private-candidates:
+    if: ${{ inputs.publish_private_staging == false && inputs.confirmation == 'PROMOTE_APPROVED_R27_IMAGES' }}
+    runs-on: ubuntu-latest
+    environment: r27-runtime-images-staging
+    permissions:
+      contents: read
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          install: true
+
+      - name: Require dedicated GHCR credential
+        shell: bash
+        env:
+          GHCR_STAGING_PAT: ${{ secrets.GHCR_STAGING_PAT }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$GHCR_STAGING_PAT" ]]; then
+            echo "::error title=Missing GHCR credential::GHCR_STAGING_PAT is required"
+            exit 1
+          fi
+
+      - name: Authenticate GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_STAGING_PAT }}
+
+      - name: Carbon-copy approved manifests into private release packages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_STAGING_PAT }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/runtime-images
+          report_lines=build/runtime-images/public-promotion-report.ndjson
+          : > "$report_lines"
+          components=(document-worker node-runner python-runner)
+          digests=(
+            sha256:9f06960d30bc91701161d5490c24611f4e630ee8d0ab57eef04c6f7862df93e1
+            sha256:fccb8cc036d24c764504749d802674e6e6f3c9c72726334b73aa674830e7b6f2
+            sha256:83d7d224abbd287fab225a8d81c29b98795440af75edad3a70bf5f4b0c6278bc
+          )
+          config_digests=(
+            sha256:af6757f5fb28204b7f61b7076cad00fbe4e0a71e11276db5067419083718a6df
+            sha256:9a8a4a3c78c9f8896b0370e033b56b742b1227e03e7d711630399164e399ee7d
+            sha256:95fdfdbd4a5f1f67d3a485a773e5e7a4e9b73295f78fad70a5407f8519dd5917
+          )
+
+          for index in "${!components[@]}"
+          do
+            component="${components[$index]}"
+            digest="${digests[$index]}"
+            config_digest="${config_digests[$index]}"
+            staging_package="plwc-r27-private-staging-${component}"
+            release_package="plwc-${component}"
+            source="${APPROVED_STAGING_PREFIX}-${component}:${APPROVED_STAGING_SUFFIX}"
+            destination="ghcr.io/mhoedt-ai/${release_package}:0.1.0"
+
+            staging_visibility="$(gh api "/user/packages/container/${staging_package}" --jq .visibility)"
+            if [[ "$staging_visibility" != "private" ]]; then
+              echo "::error title=Unsafe staging visibility::${staging_package} is ${staging_visibility}, expected private"
+              exit 1
+            fi
+
+            existing_error="$(mktemp)"
+            if release_json="$(gh api "/user/packages/container/${release_package}" 2>"$existing_error")"; then
+              release_visibility="$(jq -r .visibility <<<"$release_json")"
+              if [[ "$release_visibility" != "private" ]]; then
+                echo "::error title=Unsafe existing release visibility::${release_package} is ${release_visibility}; refusing to overwrite"
+                rm -f "$existing_error"
+                exit 1
+              fi
+            elif ! grep --quiet "HTTP 404" "$existing_error"; then
+              cat "$existing_error" >&2
+              rm -f "$existing_error"
+              exit 1
+            fi
+            rm -f "$existing_error"
+
+            source_raw="$(mktemp)"
+            docker buildx imagetools inspect --raw "${source}@${digest}" > "$source_raw"
+            source_digest="sha256:$(sha256sum "$source_raw" | cut -d' ' -f1)"
+            source_config_digest="$(jq -r .config.digest "$source_raw")"
+            if [[ "$source_digest" != "$digest" || "$source_config_digest" != "$config_digest" ]]; then
+              echo "::error title=Staging identity mismatch::${component}: ${source_digest} / ${source_config_digest}"
+              exit 1
+            fi
+
+            docker buildx imagetools create \
+              --prefer-index=false \
+              --tag "$destination" \
+              "${source}@${digest}"
+
+            destination_raw="$(mktemp)"
+            docker buildx imagetools inspect --raw "$destination" > "$destination_raw"
+            destination_digest="sha256:$(sha256sum "$destination_raw" | cut -d' ' -f1)"
+            destination_config_digest="$(jq -r .config.digest "$destination_raw")"
+            if [[ "$destination_digest" != "$digest" || "$destination_config_digest" != "$config_digest" ]]; then
+              echo "::error title=Release identity mismatch::${component}: ${destination_digest} / ${destination_config_digest}"
+              exit 1
+            fi
+
+            release_visibility="$(gh api "/user/packages/container/${release_package}" --jq .visibility)"
+            if [[ "$release_visibility" != "private" ]]; then
+              echo "::error title=Premature public visibility::${release_package} is ${release_visibility}, expected private before the explicit UI transition"
+              exit 1
+            fi
+
+            jq -n \
+              --arg component "$component" \
+              --arg source_commit "$APPROVED_SOURCE_COMMIT" \
+              --arg source "${source}@${digest}" \
+              --arg destination "$destination" \
+              --arg digest "$digest" \
+              --arg config_digest "$config_digest" \
+              '{component:$component,source_commit:$source_commit,source:$source,destination:$destination,digest:$digest,config_digest:$config_digest,visibility:"private",status:"pass"}' \
+              >> "$report_lines"
+            rm -f "$source_raw" "$destination_raw"
+          done
+
+          jq -s \
+            --arg source_commit "$APPROVED_SOURCE_COMMIT" \
+            '{schema_version:"1.0.0",operation:"promote-private-candidates",source_commit:$source_commit,status:"pass",images:.}' \
+            "$report_lines" > build/runtime-images/public-promotion-report.json
+          rm -f "$report_lines"
+
+      - name: Upload immutable private-promotion evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: plwc-r27-private-promotion-${{ github.sha }}
+          path: build/runtime-images/public-promotion-report.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9
+
+  verify-public:
+    if: ${{ inputs.publish_private_staging == false && inputs.confirmation == 'VERIFY_PUBLIC_R27_IMAGES' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          install: true
+
+      - name: Verify anonymous digest-locked access
+        shell: bash
+        run: |
+          set -euo pipefail
+          anonymous_config="$RUNNER_TEMP/plwc-r27-anonymous-docker-config"
+          mkdir -p "$anonymous_config" build/runtime-images
+          printf '{"auths":{}}\n' > "$anonymous_config/config.json"
+          export DOCKER_CONFIG="$anonymous_config"
+          report_lines=build/runtime-images/public-verification-report.ndjson
+          : > "$report_lines"
+          components=(document-worker node-runner python-runner)
+          digests=(
+            sha256:9f06960d30bc91701161d5490c24611f4e630ee8d0ab57eef04c6f7862df93e1
+            sha256:fccb8cc036d24c764504749d802674e6e6f3c9c72726334b73aa674830e7b6f2
+            sha256:83d7d224abbd287fab225a8d81c29b98795440af75edad3a70bf5f4b0c6278bc
+          )
+          config_digests=(
+            sha256:af6757f5fb28204b7f61b7076cad00fbe4e0a71e11276db5067419083718a6df
+            sha256:9a8a4a3c78c9f8896b0370e033b56b742b1227e03e7d711630399164e399ee7d
+            sha256:95fdfdbd4a5f1f67d3a485a773e5e7a4e9b73295f78fad70a5407f8519dd5917
+          )
+
+          for index in "${!components[@]}"
+          do
+            component="${components[$index]}"
+            digest="${digests[$index]}"
+            config_digest="${config_digests[$index]}"
+            reference="ghcr.io/mhoedt-ai/plwc-${component}:0.1.0"
+            raw_manifest="$(mktemp)"
+            docker buildx imagetools inspect --raw "$reference" > "$raw_manifest"
+            observed_digest="sha256:$(sha256sum "$raw_manifest" | cut -d' ' -f1)"
+            observed_config_digest="$(jq -r .config.digest "$raw_manifest")"
+            if [[ "$observed_digest" != "$digest" || "$observed_config_digest" != "$config_digest" ]]; then
+              echo "::error title=Anonymous identity mismatch::${component}: ${observed_digest} / ${observed_config_digest}"
+              exit 1
+            fi
+
+            jq -n \
+              --arg component "$component" \
+              --arg source_commit "$APPROVED_SOURCE_COMMIT" \
+              --arg reference "$reference" \
+              --arg digest "$digest" \
+              --arg config_digest "$config_digest" \
+              '{component:$component,source_commit:$source_commit,reference:$reference,digest:$digest,config_digest:$config_digest,anonymous_pull:true,status:"pass"}' \
+              >> "$report_lines"
+            rm -f "$raw_manifest"
+          done
+
+          jq -s \
+            --arg source_commit "$APPROVED_SOURCE_COMMIT" \
+            '{schema_version:"1.0.0",operation:"verify-public",source_commit:$source_commit,status:"pass",images:.}' \
+            "$report_lines" > build/runtime-images/public-verification-report.json
+          rm -f "$report_lines"
+
+      - name: Upload immutable public-verification evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: plwc-r27-public-verification-${{ github.sha }}
+          path: build/runtime-images/public-verification-report.json
           if-no-files-found: error
           retention-days: 30
           compression-level: 9
