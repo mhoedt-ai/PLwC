@@ -849,6 +849,16 @@ type
     Pt: TPoint;
     LPrivate: LongWord;
   end;
+  TSystemTime = record
+    Year: Word;
+    Month: Word;
+    DayOfWeek: Word;
+    Day: Word;
+    Hour: Word;
+    Minute: Word;
+    Second: Word;
+    Milliseconds: Word;
+  end;
 
 function WaitNamedPipe(
   PipeName: String; TimeoutMilliseconds: LongWord): BOOL;
@@ -863,6 +873,8 @@ function TerminateProcess(Handle: THandle; ExitCode: LongWord): BOOL;
   external 'TerminateProcess@kernel32.dll stdcall';
 function CloseHandle(Handle: THandle): BOOL;
   external 'CloseHandle@kernel32.dll stdcall';
+procedure GetSystemTime(var SystemTime: TSystemTime);
+  external 'GetSystemTime@kernel32.dll stdcall';
 function PeekMessage(
   var Msg: TWindowsMessage; Wnd: HWND;
   MsgFilterMin, MsgFilterMax, RemoveMsg: LongWord): BOOL;
@@ -2495,14 +2507,88 @@ begin
     Result := InstallerPostflightReportPath;
 end;
 
-function GetExistingMaintenanceReportReference(ActionName: String): String;
+function GetInstallerMaintenanceFallbackPath(ActionName: String): String;
+begin
+  Result := GetLogsPath('') + '\setup\r27-installer-maintenance-' +
+    ActionName + '-fallback.json';
+end;
+
+function ExtractJsonStringValue(JsonText, FieldName: String): String;
 var
-  ReportPath: String;
+  Marker: String;
+  Tail: String;
+  Position: Integer;
+begin
+  Result := '';
+  Marker := '"' + FieldName + '": "';
+  Position := Pos(Marker, JsonText);
+  if Position = 0 then
+  begin
+    Marker := '"' + FieldName + '":"';
+    Position := Pos(Marker, JsonText);
+  end;
+  if Position = 0 then
+    Exit;
+  Tail := Copy(JsonText, Position + Length(Marker), Length(JsonText));
+  Position := Pos('"', Tail);
+  if Position > 0 then
+    Result := Copy(Tail, 1, Position - 1);
+end;
+
+function IsLowercaseSha256(Value: String): Boolean;
+var
+  Index: Integer;
+begin
+  Result := Length(Value) = 64;
+  if not Result then
+    Exit;
+  for Index := 1 to Length(Value) do
+    if Pos(Value[Index], '0123456789abcdef') = 0 then
+    begin
+      Result := False;
+      Exit;
+    end;
+end;
+
+function IsValidDiagnosticReportFile(ReportPath: String): Boolean;
+var
+  ReportText: AnsiString;
+  ReportId: String;
+begin
+  Result := False;
+  if (not FileExists(ReportPath)) or
+     (not LoadStringFromFile(ReportPath, ReportText)) then
+    Exit;
+  if (Pos('"schema_version": "1.0.0"', String(ReportText)) = 0) and
+     (Pos('"schema_version":"1.0.0"', String(ReportText)) = 0) then
+    Exit;
+  if (Pos('"report_path": "', String(ReportText)) = 0) and
+     (Pos('"report_path":"', String(ReportText)) = 0) then
+    Exit;
+  if (Pos('"command_id": "', String(ReportText)) = 0) and
+     (Pos('"command_id":"', String(ReportText)) = 0) then
+    Exit;
+  ReportId := ExtractJsonStringValue(String(ReportText), 'report_id');
+  Result := IsLowercaseSha256(ReportId);
+end;
+
+function GetUtcDiagnosticTimestamp: String;
+var
+  SystemTime: TSystemTime;
+begin
+  GetSystemTime(SystemTime);
+  Result := Format(
+    '%.4d-%.2d-%.2dT%.2d:%.2d:%.2dZ',
+    [SystemTime.Year, SystemTime.Month, SystemTime.Day,
+     SystemTime.Hour, SystemTime.Minute, SystemTime.Second]);
+end;
+
+function GetExistingRuntimeImageReportReference: String;
+var
   DiagnosticRoot: String;
 begin
-  ReportPath := GetInstallerMaintenanceReportPath(ActionName);
-  if FileExists(ReportPath) then
-    Result := ReportPath
+  if IsValidDiagnosticReportFile(RuntimeImagesReportPath) then
+    Result := RuntimeImagesReportPath
   else
   begin
     DiagnosticRoot := ExtractFileDir(GetInstallerDiagnosticPath);
@@ -2510,6 +2596,117 @@ begin
     Result := CustomMessage('ErrorInstallerReportMissing') + #13#10 +
       DiagnosticRoot;
   end;
+end;
+
+function BuildInnoFallbackDiagnosticReport(
+  PhaseName, CategoryName, CommandId, ErrorCategory, ErrorText,
+  ReportPath, StateName: String; ProcessStarted: Boolean): String;
+var
+  StartedJson: String;
+  Timestamp: String;
+  PlanId: String;
+  Canonical: String;
+  ReportId: String;
+  ExceptionType: String;
+begin
+  if ProcessStarted then
+  begin
+    StartedJson := 'true';
+    ExceptionType := 'ReportMissingError';
+  end
+  else
+  begin
+    StartedJson := 'false';
+    ExceptionType := 'ProcessStartError';
+  end;
+  Timestamp := GetUtcDiagnosticTimestamp;
+  PlanId := Lowercase(GetSHA256OfString(Utf8Encode(
+    GetInstallerBuildId + '|' + CommandId + '|' + Timestamp + '|' + ReportPath)));
+  Canonical :=
+    '{"build_id":"' + JsonEscape(GetInstallerBuildId) + '",' +
+    '"cancelled":false,' +
+    '"category":"' + JsonEscape(CategoryName) + '",' +
+    '"command_id":"' + JsonEscape(CommandId) + '",' +
+    '"duration_ms":0,' +
+    '"error":"' + JsonEscape(ErrorText) + '",' +
+    '"error_category":"' + JsonEscape(ErrorCategory) + '",' +
+    '"exception_type":"' + ExceptionType + '",' +
+    '"exit_code":40,' +
+    '"finished_at":"' + JsonEscape(Timestamp) + '",' +
+    '"images":[],' +
+    '"ok":false,' +
+    '"phase":"' + JsonEscape(PhaseName) + '",' +
+    '"plan_id":"' + PlanId + '",' +
+    '"report_path":"' + JsonEscape(ReportPath) + '",' +
+    '"schema_version":"1.0.0",' +
+    '"started":' + StartedJson + ',' +
+    '"started_at":"' + JsonEscape(Timestamp) + '",' +
+    '"state":"' + JsonEscape(StateName) + '",' +
+    '"stderr":"' + JsonEscape(ErrorText) + '",' +
+    '"stderr_truncated":false,' +
+    '"stdout":"",' +
+    '"stdout_truncated":false,' +
+    '"timed_out":false}';
+  ReportId := Lowercase(GetSHA256OfString(Utf8Encode(Canonical)));
+  Result := Copy(Canonical, 1, Length(Canonical) - 1) +
+    ',"report_id":"' + ReportId + '"}' + #13#10;
+end;
+
+function GetExistingMaintenanceReportPath(ActionName: String): String;
+var
+  ReportPath: String;
+  FallbackPath: String;
+begin
+  Result := '';
+  ReportPath := GetInstallerMaintenanceReportPath(ActionName);
+  FallbackPath := GetInstallerMaintenanceFallbackPath(ActionName);
+  if IsValidDiagnosticReportFile(ReportPath) then
+    Result := ReportPath
+  else if IsValidDiagnosticReportFile(FallbackPath) then
+    Result := FallbackPath;
+end;
+
+function GetExistingMaintenanceReportReference(ActionName: String): String;
+var
+  ExistingReportPath: String;
+  DiagnosticRoot: String;
+begin
+  ExistingReportPath := GetExistingMaintenanceReportPath(ActionName);
+  if ExistingReportPath <> '' then
+    Result := ExistingReportPath
+  else
+  begin
+    DiagnosticRoot := ExtractFileDir(GetInstallerDiagnosticPath);
+    EnsureDirectory(DiagnosticRoot);
+    Result := CustomMessage('ErrorInstallerReportMissing') + #13#10 +
+      DiagnosticRoot;
+  end;
+end;
+
+procedure WriteInstallerMaintenanceFallbackReport(
+  ActionName, ErrorText: String; ProcessStarted: Boolean);
+var
+  FallbackPath: String;
+  Content: String;
+  PhaseName: String;
+begin
+  FallbackPath := GetInstallerMaintenanceFallbackPath(ActionName);
+  if ActionName = 'preflight-prepare' then
+    PhaseName := 'preflight'
+  else
+    PhaseName := ActionName;
+  Content := BuildInnoFallbackDiagnosticReport(
+    PhaseName,
+    'maintenance',
+    'installer-maintenance-' + ActionName,
+    'process_start_or_report_missing',
+    ErrorText,
+    FallbackPath,
+    'safe_mode',
+    ProcessStarted);
+  EnsureDirectory(ExtractFileDir(FallbackPath));
+  if not SaveStringToFile(FallbackPath, Content, False) then
+    Log('Could not write r27 installer maintenance fallback report: ' + FallbackPath);
 end;
 
 function BuildInstallerMaintenanceArguments(ActionName: String): String;
@@ -2529,7 +2726,8 @@ begin
     ' --backups-root ' + QuoteMaintenanceArgument(GetBackupsPath('')) +
     ' --selection-path ' + QuoteMaintenanceArgument(GetInstallerSelectionPath) +
     ' --transaction-path ' + QuoteMaintenanceArgument(InstallerMigrationTransactionPath) +
-    ' --report-path ' + QuoteMaintenanceArgument(GetInstallerMaintenanceReportPath(ActionName));
+    ' --report-path ' + QuoteMaintenanceArgument(GetInstallerMaintenanceReportPath(ActionName)) +
+    ' --build-id ' + QuoteMaintenanceArgument(GetInstallerBuildId);
   if ActionName = 'postflight' then
     Result := Result +
       ' --payload-manifest ' + QuoteMaintenanceArgument(GetInstalledPayloadManifestPath) +
@@ -2540,8 +2738,11 @@ function RunInstallerMaintenance(ActionName: String; var ResultCode: Integer): B
 var
   Parameters: String;
   Started: Boolean;
+  PrimaryReportValid: Boolean;
 begin
   ResultCode := -1;
+  DeleteFile(GetInstallerMaintenanceReportPath(ActionName));
+  DeleteFile(GetInstallerMaintenanceFallbackPath(ActionName));
   Parameters := BuildInstallerMaintenanceArguments(ActionName);
   Log('Executing r27 installer maintenance action: ' + ActionName);
   Started := Exec(
@@ -2551,7 +2752,22 @@ begin
     SW_HIDE,
     ewWaitUntilTerminated,
     ResultCode);
-  Result := Started and (ResultCode = 0);
+  if not Started then
+    WriteInstallerMaintenanceFallbackReport(
+      ActionName,
+      'The installer maintenance process could not be started.',
+      False)
+  else if (not IsValidDiagnosticReportFile(GetInstallerMaintenanceReportPath(ActionName))) and
+          (not IsValidDiagnosticReportFile(GetInstallerMaintenanceFallbackPath(ActionName))) then
+    WriteInstallerMaintenanceFallbackReport(
+      ActionName,
+      'The installer maintenance process did not create a valid report.',
+      True);
+  PrimaryReportValid := IsValidDiagnosticReportFile(
+    GetInstallerMaintenanceReportPath(ActionName));
+  if Started and (ResultCode = 0) and (not PrimaryReportValid) then
+    ResultCode := 40;
+  Result := Started and (ResultCode = 0) and PrimaryReportValid;
   Log(
     'r27 installer maintenance action=' + ActionName +
     '; started=' + IntToStr(Ord(Started)) +
@@ -2587,7 +2803,8 @@ begin
     Result := Result + #13#10 + #13#10 + CustomMessage('RuntimeImagesReady')
   else if RuntimeImagesOutcome <> '' then
     Result := Result + #13#10 + #13#10 +
-      CustomMessage('RuntimeImagesReportLocation') + ' ' + RuntimeImagesReportPath;
+      CustomMessage('RuntimeImagesReportLocation') + ' ' +
+        GetExistingRuntimeImageReportReference;
 end;
 
 procedure ProcessPendingInstallerMessages;
@@ -2631,7 +2848,7 @@ begin
   RuntimeDocumentWorkerState := 'safe_mode';
   RuntimeNodeRunnerState := 'safe_mode';
   RuntimePythonRunnerState := 'safe_mode';
-  if FileExists(RuntimeImagesReportPath) and
+  if IsValidDiagnosticReportFile(RuntimeImagesReportPath) and
      LoadStringFromFile(RuntimeImagesReportPath, ReportText) then
   begin
     RuntimeDocumentWorkerState := ExtractRuntimeImageState(
@@ -2647,32 +2864,29 @@ function RuntimeImageReportHasErrorCategory(CategoryName: String): Boolean;
 var
   ReportText: AnsiString;
 begin
-  Result := FileExists(RuntimeImagesReportPath) and
+  Result := IsValidDiagnosticReportFile(RuntimeImagesReportPath) and
     LoadStringFromFile(RuntimeImagesReportPath, ReportText) and
-    (Pos('"error_category": "' + CategoryName + '"', String(ReportText)) > 0);
+    ((Pos('"error_category": "' + CategoryName + '"', String(ReportText)) > 0) or
+     (Pos('"error_category":"' + CategoryName + '"', String(ReportText)) > 0));
 end;
 
-procedure WriteRuntimeImageFallbackReport(OperationName, ErrorText: String);
+procedure WriteRuntimeImageFallbackReport(
+  OperationName, ErrorText: String; ProcessStarted: Boolean);
 var
   Content: String;
 begin
-  Content :=
-    '{' + #13#10 +
-    '  "schema_version": "1.0.0",' + #13#10 +
-    '  "build_id": "' + JsonEscape(GetInstallerBuildId) + '",' + #13#10 +
-    '  "phase": "image_' + JsonEscape(OperationName) + '",' + #13#10 +
-    '  "category": "docker",' + #13#10 +
-    '  "started": false,' + #13#10 +
-    '  "exit_code": 40,' + #13#10 +
-    '  "exception_type": "ProcessStartError",' + #13#10 +
-    '  "error": "' + JsonEscape(ErrorText) + '",' + #13#10 +
-    '  "report_path": "' + JsonEscape(RuntimeImagesReportPath) + '",' + #13#10 +
-    '  "ok": false,' + #13#10 +
-    '  "state": "safe_mode",' + #13#10 +
-    '  "images": []' + #13#10 +
-    '}' + #13#10;
+  Content := BuildInnoFallbackDiagnosticReport(
+    'image_' + OperationName,
+    'docker',
+    'runtime-image-manager-' + OperationName,
+    'process_start_or_report_missing',
+    ErrorText,
+    RuntimeImagesReportPath,
+    'safe_mode',
+    ProcessStarted);
   EnsureDirectory(ExtractFileDir(RuntimeImagesReportPath));
-  SaveStringToFile(RuntimeImagesReportPath, Content, False);
+  if not SaveStringToFile(RuntimeImagesReportPath, Content, False) then
+    Log('Could not write r27 runtime image fallback report: ' + RuntimeImagesReportPath);
 end;
 
 function RunRuntimeImageManager(
@@ -2695,6 +2909,7 @@ begin
   RuntimeImagesCancelFile := GetStatePath('') +
     '\installation\r27-runtime-images.cancel';
   EnsureDirectory(ExtractFileDir(RuntimeImagesReportPath));
+  DeleteFile(RuntimeImagesReportPath);
   EnsureDirectory(RuntimeImagesProcessReportDir);
   EnsureDirectory(ExtractFileDir(RuntimeImagesCancelFile));
   DeleteFile(RuntimeImagesCancelFile);
@@ -2751,7 +2966,7 @@ begin
     if not Started then
     begin
       WriteRuntimeImageFallbackReport(
-        OperationName, 'The runtime image manager process could not be started.');
+        OperationName, 'The runtime image manager process could not be started.', False);
       Exit;
     end;
     repeat
@@ -2762,10 +2977,14 @@ begin
     if WaitResult = WaitObject0 then
       if GetExitCodeProcess(ExecInfo.hProcess, ExitCode) then
         ResultCode := ExitCode;
-    Result := ResultCode = 0;
-    if not FileExists(RuntimeImagesReportPath) then
+    if not IsValidDiagnosticReportFile(RuntimeImagesReportPath) then
+    begin
       WriteRuntimeImageFallbackReport(
-        OperationName, 'The runtime image manager did not create its report.');
+        OperationName, 'The runtime image manager did not create a valid report.', True);
+      ResultCode := 40;
+    end;
+    Result := (ResultCode = 0) and
+      IsValidDiagnosticReportFile(RuntimeImagesReportPath);
   finally
     if Started and (ExecInfo.hProcess <> 0) then
       CloseHandle(ExecInfo.hProcess);
@@ -2835,7 +3054,8 @@ begin
   MsgBox(
     MessageText + #13#10 + #13#10 +
       CustomMessage('RuntimeImagesRetry') + #13#10 +
-      CustomMessage('RuntimeImagesReportLocation') + ' ' + RuntimeImagesReportPath,
+      CustomMessage('RuntimeImagesReportLocation') + ' ' +
+        GetExistingRuntimeImageReportReference,
     mbError, MB_OK);
   Result := False;
 end;
@@ -2843,6 +3063,8 @@ end;
 procedure PrepareInstallerMigration;
 var
   ResultCode: Integer;
+  FailureReportPath: String;
+  FailureReportLine: String;
 begin
   WizardForm.StatusLabel.Caption := CustomMessage('InstallerMigrationStatus');
   InstallerMigrationTransactionPath := GetStatePath('') +
@@ -2860,11 +3082,16 @@ begin
   ExtractTemporaryFile('doctor.py');
   if not RunInstallerMaintenance('preflight-prepare', ResultCode) then
   begin
+    FailureReportPath := GetExistingMaintenanceReportPath('preflight-prepare');
+    if FailureReportPath <> '' then
+      FailureReportLine := 'report=' + FailureReportPath
+    else
+      FailureReportLine := 'report_unavailable=true';
     AppendInstallerDiagnosticRecord(
       'installer_preflight',
       'status=failure' + #13#10 +
       'exit_code=' + IntToStr(ResultCode) + #13#10 +
-      'report=' + InstallerPreflightReportPath + #13#10);
+      FailureReportLine + #13#10);
     RaiseException(
       CustomMessage('ErrorInstallerPreflight') + #13#10 +
       GetExistingMaintenanceReportReference('preflight-prepare') + #13#10 +
@@ -3094,7 +3321,7 @@ begin
   SetIniString('RuntimeImages', 'DocumentWorkerState', RuntimeDocumentWorkerState, SelectionPath);
   SetIniString('RuntimeImages', 'NodeRunnerState', RuntimeNodeRunnerState, SelectionPath);
   SetIniString('RuntimeImages', 'PythonRunnerState', RuntimePythonRunnerState, SelectionPath);
-  if FileExists(RuntimeImagesReportPath) then
+  if IsValidDiagnosticReportFile(RuntimeImagesReportPath) then
     SetIniString('RuntimeImages', 'ReportPath', RuntimeImagesReportPath, SelectionPath)
   else
     SetIniString('RuntimeImages', 'ReportPath', '', SelectionPath);
@@ -5053,7 +5280,8 @@ begin
     SaveStringToFile(RuntimeImagesCancelFile, 'cancel' + #13#10, False);
     RuntimeImagesProgressPage.SetText(
       CustomMessage('RuntimeImagesCancelled'),
-      CustomMessage('RuntimeImagesReportLocation') + ' ' + RuntimeImagesReportPath);
+      CustomMessage('RuntimeImagesReportLocation') + ' ' +
+        GetExistingRuntimeImageReportReference);
     Cancel := False;
     Confirm := False;
   end;

@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -13,6 +15,14 @@ from installer_state import InstallerStateEngine, InstallerStateError
 
 
 REPORT_SCHEMA_VERSION = "1.0.0"
+MAX_CAPTURE_BYTES = 64 * 1024
+
+
+_SECRET_PATTERNS = (
+    re.compile(r"(?i)(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+"),
+    re.compile(r"(?i)((?:token|password|passwd|secret|cookie)\s*[:=]\s*)[^\s,;]+"),
+    re.compile(r"\b(?:ghp|github_pat|glpat)-?[A-Za-z0-9_\-]{16,}\b"),
+)
 
 
 def _utc_now() -> str:
@@ -28,6 +38,28 @@ def _report_id(value: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _redact_text(value: str) -> str:
+    normalized = "".join(character if character in "\n\r\t" or ord(character) >= 32 else "?" for character in value)
+    for pattern in _SECRET_PATTERNS:
+        normalized = pattern.sub(lambda match: f"{match.group(1)}[REDACTED]" if match.lastindex else "[REDACTED]", normalized)
+    return normalized
+
+
+def _bounded_text(value: str) -> tuple[str, bool]:
+    encoded = value.encode("utf-8", errors="replace")
+    if len(encoded) <= MAX_CAPTURE_BYTES:
+        return value, False
+    return encoded[:MAX_CAPTURE_BYTES].decode("utf-8", errors="replace"), True
+
+
+def _transaction_plan_id(args: argparse.Namespace) -> str:
+    transaction = _read_report_if_present(Path(args.transaction_path))
+    plan = transaction.get("plan")
+    if isinstance(plan, dict) and isinstance(plan.get("plan_id"), str):
+        return str(plan["plan_id"])
+    return str(args.plan_id)
+
+
 def _final_report(
     args: argparse.Namespace,
     payload: dict[str, Any],
@@ -36,12 +68,19 @@ def _final_report(
     started_monotonic: float,
     exit_code: int,
     exception: BaseException | None = None,
+    cancelled: bool = False,
 ) -> dict[str, Any]:
     report = dict(payload)
+    if report.get("state") == "running":
+        report["state"] = "completed"
+        report["ok"] = exit_code == 0
+    stderr, stderr_truncated = _bounded_text(_redact_text(str(exception)) if exception is not None else "")
     report.update(
         {
             "schema_version": REPORT_SCHEMA_VERSION,
-            "phase": args.action,
+            "build_id": args.build_id,
+            "plan_id": _transaction_plan_id(args),
+            "phase": "preflight" if args.action == "preflight-prepare" else args.action,
             "category": "maintenance",
             "command_id": f"installer-maintenance-{args.action}",
             "started": True,
@@ -50,21 +89,34 @@ def _final_report(
             "duration_ms": max(0, int((time.monotonic() - started_monotonic) * 1000)),
             "exit_code": exit_code,
             "stdout": "",
-            "stderr": "",
+            "stderr": stderr,
             "stdout_truncated": False,
-            "stderr_truncated": False,
+            "stderr_truncated": stderr_truncated,
             "timed_out": False,
-            "cancelled": False,
+            "cancelled": cancelled,
             "exception_type": type(exception).__name__ if exception is not None else None,
             "report_path": str(Path(args.report_path).resolve(strict=False)),
             "ok": exit_code == 0 and report.get("ok", True) is not False,
         }
     )
     if exception is not None:
-        report["error"] = str(exception)
-        report["error_category"] = "unexpected_maintenance_error"
+        report["error"] = stderr
+        report["error_category"] = "cancelled" if cancelled else "unexpected_maintenance_error"
     else:
         report.setdefault("error_category", None)
+    report["report_id"] = _report_id(report)
+    return report
+
+
+def _running_report(args: argparse.Namespace, *, started_at: str, started_monotonic: float) -> dict[str, Any]:
+    report = _final_report(
+        args,
+        {},
+        started_at=started_at,
+        started_monotonic=started_monotonic,
+        exit_code=40,
+    )
+    report.update({"state": "running", "finished_at": None, "duration_ms": 0})
     report["report_id"] = _report_id(report)
     return report
 
@@ -232,6 +284,7 @@ def _parser() -> argparse.ArgumentParser:
         parser.add_argument(f"--{name}", required=True)
     parser.add_argument("--payload-manifest")
     parser.add_argument("--extension-id")
+    parser.add_argument("--build-id", required=True)
     return parser
 
 
@@ -239,8 +292,13 @@ def main() -> int:
     args = _parser().parse_args()
     started_at = _utc_now()
     started_monotonic = time.monotonic()
+    args.plan_id = uuid.uuid4().hex
     report_path = Path(args.report_path)
     try:
+        _atomic_write_json(
+            report_path,
+            _running_report(args, started_at=started_at, started_monotonic=started_monotonic),
+        )
         if args.action == "preflight-prepare":
             exit_code = _prepare(args)
         elif args.action == "postflight":
@@ -258,6 +316,31 @@ def main() -> int:
         )
         _atomic_write_json(report_path, report)
         return exit_code
+    except KeyboardInterrupt as exc:
+        report = _final_report(
+            args,
+            _read_report_if_present(report_path),
+            started_at=started_at,
+            started_monotonic=started_monotonic,
+            exit_code=25,
+            exception=exc,
+            cancelled=True,
+        )
+        try:
+            _atomic_write_json(report_path, report)
+        except OSError:
+            fallback = (
+                Path(args.logs_root)
+                / "setup"
+                / f"r27-installer-maintenance-{args.action}-fallback.json"
+            )
+            try:
+                report["report_path"] = str(fallback.resolve(strict=False))
+                report["report_id"] = _report_id(report)
+                _atomic_write_json(fallback, report)
+            except OSError:
+                pass
+        return 25
     except Exception as exc:
         report = _final_report(
             args,
@@ -270,14 +353,18 @@ def main() -> int:
         try:
             _atomic_write_json(report_path, report)
         except OSError:
-            fallback = Path(args.logs_root) / "setup" / "r27-installer-maintenance-fallback.json"
+            fallback = (
+                Path(args.logs_root)
+                / "setup"
+                / f"r27-installer-maintenance-{args.action}-fallback.json"
+            )
             try:
                 report["report_path"] = str(fallback.resolve(strict=False))
                 report["report_id"] = _report_id(report)
                 _atomic_write_json(fallback, report)
             except OSError:
                 pass
-        print(f"PLwC installer maintenance failed: {exc}", file=sys.stderr)
+        print(f"PLwC installer maintenance failed: {_redact_text(str(exc))}", file=sys.stderr)
         return 40
 
 

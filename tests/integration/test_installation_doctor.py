@@ -140,10 +140,9 @@ def test_doctor_diagnosis_is_read_only_and_keeps_public_mcp_boundary(tmp_path: P
 def test_doctor_export_contains_bounded_installer_evidence_and_excludes_user_content(tmp_path: Path) -> None:
     doctor = _ready_installation(tmp_path)
     setup_root = tmp_path / "logs" / "setup"
-    missing_report = setup_root / "r27-installer-postflight-missing.json"
     _write(
         setup_root / "installer-diagnostic.log",
-        f"report={missing_report}\nsession_token=do-not-export\n".encode("utf-8"),
+        f"session_token=do-not-export\nworkspace={tmp_path / 'workspace' / 'private-note.txt'}\n".encode("utf-8"),
     )
     _write(setup_root / "r27-installer-preflight.json", b'{"ok":false,"password":"private"}\n')
     _write(setup_root / "r27-runtime-image-processes-acquire" / "document_worker.json", b'{"exit_code":30}\n')
@@ -172,7 +171,17 @@ def test_doctor_export_contains_bounded_installer_evidence_and_excludes_user_con
         assert b"[REDACTED]" in archive.read("artifacts/logs/setup/r27-installer-preflight.json")
         manifest = json.loads(archive.read("manifest.json"))
         assert manifest["workspace_and_profiles_excluded"] is True
-        assert missing_report.relative_to(tmp_path).as_posix() in manifest["missing_referenced_artifacts"]
+        assert manifest["excluded_scopes"] == {
+            "docker_credentials": "credential_store",
+            "profiles": "user_content",
+            "workspace": "user_content",
+        }
+        assert manifest["missing_referenced_artifacts"] == []
+        assert any(
+            item["relative_path"] == "logs/setup/r27-installer-postflight.json"
+            and item["reason"] == "not_present"
+            for item in manifest["skipped"]
+        )
         entry = next(
             item for item in manifest["included"]
             if item["relative_path"] == "logs/setup/r27-installer-preflight.json"
@@ -185,6 +194,32 @@ def test_doctor_export_rejects_an_unknown_snapshot(tmp_path: Path) -> None:
     doctor = _ready_installation(tmp_path)
     with pytest.raises(DoctorContractError, match="valid immutable"):
         doctor.export_diagnostic_bundle({"read_only": True, "snapshot_id": "short"})
+
+
+def test_doctor_export_fails_when_an_active_failure_report_is_missing(tmp_path: Path) -> None:
+    doctor = _ready_installation(tmp_path)
+    missing_report = tmp_path / "logs" / "setup" / "r27-installer-postflight-missing.json"
+    _write(
+        tmp_path / "logs" / "setup" / "installer-diagnostic.log",
+        f"status=failure\nreport={missing_report}\n".encode("utf-8"),
+    )
+    diagnosis = doctor.diagnose(component_inventory={"components": []})
+
+    with pytest.raises(DoctorContractError, match="missing referenced failure artifacts"):
+        doctor.export_diagnostic_bundle(diagnosis)
+
+
+def test_doctor_export_rejects_a_traversal_reference(tmp_path: Path) -> None:
+    doctor = _ready_installation(tmp_path)
+    traversal = tmp_path / "logs" / "setup" / ".." / ".." / "profiles" / "default" / "private.json"
+    _write(
+        tmp_path / "logs" / "setup" / "installer-diagnostic.log",
+        f"status=failure\nreport={traversal}\n".encode("utf-8"),
+    )
+    diagnosis = doctor.diagnose(component_inventory={"components": []})
+
+    with pytest.raises(DoctorContractError, match="rejected traversal references"):
+        doctor.export_diagnostic_bundle(diagnosis)
 
 
 def test_public_clu_doctor_keeps_diagnosis_read_only_with_metadata_audit(tmp_path: Path) -> None:

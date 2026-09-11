@@ -50,8 +50,9 @@ _SENSITIVE_ASSIGNMENT = re.compile(
     r"(?i)([\"']?(?:authorization|password|passwd|secret|session[_-]?token|access[_-]?token|api[_-]?key)"
     r"[\"']?\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|[^,;\s]+)"
 )
-_DIAGNOSTIC_PATH_REFERENCE = re.compile(
-    r"(?i)(?:[A-Z]:[\\/]|/)[^\r\n\"']+?\.(?:ini|json|jsonl|log|txt)"
+_DIAGNOSTIC_REQUIRED_PATH_REFERENCE = re.compile(
+    r"(?im)(?:^report=|\"(?:report_path|[a-z_]*_report|transaction)\"\s*:\s*\")"
+    r"((?:[A-Z]:[\\/]|/)[^\r\n\"']+?\.(?:ini|json|jsonl|log|txt))"
 )
 
 
@@ -498,6 +499,7 @@ class InstallationDoctor:
         included: list[dict[str, Any]] = []
         skipped: list[dict[str, Any]] = []
         referenced_paths: set[str] = set()
+        traversal_references: set[str] = set()
         total_bytes = 0
         exported_files: list[tuple[str, bytes]] = []
         for fact in self._diagnostic_artifact_facts():
@@ -534,19 +536,36 @@ class InstallationDoctor:
                 }
             )
             text = exported.decode("utf-8", errors="replace")
-            for match in _DIAGNOSTIC_PATH_REFERENCE.findall(text):
-                reference = Path(match.replace("\\\\", "\\")).resolve(strict=False)
+            for match in _DIAGNOSTIC_REQUIRED_PATH_REFERENCE.finditer(text):
+                raw_reference = match.group(1).replace("\\\\", "\\")
+                if ".." in Path(raw_reference).parts:
+                    traversal_references.add(raw_reference)
+                    continue
+                reference = Path(raw_reference).resolve(strict=False)
                 if _inside(reference, self.installation_root):
                     referenced_paths.add(reference.relative_to(self.installation_root).as_posix())
 
         present = {item["relative_path"] for item in included}
         missing_references = sorted(reference for reference in referenced_paths if reference not in present)
+        if traversal_references:
+            raise DoctorContractError(
+                "Diagnostic export rejected traversal references: " + ", ".join(sorted(traversal_references))
+            )
+        if missing_references:
+            raise DoctorContractError(
+                "Diagnostic export is missing referenced failure artifacts: " + ", ".join(missing_references)
+            )
         manifest = {
             "schema_version": DIAGNOSTIC_BUNDLE_SCHEMA_VERSION,
             "snapshot_id": snapshot_id,
             "generated_at": _utc_now(),
             "scope": ["logs/setup", "logs/doctor", "state/installation", "config/installer", "app/installation"],
             "workspace_and_profiles_excluded": True,
+            "excluded_scopes": {
+                "workspace": "user_content",
+                "profiles": "user_content",
+                "docker_credentials": "credential_store",
+            },
             "per_file_limit_bytes": DIAGNOSTIC_FILE_MAX_BYTES,
             "bundle_content_limit_bytes": DIAGNOSTIC_BUNDLE_MAX_BYTES,
             "included": included,

@@ -352,7 +352,19 @@ class ProcessRunner:
         self.build_id = build_id
         self.plan_id = plan_id or uuid.uuid4().hex
         self.cancel_file = cancel_file
+        self.docker_config_directory = (report_directory / ".anonymous-docker-config").resolve(strict=False)
         self.counter = 0
+
+    def _child_environment(self) -> dict[str, str]:
+        allowed: dict[str, str] = {}
+        for name in ("SystemRoot", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP", "LANG", "LC_ALL"):
+            value = os.environ.get(name)
+            if value:
+                allowed[name] = value
+        self.docker_config_directory.mkdir(parents=True, exist_ok=True)
+        allowed["DOCKER_CONFIG"] = str(self.docker_config_directory)
+        allowed["DOCKER_CLI_HINTS"] = "false"
+        return allowed
 
     def run(
         self,
@@ -408,6 +420,7 @@ class ProcessRunner:
                     stdout=stdout_handle,
                     stderr=stderr_handle,
                     shell=False,
+                    env=self._child_environment(),
                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
             finally:
@@ -777,6 +790,21 @@ def _fallback_report(
     return _with_report_id(report)
 
 
+def _write_report_with_fallback(report_path: Path, report: Mapping[str, Any]) -> Path | None:
+    try:
+        _atomic_write_json(report_path, report)
+        return report_path
+    except OSError:
+        fallback = report_path.with_name("r27-runtime-image-fallback.json")
+        fallback_report = dict(report)
+        fallback_report["report_path"] = str(fallback.resolve(strict=False))
+        try:
+            _atomic_write_json(fallback, _with_report_id(fallback_report))
+            return fallback
+        except OSError:
+            return None
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     args.plan_id = uuid.uuid4().hex
@@ -848,10 +876,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             started_at=started_at,
             started_monotonic=started_monotonic,
         )
-        try:
-            _atomic_write_json(report_path, report)
-        except OSError:
-            pass
+        _write_report_with_fallback(report_path, report)
         return interrupted.exit_code
     except Exception as exc:
         exit_code = int(getattr(exc, "exit_code", 40))
@@ -862,15 +887,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             started_at=started_at,
             started_monotonic=started_monotonic,
         )
-        try:
-            _atomic_write_json(report_path, report)
-        except OSError:
-            fallback = report_path.with_name("r27-runtime-image-fallback.json")
-            try:
-                report["report_path"] = str(fallback.resolve(strict=False))
-                _atomic_write_json(fallback, _with_report_id(report))
-            except OSError:
-                pass
+        _write_report_with_fallback(report_path, report)
         print(f"PLwC runtime image manager failed: {_redact_text(str(exc))}", file=sys.stderr)
         return exit_code
 
