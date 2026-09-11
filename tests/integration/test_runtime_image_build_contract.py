@@ -168,6 +168,35 @@ def test_registry_staging_workflow_is_manual_pinned_and_commit_scoped() -> None:
     assert all(re.fullmatch(r"[^@]+@[0-9a-f]{40}", value) for value in uses)
 
 
+def test_public_promotion_workflow_is_manual_digest_locked_and_anonymously_verified() -> None:
+    path = ROOT / ".github" / "workflows" / "runtime-images-public.yml"
+    text = path.read_text(encoding="utf-8")
+    assert "workflow_dispatch:" in text
+    assert not re.search(r"(?m)^\s{2}(?:push|pull_request|schedule):", text)
+    assert "PROMOTE_APPROVED_R27_IMAGES" in text
+    assert "VERIFY_PUBLIC_R27_IMAGES" in text
+    assert "1d8eaa4f82c2aec2fbe7212d446c7ebb05fa9fe8" in text
+    for digest in (
+        "9f06960d30bc91701161d5490c24611f4e630ee8d0ab57eef04c6f7862df93e1",
+        "fccb8cc036d24c764504749d802674e6e6f3c9c72726334b73aa674830e7b6f2",
+        "83d7d224abbd287fab225a8d81c29b98795440af75edad3a70bf5f4b0c6278bc",
+        "af6757f5fb28204b7f61b7076cad00fbe4e0a71e11276db5067419083718a6df",
+        "9a8a4a3c78c9f8896b0370e033b56b742b1227e03e7d711630399164e399ee7d",
+        "95fdfdbd4a5f1f67d3a485a773e5e7a4e9b73295f78fad70a5407f8519dd5917",
+    ):
+        assert digest in text
+    assert "--prefer-index=false" in text
+    assert "Premature public visibility" in text
+    assert 'printf \'{"auths":{}}\\n\'' in text
+    assert 'export DOCKER_CONFIG="$anonymous_config"' in text
+    assert "docker buildx build" not in text
+    assert "docker push" not in text
+    assert "packages: write" not in text
+    uses = re.findall(r"(?m)^\s*uses:\s*([^\s#]+)", text)
+    assert uses
+    assert all(re.fullmatch(r"[^@]+@[0-9a-f]{40}", value) for value in uses)
+
+
 def test_direct_staging_push_uses_buildkit_registry_export_and_exact_identity_gate() -> None:
     text = (ROOT / "scripts" / "push_runtime_images.py").read_text(encoding="utf-8")
     assert "type=registry,name=" in text
