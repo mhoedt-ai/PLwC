@@ -189,6 +189,9 @@ def test_public_promotion_workflow_is_manual_digest_locked_and_anonymously_verif
     assert "Premature public visibility" in text
     assert 'printf \'{"auths":{}}\\n\'' in text
     assert 'export DOCKER_CONFIG="$anonymous_config"' in text
+    assert 'docker pull "$reference"' in text
+    assert 'docker image inspect "$reference"' in text
+    assert "expected_repo_digest" in text
     assert "docker buildx build" not in text
     assert "docker push" not in text
     assert "packages: write" not in text

@@ -14,6 +14,17 @@ on:
         description: "Use PROMOTE_APPROVED_R27_IMAGES or VERIFY_PUBLIC_R27_IMAGES"
         required: true
         type: string
+  workflow_call:
+    inputs:
+      operation:
+        required: true
+        type: string
+      confirmation:
+        required: true
+        type: string
+    secrets:
+      GHCR_STAGING_PAT:
+        required: false
 
 concurrency:
   group: plwc-r27-runtime-image-public-promotion
@@ -213,6 +224,7 @@ jobs:
             reference="ghcr.io/mhoedt-ai/plwc-${component}:0.1.0"
             raw_manifest="$(mktemp)"
 
+            docker pull "$reference"
             docker buildx imagetools inspect --raw "$reference" > "$raw_manifest"
             observed_digest="sha256:$(sha256sum "$raw_manifest" | cut -d' ' -f1)"
             observed_config_digest="$(jq -r .config.digest "$raw_manifest")"
@@ -220,6 +232,15 @@ jobs:
               echo "::error title=Anonymous identity mismatch::${component}: ${observed_digest} / ${observed_config_digest}"
               exit 1
             fi
+
+            local_image_id="$(docker image inspect "$reference" --format '{{.Id}}')"
+            expected_repo_digest="${reference%:*}@${digest}"
+            if [[ "$local_image_id" != "$config_digest" ]]; then
+              echo "::error title=Pulled config mismatch::${component}: ${local_image_id}, expected ${config_digest}"
+              exit 1
+            fi
+            docker image inspect "$reference" --format '{{json .RepoDigests}}' \
+              | jq --exit-status --arg expected "$expected_repo_digest" 'index($expected) != null' > /dev/null
 
             jq -n \
               --arg component "$component" \
