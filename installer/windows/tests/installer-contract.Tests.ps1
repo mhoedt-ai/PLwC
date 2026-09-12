@@ -810,6 +810,7 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $codeSection | Should Match '(?is)RuntimeImagesPage\s*:=\s*CreateInputOptionPage.*?RuntimeImagesPage\.Values\[0\]\s*:=\s*False'
         $codeSection | Should Match '(?is)function\s+ShouldSkipPage.*?PageID\s*=\s*RuntimeImagesPage\.ID.*?WizardSilent.*?not\s+RuntimeImagesPayloadIncluded.*?not\s+DockerDaemonOK'
         $codeSection | Should Match "(?is)RunRuntimeImageManager\('inventory',\s*False"
+        $codeSection | Should Match '(?is)procedure\s+CurPageChanged.*?CurPageID\s*=\s*RuntimeImagesPage\.ID.*?not\s+RuntimeImagesOperationBusy.*?not\s+RuntimeImagesInventoryAttempted.*?InventoryRuntimeImages'
         $codeSection | Should Match "(?is)RuntimeImagesPage\.Values\[0\].*?AcquireRuntimeImages"
         $codeSection | Should Match 'I_ACCEPT_PLWC_RUNTIME_IMAGE_DOWNLOAD_R27'
         $customMessageSection | Should Match '(?im)^english\.RuntimeImagesInsufficientDisk='

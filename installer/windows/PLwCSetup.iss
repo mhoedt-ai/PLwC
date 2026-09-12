@@ -4806,11 +4806,19 @@ begin
 
   if CurPageID = RuntimeImagesPage.ID then
   begin
-    RuntimeImagesPage.Values[0] := False;
-    if RuntimeImagesOutcome = 'ready' then
-      RuntimeImagesInfoMemo.Lines.Text := BuildRuntimeImagesInfoText
-    else
-      InventoryRuntimeImages;
+    { Showing and hiding the nested progress page raises CurPageChanged again.
+      Do not restart inventory while that operation is still active, and do not
+      repeat it when returning to the runtime-image page. }
+    if not RuntimeImagesOperationBusy then
+    begin
+      RuntimeImagesPage.Values[0] := False;
+      if RuntimeImagesOutcome = 'ready' then
+        RuntimeImagesInfoMemo.Lines.Text := BuildRuntimeImagesInfoText
+      else if not RuntimeImagesInventoryAttempted then
+        InventoryRuntimeImages
+      else
+        RuntimeImagesInfoMemo.Lines.Text := BuildRuntimeImagesInfoText;
+    end;
   end;
 
   if CurPageID = RuntimeDirsPage.ID then

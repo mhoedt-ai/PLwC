@@ -1,6 +1,6 @@
 # PLwC 1.0 / Windows Installer r27 – GHCR-Imagebereitstellung und Gates
 
-Stand: 2026-09-11
+Stand: 2026-09-12
 
 Status: **G0–G4 PASS / G5 TEILWEISE PASS, SYSTEMMATRIX OFFEN / G6 NO-GO**
 
@@ -360,19 +360,41 @@ Der reale unsigned Systemtestkandidat aus diesem Freeze heißt
 `PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-1d8eaa4.exe`, ist 5.516.329
 Bytes groß und hat SHA-256
 `1E69FB1BC3B05DAD18E0C93194187FEFA4709172FA3DD86893193177E1A55272`.
-Er ist ausdrücklich kein Produktionsartefakt.
+Er ist ausdrücklich kein Produktionsartefakt. Dieser Kandidat wurde am
+12. September 2026 nach einem Systemtestbefund zurückgezogen: Beim Prüfen der
+lokalen Docker-Images wechselte die Fortschrittsanzeige wiederholt zurück zur
+Image-Auswahlseite und startete die Inventur erneut.
+
+### 5.4 G5-Regressionsbefund: wiederholte Imageinventur
+
+Die Ursache lag in `CurPageChanged`: `InventoryRuntimeImages` setzte zwar
+`RuntimeImagesInventoryAttempted`, der Seiteneinstieg wertete diese Sperre aber
+nicht aus. Das Ein- und Ausblenden der untergeordneten Fortschrittsseite löst
+erneut `CurPageChanged` aus. Dadurch konnte dieselbe Inventur während oder
+unmittelbar nach dem ersten Lauf erneut beginnen; sichtbar waren Flackern und
+ein Zurückspringen zur laufenden Fortschrittsseite.
+
+Der korrigierte Ablauf startet die Inventur nur, wenn weder eine
+Runtime-Image-Operation aktiv ist noch bereits eine Inventur versucht wurde.
+Ein statischer Regressionstest erzwingt beide Sperren vor dem einzigen
+Seiteneinstiegsaufruf. Der isolierte Payload-Check sowie die vollständige,
+CI-identische Installer-Suite mit Pester 3.4.0 bestanden danach mit **73/73**.
+Der Ersatz-Testkandidat und sein SHA-256 werden erst nach einem neuen unsigned
+Build eingetragen. G5 bleibt bis zum erneuten Windows-Systemtest offen.
 
 ## 6. Nächster zulässiger Schritt
 
 G0 bis G4 sind geschlossen. Die öffentliche GHCR-Sichtbarkeit und der anonyme,
-digestgebundene Endnutzerzugriff sind als Teil von G5 belegt. Der nächste
-zulässige Schritt ist die Phase-6-Systemmatrix mit dem vorhandenen unsigned
-Testkandidaten: zuerst Clean Windows 11 mit bereits betriebsbereitem Docker,
-danach Docker-Erststart sowie Upgrade-, Offline-/Proxy-, Abbruch-, Neustart-,
-Wiederholungs- und Rollbackvarianten. Dabei sind echte Dokument-, Python- und
-Node-Aufrufe, Profil-/Workspace-Datenerhalt, Browser-Neustart und 8/8-Bridge
-nachzuweisen. Ein endgültiger Produktionsbuild und jede GitHub-/Store-
-Veröffentlichung bleiben gesperrte Freigabepunkte.
+digestgebundene Endnutzerzugriff sind als Teil von G5 belegt. Der bisherige
+unsigned Testkandidat ist wegen der wiederholten Imageinventur zurückgezogen.
+Der nächste zulässige Schritt ist ein neuer, eindeutig benannter unsigned
+Ersatz-Testkandidat aus dem korrigierten Quellstand. Erst danach wird die
+Phase-6-Systemmatrix fortgesetzt: zuerst Clean Windows 11 mit bereits
+betriebsbereitem Docker, danach Docker-Erststart sowie Upgrade-, Offline-/Proxy-,
+Abbruch-, Neustart-, Wiederholungs- und Rollbackvarianten. Dabei sind echte
+Dokument-, Python- und Node-Aufrufe, Profil-/Workspace-Datenerhalt,
+Browser-Neustart und 8/8-Bridge nachzuweisen. Ein endgültiger Produktionsbuild
+und jede GitHub-/Store-Veröffentlichung bleiben gesperrte Freigabepunkte.
 
 ## 7. Separat aufgenommener Bridge-Befund
 
