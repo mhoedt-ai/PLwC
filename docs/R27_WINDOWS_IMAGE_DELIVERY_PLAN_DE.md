@@ -379,8 +379,9 @@ Runtime-Image-Operation aktiv ist noch bereits eine Inventur versucht wurde.
 Ein statischer Regressionstest erzwingt beide Sperren vor dem einzigen
 Seiteneinstiegsaufruf. Der isolierte Payload-Check sowie die vollständige,
 CI-identische Installer-Suite mit Pester 3.4.0 bestanden danach mit **73/73**.
-Der Ersatz-Testkandidat und sein SHA-256 werden erst nach einem neuen unsigned
-Build eingetragen. G5 bleibt bis zum erneuten Windows-Systemtest offen.
+Der abschließende GitHub-CI-Lauf `34678682567` bestand für den korrigierten
+Quellstand `0a12209035bec87a7f771f536121308ef9840175` ebenfalls vollständig mit
+sechs erfolgreichen Jobs.
 
 Ein zusätzlicher privater Kontrolllauf `34677907208` für Commit `480a394` war
 vollständig erfolgreich und erzeugte das unveränderliche Artefakt
@@ -405,19 +406,30 @@ Imageeingänge stoppt den Build geschlossen und verlangt neue Imageevidenz und
 eine neue Freigabe. Damit erfordert ein reiner Installer-UI-Fix keine
 inhaltlich unnötige Neuveröffentlichung der drei Container-Images.
 
+Der neue unsigned Ersatz-Testkandidat heißt
+`PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-0a12209.exe`, ist 5.516.336 Bytes
+groß und hat SHA-256
+`01A1C61C16058DDF4373121326C936130A71539041F2903EEB10E259B6EA36A7`.
+Seine Buildidentität hat SHA-256
+`A74123C9BF8CEC47966E705581BC591E7CA4FCE960CC1C792DFDF65E1DBFB0B0`,
+der eingebettete Payload-Manifest-Hash lautet
+`BDFF0477C8906B98DDE01486611728CF269DDF87A814CC03EF20E2590C7AEAC9`.
+Authenticode meldet wie für diesen ausdrücklich freigegebenen Testpfad
+vorgesehen `NotSigned`. G5 bleibt bis zum erneuten Windows-Systemtest offen.
+
 ## 6. Nächster zulässiger Schritt
 
 G0 bis G4 sind geschlossen. Die öffentliche GHCR-Sichtbarkeit und der anonyme,
 digestgebundene Endnutzerzugriff sind als Teil von G5 belegt. Der bisherige
-unsigned Testkandidat ist wegen der wiederholten Imageinventur zurückgezogen.
-Der nächste zulässige Schritt ist ein neuer, eindeutig benannter unsigned
-Ersatz-Testkandidat aus dem korrigierten Quellstand. Erst danach wird die
-Phase-6-Systemmatrix fortgesetzt: zuerst Clean Windows 11 mit bereits
-betriebsbereitem Docker, danach Docker-Erststart sowie Upgrade-, Offline-/Proxy-,
-Abbruch-, Neustart-, Wiederholungs- und Rollbackvarianten. Dabei sind echte
-Dokument-, Python- und Node-Aufrufe, Profil-/Workspace-Datenerhalt,
-Browser-Neustart und 8/8-Bridge nachzuweisen. Ein endgültiger Produktionsbuild
-und jede GitHub-/Store-Veröffentlichung bleiben gesperrte Freigabepunkte.
+unsigned Testkandidat ist wegen der wiederholten Imageinventur zurückgezogen;
+der korrigierte Ersatz-Testkandidat ist gebaut und gehasht. Der nächste
+zulässige Schritt ist die Fortsetzung der Phase-6-Systemmatrix mit exakt diesem
+Ersatzkandidaten: zuerst Clean Windows 11 mit bereits betriebsbereitem Docker,
+danach Docker-Erststart sowie Upgrade-, Offline-/Proxy-, Abbruch-, Neustart-,
+Wiederholungs- und Rollbackvarianten. Dabei sind echte Dokument-, Python- und
+Node-Aufrufe, Profil-/Workspace-Datenerhalt, Browser-Neustart und 8/8-Bridge
+nachzuweisen. Ein endgültiger Produktionsbuild und jede GitHub-/Store-
+Veröffentlichung bleiben gesperrte Freigabepunkte.
 
 ## 7. Separat aufgenommener Bridge-Befund
 
