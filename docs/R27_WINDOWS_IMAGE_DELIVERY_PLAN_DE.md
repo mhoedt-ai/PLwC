@@ -417,19 +417,74 @@ der eingebettete Payload-Manifest-Hash lautet
 Authenticode meldet wie für diesen ausdrücklich freigegebenen Testpfad
 vorgesehen `NotSigned`. G5 bleibt bis zum erneuten Windows-Systemtest offen.
 
+### 5.5 G5-Regressionsbefund: r25-Auswahlzustand in Windows-ANSI
+
+Der Ersatz-Testkandidat `0a12209` wurde am 12. September 2026 auf einem
+Rechner mit bestehender r25-Installation und aktivem Kaspersky abgebrochen.
+Der r27-Diagnosebericht meldete in der Preflight-/Migrationsvorbereitung
+Exitcode `40`, `AttributeError` und
+`'NoneType' object has no attribute 'strip'`. Die übrige Evidenz grenzt den
+Fehler klar vom Imagepfad ab: Docker `29.4.3` war erreichbar, alle drei
+öffentlichen digestgebundenen Images wurden vollständig geladen, anschließend
+mit exaktem Digest und `linux/amd64` abgeglichen und in den Offlineprobes
+erfolgreich ausgeführt. Der Maintenance-Prozess wurde ebenfalls gestartet und
+lieferte seinen Pythonfehler regulär zurück. Es gibt deshalb in diesem Befund
+keinen Beleg für einen Eingriff von Kaspersky.
+
+Die erhaltene r25-Datei `selection.ini` hat SHA-256
+`568DA30F9A63757B44F99FA0DCF98D31054CC16096B9FF449F58395EB673CFFC`.
+Sie enthält in einem Workspacepfad ein `ü` als Windows-ANSI-/cp1252-Byte
+`FC` und ist damit nicht UTF-8. Der bisherige Pythonleser versuchte nur
+UTF-8 und fing den Decodierfehler am bereits verwendeten `ConfigParser` ab.
+Abhängig von Python- und I/O-Verhalten konnte dadurch ein leerer oder teilweise
+initialisierter Parser weiterverwendet werden; ein anschließendes ungeschütztes
+`.strip()` erklärt den beobachteten Abbruch.
+
+Commit `18e94cdefe43fa98cb4f01f1b628e52d1eeb0a54` liest die komplette Datei
+jetzt vor dem Parsen strikt als UTF-8 mit BOM-Unterstützung und bei Altbeständen
+über die aktive Windows-Codepage beziehungsweise cp1252. Jeder Versuch erhält
+einen neuen Parser, sodass ein fehlgeschlagener Versuch niemals Teilzustand
+hinterlässt. Auswahlwerte werden zusätzlich typgeprüft. Dieselbe Kompatibilität
+gilt für r27-Migration, PLwC-Doktor und lokale Konfigurationsoberfläche; beim
+nächsten Schreiben erzeugt die Konfigurationsoberfläche wieder UTF-8.
+
+Die drei betroffenen Testsammlungen bestanden lokal mit **53/53**, der
+Installer-State-Lauf unter Python 3.14 mit **12/12**, die vollständige
+Python-Suite mit **215 PASS / 12 umgebungsbedingt SKIP** und die
+CI-identische Windows-Installer-Suite mit Pester 3.4.0 mit **73/73**. Der
+GitHub-CI-Lauf `34711165472` bestand für `18e94cd` alle sechs Jobs.
+
+Der Kandidat `0a12209` ist wegen dieses Befunds zurückgezogen. Der neue
+unsigned Systemtestkandidat heißt
+`PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-18e94cd.exe`, ist 5.517.005
+Bytes groß und hat SHA-256
+`BA975B4161FCED41E01A98ACB749064CEF713707E38F925602676A46F8B3EBE3`.
+Seine Buildidentität hat SHA-256
+`B14902AD45544AD1642FF87C752002DA4688A68F9338F1737093932325EA46B8`,
+der eingebettete Payload-Manifest-Hash lautet
+`5C5B921B4D9A140ACBBA089CD9422D726E6E922CBDC30A9B5BEE8DCEFFBDE1C3`.
+Der Build verwendete unverändert das genehmigte Runtime-Image-Manifest mit
+SHA-256
+`9EEE34D0E30530AD7CB1CA38D75E5ABE33ED0B1991FDFE55E47C641C2583C18F`;
+Authenticode meldet erwartungsgemäß `NotSigned`.
+
 ## 6. Nächster zulässiger Schritt
 
 G0 bis G4 sind geschlossen. Die öffentliche GHCR-Sichtbarkeit und der anonyme,
-digestgebundene Endnutzerzugriff sind als Teil von G5 belegt. Der bisherige
-unsigned Testkandidat ist wegen der wiederholten Imageinventur zurückgezogen;
-der korrigierte Ersatz-Testkandidat ist gebaut und gehasht. Der nächste
-zulässige Schritt ist die Fortsetzung der Phase-6-Systemmatrix mit exakt diesem
-Ersatzkandidaten: zuerst Clean Windows 11 mit bereits betriebsbereitem Docker,
-danach Docker-Erststart sowie Upgrade-, Offline-/Proxy-, Abbruch-, Neustart-,
-Wiederholungs- und Rollbackvarianten. Dabei sind echte Dokument-, Python- und
-Node-Aufrufe, Profil-/Workspace-Datenerhalt, Browser-Neustart und 8/8-Bridge
-nachzuweisen. Ein endgültiger Produktionsbuild und jede GitHub-/Store-
-Veröffentlichung bleiben gesperrte Freigabepunkte.
+digestgebundene Endnutzerzugriff sind als Teil von G5 belegt. Die beiden
+vorherigen unsigned Kandidaten sind wegen der wiederholten Imageinventur
+beziehungsweise des r25-ANSI-Migrationsfehlers zurückgezogen. Der nächste
+zulässige Schritt ist zuerst der gezielte r25→r27-Wiederholungstest mit exakt
+`PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-18e94cd.exe` auf demselben
+Windows-11-Rechner, derselben erhaltenen r25-Konfiguration und weiterhin
+aktivem Kaspersky. Erwartet werden erfolgreicher Preflight, gesicherter
+Altbestand, abgeschlossener Postflight, drei probegeprüfte Images und 8/8
+Bridge. Erst danach wird die übrige Phase-6-Systemmatrix mit Docker-Erststart
+sowie Offline-/Proxy-, Abbruch-, Neustart-, Wiederholungs- und
+Rollbackvarianten fortgesetzt. Dabei sind echte Dokument-, Python- und
+Node-Aufrufe, Profil-/Workspace-Datenerhalt und Browser-Neustart nachzuweisen.
+Ein endgültiger Produktionsbuild und jede GitHub-/Store-Veröffentlichung
+bleiben gesperrte Freigabepunkte.
 
 ## 7. Separat aufgenommener Bridge-Befund
 
