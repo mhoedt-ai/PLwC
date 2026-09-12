@@ -102,14 +102,48 @@ def _logical_gateway_settings(path: Path) -> dict[str, Any] | None:
 
 
 def _read_selection(path: Path) -> configparser.ConfigParser:
-    parser = configparser.ConfigParser(interpolation=None)
-    parser.optionxform = str
-    if path.is_file():
+    def new_parser() -> configparser.ConfigParser:
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.optionxform = str
+        return parser
+
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return new_parser()
+
+    # Inno Setup's SetIniString writes legacy selections with the active Windows
+    # ANSI code page.  Decode the complete file before parsing so a decoding
+    # error can never leave ConfigParser in a partially populated state.
+    encodings = ["utf-8-sig"]
+    if os.name == "nt":
+        encodings.append("mbcs")
+    encodings.append("cp1252")
+    for encoding in encodings:
         try:
-            parser.read(path, encoding="utf-8-sig")
-        except (OSError, UnicodeError, configparser.Error):
-            pass
-    return parser
+            content = raw.decode(encoding)
+        except (LookupError, UnicodeError):
+            continue
+        parser = new_parser()
+        try:
+            parser.read_string(content, source=str(path))
+        except configparser.Error:
+            continue
+        return parser
+    return new_parser()
+
+
+def _selection_value(
+    selection: configparser.ConfigParser,
+    section: str,
+    option: str,
+    *,
+    fallback: str = "",
+) -> str:
+    if not selection.has_section(section):
+        return fallback
+    value = selection.get(section, option, fallback=fallback)
+    return value.strip() if isinstance(value, str) else fallback
 
 
 def _process_value(process: Mapping[str, Any], *names: str) -> Any:
@@ -250,7 +284,7 @@ class InstallerStateEngine:
         """Collect evidence only. This method does not create or change state."""
 
         selection = _read_selection(selection_path)
-        stored_bridge = selection.get("PLwC", "BridgePath", fallback="").strip() if selection.has_section("PLwC") else ""
+        stored_bridge = _selection_value(selection, "PLwC", "BridgePath")
         legacy = self._legacy_paths(stored_bridge)
         systems = dict(system_facts) if isinstance(system_facts, Mapping) else collect_windows_system_facts()
         approved_roots = [self.bridge_root, *legacy]
@@ -769,7 +803,7 @@ class InstallerStateEngine:
             "ChatBridge": "chat-bridge",
         }
         for key, prefix in mapping.items():
-            if selection.get("Components", key, fallback="false").strip().casefold() == "true":
+            if _selection_value(selection, "Components", key, fallback="false").casefold() == "true":
                 selected.add(prefix)
         return selected
 

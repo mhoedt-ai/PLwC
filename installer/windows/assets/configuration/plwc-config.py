@@ -1515,10 +1515,33 @@ class PlwcConfigurationService:
             path.mkdir(parents=True, exist_ok=True)
 
     def _read_installer_selection(self) -> configparser.ConfigParser:
-        parser = configparser.ConfigParser(interpolation=None)
-        parser.optionxform = str
-        if self.selection_path.is_file():
-            parser.read(self.selection_path, encoding="utf-8-sig")
+        def new_parser() -> configparser.ConfigParser:
+            parser = configparser.ConfigParser(interpolation=None)
+            parser.optionxform = str
+            return parser
+
+        try:
+            raw = self.selection_path.read_bytes()
+        except OSError:
+            parser = new_parser()
+        else:
+            parser = new_parser()
+            encodings = ["utf-8-sig"]
+            if os.name == "nt":
+                encodings.append("mbcs")
+            encodings.append("cp1252")
+            for encoding in encodings:
+                try:
+                    content = raw.decode(encoding)
+                except (LookupError, UnicodeError):
+                    continue
+                candidate = new_parser()
+                try:
+                    candidate.read_string(content, source=str(self.selection_path))
+                except configparser.Error:
+                    continue
+                parser = candidate
+                break
         if not parser.has_section("PLwC"):
             parser.add_section("PLwC")
         return parser

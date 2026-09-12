@@ -117,6 +117,27 @@ def test_windows_powershell_probe_requires_one_json_object(monkeypatch: pytest.M
     assert _run_powershell_json("fixture", timeout_seconds=1) == {"shortcuts": []}
 
 
+def test_doctor_reads_custom_paths_from_r25_windows_ansi_selection(tmp_path: Path) -> None:
+    custom_gateway = tmp_path / "app" / "gateway-custom"
+    custom_bridge = tmp_path / "app" / "bridge-custom"
+    selection = (
+        "[PLwC]\r\n"
+        f"GatewayPath={custom_gateway}\r\n"
+        f"BridgePath={custom_bridge}\r\n"
+        f"WorkspacePath={tmp_path}\\Die Tagebücher\r\n"
+    )
+    _write(
+        tmp_path / "config" / "installer" / "selection.ini",
+        selection.encode("cp1252"),
+    )
+    doctor = InstallationDoctor(tmp_path, enable_system_probes=False)
+
+    runtime = doctor._runtime_facts()
+
+    assert runtime["gateway_root"]["path"] == str(custom_gateway)
+    assert runtime["bridge_root"]["path"] == str(custom_bridge)
+
+
 def test_doctor_diagnosis_is_read_only_and_keeps_public_mcp_boundary(tmp_path: Path) -> None:
     doctor = _ready_installation(tmp_path, incomplete_workspace=True)
     before = _tree(tmp_path)

@@ -163,6 +163,35 @@ def _write_selection(paths: dict[str, Path], *, stored_bridge: Path | None = Non
         parser.write(handle)
 
 
+def test_preflight_reads_r25_windows_ansi_selection_without_partial_parser_state(tmp_path: Path) -> None:
+    engine, paths = _engine(tmp_path)
+    legacy_bridge = paths["app"] / "chat-bridge-1.0.0"
+    legacy_bridge.mkdir(parents=True)
+    paths["selection"].parent.mkdir(parents=True, exist_ok=True)
+    content = (
+        "[PLwC]\r\n"
+        f"BridgePath={legacy_bridge}\r\n"
+        f"WorkspacePath={paths['root']}\\Die Tagebücher\r\n"
+        "[BuildIdentity]\r\n"
+        "InstallerRevision=installer-r25\r\n"
+        "[Components]\r\n"
+        "ChatBridge=true\r\n"
+    )
+    paths["selection"].write_bytes(content.encode("cp1252"))
+
+    preflight = engine.preflight(
+        selection_path=paths["selection"],
+        system_facts=_system_facts(paths),
+    )
+
+    assert preflight["ok"] is True
+    assert preflight["facts"]["stored_bridge_path"] == str(legacy_bridge)
+    assert preflight["facts"]["legacy_paths"] == [str(legacy_bridge)]
+    assert preflight["facts"]["runtime_identities"]["installer_selection"] == {
+        "InstallerRevision": "installer-r25"
+    }
+
+
 def _install_payload(paths: dict[str, Path]) -> Path:
     payload_files = {
         "common/configuration/plwc-config.py": b"print('config')\n",

@@ -199,10 +199,11 @@ def _run_powershell_json(script: str, *, timeout_seconds: int) -> dict[str, Any]
         timeout=timeout_seconds,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
-    if completed.returncode != 0 or not completed.stdout.strip():
-        detail = (completed.stderr or completed.stdout).strip()
+    stdout = completed.stdout or ""
+    if completed.returncode != 0 or not stdout.strip():
+        detail = (completed.stderr or stdout).strip()
         raise ValueError(detail or f"PowerShell exited with code {completed.returncode}.")
-    payload = json.loads(completed.stdout)
+    payload = json.loads(stdout)
     if not isinstance(payload, dict):
         raise ValueError("PowerShell probe did not return a JSON object.")
     return dict(payload)
@@ -367,18 +368,36 @@ class InstallationDoctor:
 
     def _selection(self) -> tuple[configparser.ConfigParser, Path]:
         path = self.installation_root / "config" / "installer" / "selection.ini"
-        parser = configparser.ConfigParser(interpolation=None)
-        parser.optionxform = str
-        if path.is_file():
+        def new_parser() -> configparser.ConfigParser:
+            parser = configparser.ConfigParser(interpolation=None)
+            parser.optionxform = str
+            return parser
+
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            return new_parser(), path
+        encodings = ["utf-8-sig"]
+        if os.name == "nt":
+            encodings.append("mbcs")
+        encodings.append("cp1252")
+        for encoding in encodings:
             try:
-                parser.read(path, encoding="utf-8-sig")
-            except (OSError, UnicodeError, configparser.Error):
-                pass
-        return parser, path
+                content = raw.decode(encoding)
+            except (LookupError, UnicodeError):
+                continue
+            parser = new_parser()
+            try:
+                parser.read_string(content, source=str(path))
+            except configparser.Error:
+                continue
+            return parser, path
+        return new_parser(), path
 
     @staticmethod
     def _selected_path(parser: configparser.ConfigParser, name: str, fallback: Path) -> Path:
-        value = parser.get("PLwC", name, fallback="").strip() if parser.has_section("PLwC") else ""
+        raw = parser.get("PLwC", name, fallback="") if parser.has_section("PLwC") else ""
+        value = raw.strip() if isinstance(raw, str) else ""
         return Path(value).resolve(strict=False) if value else fallback.resolve(strict=False)
 
     def _runtime_facts(self) -> dict[str, Any]:

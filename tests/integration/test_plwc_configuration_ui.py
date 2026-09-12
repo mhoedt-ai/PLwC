@@ -274,6 +274,26 @@ def test_settings_update_rejects_incomplete_or_ineffective_values(
         service.update_settings(settings)
 
 
+def test_configuration_reads_r25_windows_ansi_selection(
+    configuration_module: ModuleType,
+    configured_root: Path,
+) -> None:
+    selection_path = configured_root / "config" / "installer" / "selection.ini"
+    selection_path.parent.mkdir(parents=True, exist_ok=True)
+    workspace = configured_root / "Die Tagebücher"
+    selection_path.write_bytes(
+        (f"[PLwC]\r\nWorkspacePath={workspace}\r\n").encode("cp1252")
+    )
+    service = configuration_module.PlwcConfigurationService(
+        configured_root,
+        doctor_system_probes=False,
+    )
+
+    selection = service._read_installer_selection()
+
+    assert selection.get("PLwC", "WorkspacePath") == str(workspace)
+
+
 def test_workspace_update_synchronizes_installer_and_generated_client_files(
     configuration_module: ModuleType,
     configured_root: Path,
