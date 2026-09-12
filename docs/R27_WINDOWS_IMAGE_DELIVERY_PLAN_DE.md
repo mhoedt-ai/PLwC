@@ -382,6 +382,29 @@ CI-identische Installer-Suite mit Pester 3.4.0 bestanden danach mit **73/73**.
 Der Ersatz-Testkandidat und sein SHA-256 werden erst nach einem neuen unsigned
 Build eingetragen. G5 bleibt bis zum erneuten Windows-Systemtest offen.
 
+Ein zusätzlicher privater Kontrolllauf `34677907208` für Commit `480a394` war
+vollständig erfolgreich und erzeugte das unveränderliche Artefakt
+`plwc-r27-runtime-images-480a394afa045f2fadafc7dccd1b9b0f46e72b8a`
+mit GitHub-Artefaktdigest
+`sha256:4a155233ac6f258f3faf4f3ae41504bf2cf8d53cf4d60f54b8c5ba7251c152e4`.
+Sein Manifest-SHA-256 ist
+`C87510E437B902EBD1FB00A1F859212E368EF2167DC8F0F89B5E457D24CCF4BF`.
+Die darin enthaltenen Image-Digests unterscheiden sich allein schon durch das
+commitabhängige OCI-Revisionslabel vom öffentlichen Freeze. Sie bleiben privat
+und werden nicht in die öffentlichen Pakete übernommen.
+
+Der Installer-Build darf deshalb den bereits genehmigten öffentlichen
+Image-Freeze weiterverwenden, aber nicht pauschal ein Manifest eines fremden
+Commits akzeptieren. Vor der Manifestprüfung weist er mit Git nach, dass der
+Manifest-Commit ein Vorfahr von `HEAD` ist und dass `docker/`, `security/vex/`,
+Image-Build-, Wheelhouse- und Verifikationsskripte sowie Runtime-Manager und
+Manifest-Schema gegenüber diesem Commit selbst im aktuellen Arbeitsbaum
+unverändert sind. Erst nach diesem Nachweis wird die vorhandene vollständige
+Evidenz mit `--allow-foreign-commit` geprüft. Jede Änderung an einem dieser
+Imageeingänge stoppt den Build geschlossen und verlangt neue Imageevidenz und
+eine neue Freigabe. Damit erfordert ein reiner Installer-UI-Fix keine
+inhaltlich unnötige Neuveröffentlichung der drei Container-Images.
+
 ## 6. Nächster zulässiger Schritt
 
 G0 bis G4 sind geschlossen. Die öffentliche GHCR-Sichtbarkeit und der anonyme,

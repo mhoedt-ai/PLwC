@@ -838,6 +838,19 @@ Describe "PLwC Windows clean-machine prerequisite and UI contracts" {
         $codeSection | Should Not Match '(?m)^\s*\[SystemTime\.'
         $codeSection | Should Match '(?is)function\s+RunRuntimeImageManager.*?DeleteFile\(RuntimeImagesReportPath\).*?did not create a valid report.*?ResultCode\s*:=\s*40'
         $buildSource | Should Match 'A release-grade r27 build requires -RuntimeImagesManifestPath'
+        $buildSource | Should Match '(?is)function\s+Assert-RuntimeImageSourceCompatibility.*?merge-base.*?--is-ancestor.*?diff.*?--quiet'
+        foreach ($runtimeImageInput in @(
+            'docker',
+            'security/vex',
+            'scripts/build_document_worker_wheelhouse.py',
+            'scripts/build_runtime_images.py',
+            'scripts/verify_runtime_images.py',
+            'installer/windows/assets/runtime-image-manager.py',
+            'installer/windows/manifests/runtime-images.schema.json'
+        )) {
+            $buildSource | Should Match ([regex]::Escape('"' + $runtimeImageInput + '"'))
+        }
+        $buildSource | Should Match '(?is)Assert-RuntimeImageSourceCompatibility.*?--manifest.*?--allow-foreign-commit'
         $buildSource | Should Match '(?is)function\s+Get-RuntimeImagesManifest.*?Invoke-CheckedCommand.*?-WorkingDirectory\s+\$repoRoot\s*\|\s*Out-Host.*?return\s+\[pscustomobject\]'
         $buildSource | Should Match '/DRuntimeImagesManifestSha256='
     }

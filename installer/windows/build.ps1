@@ -246,6 +246,50 @@ function Assert-InstallerSafeVersion {
     }
 }
 
+function Assert-RuntimeImageSourceCompatibility {
+    param([Parameter(Mandatory = $true)][string] $SourceCommit)
+
+    if ($SourceCommit -notmatch '^[0-9a-f]{40}$') {
+        throw "Runtime image source commit is invalid: $SourceCommit"
+    }
+    $gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $gitCommand) {
+        $gitCommand = Get-Command git -ErrorAction SilentlyContinue | Select-Object -First 1
+    }
+    if ($null -eq $gitCommand) {
+        throw "Git is required to bind an approved runtime image manifest to the installer source."
+    }
+
+    Invoke-CheckedCommand `
+        -FilePath $gitCommand.Source `
+        -ArgumentList @("cat-file", "-e", "$SourceCommit^{commit}") `
+        -WorkingDirectory $repoRoot
+    Invoke-CheckedCommand `
+        -FilePath $gitCommand.Source `
+        -ArgumentList @("merge-base", "--is-ancestor", $SourceCommit, "HEAD") `
+        -WorkingDirectory $repoRoot
+
+    $runtimeImageInputs = @(
+        "docker",
+        "security/vex",
+        "scripts/build_document_worker_wheelhouse.py",
+        "scripts/build_runtime_images.py",
+        "scripts/verify_runtime_images.py",
+        "installer/windows/assets/runtime-image-manager.py",
+        "installer/windows/manifests/runtime-images.schema.json"
+    )
+    $diffArguments = @("diff", "--quiet", $SourceCommit, "--") + $runtimeImageInputs
+    try {
+        Invoke-CheckedCommand `
+            -FilePath $gitCommand.Source `
+            -ArgumentList $diffArguments `
+            -WorkingDirectory $repoRoot
+    }
+    catch {
+        throw "Runtime image build inputs differ from approved source commit $SourceCommit. New image evidence and approval are required."
+    }
+}
+
 function Get-RuntimeImagesManifest {
     param(
         [AllowNull()][string] $Path,
@@ -311,10 +355,11 @@ function Get-RuntimeImagesManifest {
     if ($null -eq $pythonCommand) {
         throw "Python is required to verify the runtime image manifest and its security evidence."
     }
+    Assert-RuntimeImageSourceCompatibility -SourceCommit ([string] $manifest.source_commit)
     $runtimeImageVerifier = Join-Path $repoRoot "scripts\verify_runtime_images.py"
     Invoke-CheckedCommand `
         -FilePath $pythonCommand.Source `
-        -ArgumentList @($runtimeImageVerifier, "--manifest", $resolvedPath) `
+        -ArgumentList @($runtimeImageVerifier, "--manifest", $resolvedPath, "--allow-foreign-commit") `
         -WorkingDirectory $repoRoot | Out-Host
 
     return [pscustomobject]@{
