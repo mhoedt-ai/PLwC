@@ -175,6 +175,14 @@ Freigabedigests.
 - exakten GHCR-Digestbestand einfrieren;
 - exakten r27-Kandidaten bauen, hashen und vollständig gegen G0–G6 prüfen;
 - bekannte Einschränkungen und Signaturstatus dokumentieren;
+- die öffentliche PLwC-Webseite auf den tatsächlich abgenommenen Stand von
+  PLwC 1.0 und Installer r27 aktualisieren und ihre Download-, Versions-,
+  Systemanforderungs- und Store-Angaben gegen die Freigabeartefakte prüfen;
+- die deutsche Softwarebeschreibung
+  `docs/PROGRAM_AND_SOFTWARE_DESCRIPTION_1_0.md` auf den tatsächlich
+  abgenommenen 1.0-/r27-Stand aktualisieren und mit Installation,
+  Container-Imagebereitstellung, bekannten Einschränkungen und Storestatus
+  abgleichen;
 - separate Product-Owner-Freigaben für öffentliche GHCR-Sichtbarkeit,
   endgültigen Produktionsbuild und GitHub-/Store-Veröffentlichungen einholen.
 
@@ -192,7 +200,7 @@ nächste Gate nicht.
 | G3 – Code Complete/reproduzierbarer Kandidat | drei Images zweimal reproduzierbar gebaut; identische Digests; SBOM/Lizenzen/Provenienz; GHCR-Stagingdigest; r27-Code und Artefaktmanifest vollständig | Der Compilerfix-Freeze `1d8eaa4f82c2aec2fbe7212d446c7ebb05fa9fe8` bestand im privaten Staginglauf `34636663782` Doppelbuild, Realprobes, Critical-Gate, direkten BuildKit-Push, Sichtbarkeitsprüfung, exakte Digestbindung und Evidenzupload vollständig. Das resultierende `runtime-images.json` ist zugleich der unveränderte Lock des real kompilierten unsigned Systemtestkandidaten. | **PASS / GO zu G4** |
 | G4 – Komponentenverifikation | alle automatisierten Image-, Installer-, Security-, Diagnose- und Regressionsprüfungen PASS | Für `1d8eaa4` bestanden lokal Python `211 PASS / 12 umgebungsbedingt SKIP`, Windows-Installer-Verträge `73/73`, der betroffene Clean-Machine-/Security-Block `51/51`, Node-Bridge `26/26`, Browser-Extension `190/190`, Public-Snapshot für 386 Dateien und ein vollständiger unsigned ISCC-Build. GitHub-CI-Lauf `34636660800` bestand alle sechs Jobs; privates Staging `34636663782` war ebenfalls vollständig grün. | **PASS / GO zu G5** |
 | G5 – Systemvalidierung | Clean-Windows- und Upgrade-Matrix einschließlich echter Dokument-/Sandboxoperation, anonymer GHCR-Pull, Offline/Proxy/Abbruch/Neustart und Datenerhalt PASS | Der unsigned Kandidat aus `1d8eaa4` kompiliert und trägt exakt den geprüften Image-Lock. Nach gesonderter Product-Owner-Freigabe wurden die drei unveränderten Stagingmanifeste in Lauf `34638887032` in die Releasepakete kopiert und anschließend sichtbar auf `public` gesetzt. Lauf `34640119110` lud alle drei Images mit leerer Docker-Konfiguration wirklich per `docker pull` und bewies danach Manifestdigest, lokalen Config-Digest und RepoDigest. Die disposable Windows-Systemmatrix und die dortigen realen Installations-/Upgrade-/Fehlerpfade stehen noch aus. | **ANONYMER GHCR-PULL PASS / SYSTEMMATRIX OFFEN / STOP** |
-| G6 – Release Acceptance | G0–G5 PASS; exakte Image- und EXE-Digests, Signaturstatus, Claims, Known Limitations und Product-Owner-GO vollständig | Öffentliche r27-Images sind digestgebunden verfügbar; ein unsigned Systemtestkandidat existiert. G5 ist nicht geschlossen, der Kandidat ist nicht signiert und weder endgültiger Produktionsbuild noch GitHub-/Store-Veröffentlichung sind freigegeben. | **BLOCKED / NO-GO** |
+| G6 – Release Acceptance | G0–G5 PASS; exakte Image- und EXE-Digests, Signaturstatus, Claims, Known Limitations, aktualisierte öffentliche Webseite, aktualisierte deutsche Softwarebeschreibung und Product-Owner-GO vollständig | Öffentliche r27-Images sind digestgebunden verfügbar; ein unsigned Systemtestkandidat existiert. G5 ist nicht geschlossen, Webseite und deutsche Softwarebeschreibung sind noch nicht auf den final abgenommenen 1.0-/r27-Stand gebracht, der Kandidat ist nicht signiert und weder endgültiger Produktionsbuild noch GitHub-/Store-Veröffentlichung sind freigegeben. | **BLOCKED / NO-GO** |
 
 ## 5. Heutige technische Baseline
 
@@ -468,21 +476,66 @@ SHA-256
 `9EEE34D0E30530AD7CB1CA38D75E5ABE33ED0B1991FDFE55E47C641C2583C18F`;
 Authenticode meldet erwartungsgemäß `NotSigned`.
 
+### 5.6 G5-Regressionsbefund: laufende PLwC-Bridge als Fremdprozess eingestuft
+
+Der Kandidat `18e94cd` wurde am 13. September 2026 auf demselben
+Windows-11-Rechner mit aktivem Kaspersky erneut ausgeführt. Die Eingabeevidenz
+besteht aus `logs.zip` mit SHA-256
+`427EA93D79D5CBD99F2E1AEC0234492E4BA8813E8BDB8453333E796873E4D207`
+und dem Fehlerbild mit SHA-256
+`01319F5A8845B0FDA7C9411A9E824A97AE7B4FE3D4D718035438F576A2F7DFB3`.
+
+Die Imagebereitstellung war vollständig erfolgreich: Alle drei festgelegten
+GHCR-Images waren vorhanden, entsprachen ihren Digests und bestanden ihre
+netzwerklosen Realprobes. Der anschließende Migrations-Preflight brach jedoch
+mit Exitcode `20` ab, weil Port 3007 von PID `13440` belegt war und die breite
+Windows-Prozessinventur zu dieser PID keinen Prozessdatensatz geliefert hatte.
+Der Installer behandelte den Besitzer deshalb sicherheitshalber als
+unverifiziert und beendete keinen Prozess.
+
+Der Native-Launcher-Log belegt denselben PID eindeutig als die laufende
+PLwC-Bridge: `node.exe` wurde um 09:36 Uhr als PID `13440` gestartet und mit
+8/8 Werkzeugen verifiziert; der Preflight sah um 09:51 Uhr weiterhin exakt
+diesen Portbesitzer. Es handelt sich damit nicht um einen belegten
+Fremdprozess, sondern um eine unvollständige Prozessattribution. Ein Eingriff
+von Kaspersky ist anhand der vorliegenden Logs weiterhin nicht belegt.
+
+Commit `18c3238` ergänzt für einen Portbesitzer, der in der breiten
+`Win32_Process`-Inventur fehlt, eine eng begrenzte zweite Abfrage nach exakt
+dieser PID. Nur wenn Pfad beziehungsweise Kommandozeile anschließend den
+inventarisierten PLwC-Runtimepfad beweisen, darf der bestehende Prozess als
+PLwC klassifiziert werden. Bleibt die Identität offen, blockiert der Installer
+weiterhin und beendet nichts. Der Preflightbericht enthält außerdem künftig
+Status und Fehler beider Prozessabfragen.
+
+Die fokussierten Python-Tests bestanden mit **30/30**, die vollständige
+Python-Suite mit **218 PASS / 12 umgebungsbedingt SKIP** und die
+Windows-Installer-Vertragssuite mit **73/73**. Der Kandidat `18e94cd` ist wegen
+des Feldbefunds zurückgezogen; ein neuer unsigned Systemtestkandidat darf erst
+nach grüner CI aus dem korrigierten Stand gebaut werden.
+
 ## 6. Nächster zulässiger Schritt
 
 G0 bis G4 sind geschlossen. Die öffentliche GHCR-Sichtbarkeit und der anonyme,
-digestgebundene Endnutzerzugriff sind als Teil von G5 belegt. Die beiden
-vorherigen unsigned Kandidaten sind wegen der wiederholten Imageinventur
-beziehungsweise des r25-ANSI-Migrationsfehlers zurückgezogen. Der nächste
-zulässige Schritt ist zuerst der gezielte r25→r27-Wiederholungstest mit exakt
-`PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-18e94cd.exe` auf demselben
+digestgebundene Endnutzerzugriff sind als Teil von G5 belegt. Die
+bisherigen unsigned Kandidaten sind wegen der wiederholten Imageinventur, des
+r25-ANSI-Migrationsfehlers beziehungsweise der unvollständigen
+Portbesitzerattribution zurückgezogen. Der nächste zulässige Schritt ist die
+CI-Prüfung von `18c3238` und anschließend ein neuer unsigned
+Systemtestkandidat aus exakt diesem geprüften Stand. Mit diesem Kandidaten wird
+zuerst der gezielte r25→r27-Wiederholungstest auf demselben
 Windows-11-Rechner, derselben erhaltenen r25-Konfiguration und weiterhin
-aktivem Kaspersky. Erwartet werden erfolgreicher Preflight, gesicherter
-Altbestand, abgeschlossener Postflight, drei probegeprüfte Images und 8/8
-Bridge. Erst danach wird die übrige Phase-6-Systemmatrix mit Docker-Erststart
+aktivem Kaspersky wiederholt. Erwartet werden erfolgreicher Preflight,
+gesicherter Altbestand, abgeschlossener Postflight, drei probegeprüfte Images
+und 8/8 Bridge. Erst danach wird die übrige Phase-6-Systemmatrix mit
+Docker-Erststart
 sowie Offline-/Proxy-, Abbruch-, Neustart-, Wiederholungs- und
 Rollbackvarianten fortgesetzt. Dabei sind echte Dokument-, Python- und
 Node-Aufrufe, Profil-/Workspace-Datenerhalt und Browser-Neustart nachzuweisen.
+Vor G6-PASS werden außerdem die öffentliche PLwC-Webseite und die deutsche
+Softwarebeschreibung auf den exakt abgenommenen 1.0-/r27-Stand aktualisiert
+und gegen Artefakthashes, Systemanforderungen, bekannte Einschränkungen sowie
+den dann tatsächlich bestätigten Storestatus geprüft.
 Ein endgültiger Produktionsbuild und jede GitHub-/Store-Veröffentlichung
 bleiben gesperrte Freigabepunkte.
 
