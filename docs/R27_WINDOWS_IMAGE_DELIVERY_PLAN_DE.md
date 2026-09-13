@@ -527,17 +527,77 @@ SHA-256
 `9EEE34D0E30530AD7CB1CA38D75E5ABE33ED0B1991FDFE55E47C641C2583C18F`;
 Authenticode meldet erwartungsgemäß `NotSigned`.
 
+### 5.7 G5-Regressionsbefund: erfolgreiche PowerShell-Probes ohne Ausgabe
+
+Der Kandidat `cb6ce4c` erreichte am 13. September 2026 auf demselben
+Windows-11-Rechner den Postflight. Die neue Bridge wurde als PID `16300`
+gestartet und meldete 8/8 Werkzeuge; Payloadhashes, Gateway, Native Messaging,
+Benutzerdaten und Installationsidentität bestanden. Der Postflight brach dennoch
+mit Exitcode `30` ab. Die Eingabeevidenz besteht aus `logs.zip` mit SHA-256
+`EF8155852600227ACB2A321BE19832FF75420A1E0A3284C2A28FFEA67113FBBF`
+und dem Fehlerbild mit SHA-256
+`E85720E7EDFA3B1FCF93FCE29433D025B4F107FA633683EE9735450304DC18EB`.
+
+Fehlgeschlagen waren ausschließlich `port.3007_owner`, `legacy.processes`,
+`shortcuts.autostart` und `configuration.ui_icon`. Beide zugrunde liegenden
+PowerShell-Abfragen meldeten Exitcode `0`, lieferten aber leeres stdout. Deshalb
+fehlten sowohl Prozessdetails als auch aufgelöste Shortcutziele; die bloße
+Existenz der Verknüpfungsdateien reichte dem absichtlich fail-closed arbeitenden
+Postflight nicht. Der Rollback beendete die neue PID und stellte den gesicherten
+Altbestand erfolgreich wieder her. Die Imageinventur und alle drei
+netzwerklosen Imageprobes waren erneut vollständig erfolgreich. Ein ursächlicher
+Eingriff von Kaspersky ist damit weiterhin nicht bewiesen; belegt ist nur die
+unterdrückte Ausgabe der beiden Windows-Probes.
+
+Commit `9b2093d2f8fa866737d62e2d38ce32791c384ce0` wiederholt eine solche
+erfolgreiche, aber ausgabelose, unveränderte read-only-Abfrage einmalig über
+stdin (`powershell.exe -Command -`). Dadurch liegen komplexes Skript und
+Windows-Kommandozeilenparser nicht mehr auf demselben Datenpfad. Bleibt auch der
+zweite Versuch leer oder fehlerhaft, gilt die Abfrage weiterhin als unbekannt;
+der Installer beendet keinen unbewiesenen Prozess und meldet keinen Erfolg.
+
+Der fokussierte Fix-Test bestand mit **3/3**, die vollständige Python-Suite mit
+**219 PASS / 12 umgebungsbedingt SKIP** und die Windows-Installer-Vertragssuite
+mit **73/73**. GitHub-CI-Lauf `34765757610` bestand für `9b2093d` alle sechs
+Jobs. Der Kandidat `cb6ce4c` ist wegen dieses Feldbefunds zurückgezogen.
+
+Der neue unsigned Systemtestkandidat heißt
+`PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-9b2093d.exe`, ist 5.518.748
+Bytes groß und hat SHA-256
+`3E16AC332181DA4B49173859A747A1ABD274129DECE601B9BC5F72F617C53DD6`.
+Seine Buildidentität hat SHA-256
+`592A71E97CE76A09DED43E504B870836D40303BCEDAA0FF9272AE979EF518212`,
+der eingebettete Payload-Manifest-Hash lautet
+`6D5F126607A93829950DD16BEB601BEE10D38F9865B28AC2A3C2A9C793C04E65`.
+Der Build verwendete unverändert das genehmigte Runtime-Image-Manifest mit
+SHA-256
+`9EEE34D0E30530AD7CB1CA38D75E5ABE33ED0B1991FDFE55E47C641C2583C18F`;
+Authenticode meldet erwartungsgemäß `NotSigned`.
+
+Der Nutzer berichtete ergänzend, dass die erhaltene Ausgangsinstallation auf
+diesem Rechner noch aus einer frühen Claude-Phase stammt und 19 statt acht
+Werkzeuge anzeigte. Das ist noch kein verifizierter Ursachenbeleg, stuft den
+Rechner aber als besonders wertvollen Alt-/Mischinstallationsfall ein. Der
+separate Support-Sammler
+`installer/windows/support/collect-r27-legacy-state.ps1` erfasst deshalb vor
+dem nächsten Installationsversuch read-only die Herkunftspfade und Hashes,
+Claude-MCP-Einträge ohne Umgebungswerte, PLwC-Prozesse, Port 3007,
+Autostart-/Shortcutziele, Native Messaging und relevante Dockerbestände. Ein
+lokaler Windows-PowerShell-5.1-Selbsttest erzeugte den Diagnoseexport ohne
+Probe-Fehler; außerhalb seines eigenen temporären Arbeitsordners und der
+angeforderten ZIP-Datei nimmt der Sammler keine Änderungen vor.
+
 ## 6. Nächster zulässiger Schritt
 
 G0 bis G4 sind geschlossen. Die öffentliche GHCR-Sichtbarkeit und der anonyme,
-digestgebundene Endnutzerzugriff sind als Teil von G5 belegt. Die
-bisherigen unsigned Kandidaten sind wegen der wiederholten Imageinventur, des
-r25-ANSI-Migrationsfehlers beziehungsweise der unvollständigen
-Portbesitzerattribution zurückgezogen. Der nächste zulässige Schritt ist der
-gezielte r25→r27-Wiederholungstest mit exakt
-`PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-cb6ce4c.exe` auf demselben
-Windows-11-Rechner, derselben erhaltenen r25-Konfiguration und weiterhin
-aktivem Kaspersky wiederholt. Erwartet werden erfolgreicher Preflight,
+digestgebundene Endnutzerzugriff sind als Teil von G5 belegt. Die bisherigen
+unsigned Kandidaten sind wegen der wiederholten Imageinventur, des
+r25-ANSI-Migrationsfehlers, der unvollständigen Portbesitzerattribution
+beziehungsweise der unterdrückten PowerShell-Ausgabe zurückgezogen. Der nächste
+zulässige Schritt ist zunächst die read-only-Bestandsaufnahme der erhaltenen
+19-Tool-/8-Tool-Altinstallation und danach der gezielte Wiederholungstest mit
+exakt `PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-9b2093d.exe` auf demselben
+Windows-11-Rechner und weiterhin aktivem Kaspersky. Erwartet werden erfolgreicher Preflight,
 gesicherter Altbestand, abgeschlossener Postflight, drei probegeprüfte Images
 und 8/8 Bridge. Erst danach wird die übrige Phase-6-Systemmatrix mit
 Docker-Erststart
