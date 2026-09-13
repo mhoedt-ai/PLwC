@@ -191,8 +191,9 @@ def _merge_shortcut_details(
 
 
 def _run_powershell_json(script: str, *, timeout_seconds: int) -> dict[str, Any]:
+    command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script]
     completed = subprocess.run(
-        ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
+        command,
         check=False,
         capture_output=True,
         text=True,
@@ -200,6 +201,21 @@ def _run_powershell_json(script: str, *, timeout_seconds: int) -> dict[str, Any]
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     stdout = completed.stdout or ""
+    if completed.returncode == 0 and not stdout.strip():
+        # Some Windows endpoint-protection configurations allow powershell.exe
+        # to exit successfully while suppressing output from a complex
+        # command-line argument.  Retry the identical read-only script through
+        # stdin so Windows command-line parsing is no longer in the data path.
+        completed = subprocess.run(
+            ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "-"],
+            input=script,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        stdout = completed.stdout or ""
     if completed.returncode != 0 or not stdout.strip():
         detail = (completed.stderr or stdout).strip()
         raise ValueError(detail or f"PowerShell exited with code {completed.returncode}.")

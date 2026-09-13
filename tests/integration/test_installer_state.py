@@ -138,6 +138,28 @@ def test_targeted_process_probe_recovers_port_owner_missing_from_broad_inventory
     assert facts["processes"][0]["ProcessId"] == 13440  # type: ignore[index]
 
 
+def test_powershell_json_probe_retries_empty_success_through_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[list[str], str | None]] = []
+
+    def run(command: list[str], **kwargs: object):
+        calls.append((command, kwargs.get("input") if isinstance(kwargs.get("input"), str) else None))
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout='{"processes":[]}', stderr="")
+
+    monkeypatch.setattr(installation_doctor.subprocess, "run", run)
+    result = installation_doctor._run_powershell_json("read-only-probe", timeout_seconds=4)
+
+    assert result == {"processes": []}
+    assert len(calls) == 2
+    assert calls[0][0][-1] == "read-only-probe"
+    assert calls[0][1] is None
+    assert calls[1][0][-1] == "-"
+    assert calls[1][1] == "read-only-probe"
+
+
 def test_targeted_process_probe_stays_fail_closed_and_records_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
