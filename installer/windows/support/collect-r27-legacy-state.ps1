@@ -40,6 +40,23 @@ function Get-PropertyValue {
     return $null
 }
 
+function Get-Sha256 {
+    param([string]$Path)
+    $stream = [System.IO.File]::Open(
+        $Path,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::Read,
+        [System.IO.FileShare]::ReadWrite
+    )
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return (($sha256.ComputeHash($stream) | ForEach-Object { $_.ToString("x2") }) -join "")
+    } finally {
+        $sha256.Dispose()
+        $stream.Dispose()
+    }
+}
+
 function Add-DiscoveredRoot {
     param([AllowNull()][string]$Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { return }
@@ -72,7 +89,7 @@ function Get-FileFact {
             $fact.size = $item.Length
             $fact.last_write_utc = $item.LastWriteTimeUtc.ToString("o")
             if ($Hash -and $item.Length -le 52428800) {
-                $fact.sha256 = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+                $fact.sha256 = Get-Sha256 $Path
             }
         }
     } catch {
@@ -188,7 +205,7 @@ function Get-ClaudeMcpFacts {
             $facts.Add([pscustomobject]@{
                 path = $path
                 exists = $true
-                sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+                sha256 = Get-Sha256 $path
                 mcp_servers = $servers.ToArray()
             })
         } catch {
@@ -499,7 +516,7 @@ try {
     }
 }
 
-$zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+$zipHash = Get-Sha256 $zip
 Write-Host "Diagnose abgeschlossen (nur lesende Bestandsaufnahme)." -ForegroundColor Green
 Write-Host "ZIP: $zip"
 Write-Host "SHA256: $zipHash"
