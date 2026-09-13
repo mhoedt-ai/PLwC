@@ -471,7 +471,11 @@ $report = [ordered]@{
 }
 
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$work = Join-Path $env:TEMP "PLwC-r27-legacy-diagnostic-$stamp-$PID"
+$diagnosticTempRoot = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'
+$work = [System.IO.Path]::GetFullPath((Join-Path $diagnosticTempRoot "PLwC-r27-legacy-diagnostic-$stamp-$PID"))
+if (-not $work.StartsWith($diagnosticTempRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "The diagnostic temporary path is outside the Windows temporary directory."
+}
 $zip = Join-Path $OutputDirectory "PLwC-r27-legacy-diagnostic-$env:COMPUTERNAME-$stamp.zip"
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
@@ -487,7 +491,12 @@ try {
     ) | Set-Content -LiteralPath $readmePath -Encoding UTF8
     Compress-Archive -LiteralPath $reportPath,$readmePath -DestinationPath $zip -CompressionLevel Optimal
 } finally {
-    if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
+    if (
+        $work.StartsWith($diagnosticTempRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
+        (Test-Path -LiteralPath $work -PathType Container)
+    ) {
+        Remove-Item -LiteralPath $work -Recurse -Force
+    }
 }
 
 $zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
