@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from src.plwc_gateway.installation import doctor as installation_doctor
 from src.plwc_gateway.installation.doctor import InstallationDoctor
 from src.plwc_gateway.installation.installer_state import (
     INSTALLER_MANAGED_CONFIG_PATHS,
@@ -100,6 +101,65 @@ def _system_facts(paths: dict[str, Path], *, foreign: bool = False) -> dict[str,
         ]
         facts["port_3007"] = [{"LocalPort": 3007, "OwningProcess": 8123}]
     return facts
+
+
+def test_targeted_process_probe_recovers_port_owner_missing_from_broad_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    facts: dict[str, object] = {
+        "processes": [],
+        "port_3007": [{"LocalPort": 3007, "OwningProcess": 13440}],
+        "probe_status": {"processes": True, "port_3007": True},
+        "errors": [],
+    }
+    observed_scripts: list[str] = []
+
+    def targeted(script: str, *, timeout_seconds: int) -> dict[str, object]:
+        observed_scripts.append(script)
+        assert timeout_seconds == 7
+        return {
+            "processes": [
+                {
+                    "ProcessId": 13440,
+                    "Name": "node.exe",
+                    "ExecutablePath": r"C:\Program Files\nodejs\node.exe",
+                    "CommandLine": r'node.exe "C:\Users\secur\AppData\Roaming\PLwC\app\bridge\bridge\dist\src\index.js"',
+                }
+            ]
+        }
+
+    monkeypatch.setattr(installation_doctor, "_run_powershell_json", targeted)
+    installation_doctor._recover_missing_port_owner_processes(facts, timeout_seconds=7)
+
+    assert len(observed_scripts) == 1
+    assert "ProcessId = $ownerId" in observed_scripts[0]
+    assert facts["probe_status"]["processes_targeted"] is True  # type: ignore[index]
+    assert facts["errors"] == []
+    assert facts["processes"][0]["ProcessId"] == 13440  # type: ignore[index]
+
+
+def test_targeted_process_probe_stays_fail_closed_and_records_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    facts: dict[str, object] = {
+        "processes": [],
+        "port_3007": [{"LocalPort": 3007, "OwningProcess": 13440}],
+        "probe_status": {"processes": False, "port_3007": True},
+        "errors": ["powershell.processes: broad query failed"],
+    }
+
+    def blocked(_script: str, *, timeout_seconds: int) -> dict[str, object]:
+        raise ValueError(f"targeted query blocked after {timeout_seconds}s")
+
+    monkeypatch.setattr(installation_doctor, "_run_powershell_json", blocked)
+    installation_doctor._recover_missing_port_owner_processes(facts, timeout_seconds=5)
+
+    assert facts["processes"] == []
+    assert facts["probe_status"]["processes_targeted"] is False  # type: ignore[index]
+    assert facts["errors"] == [
+        "powershell.processes: broad query failed",
+        "powershell.processes_targeted: targeted query blocked after 5s",
+    ]
 
 
 def test_postflight_fails_closed_when_windows_fact_probe_is_incomplete(tmp_path: Path) -> None:

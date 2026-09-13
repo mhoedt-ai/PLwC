@@ -4,6 +4,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -56,6 +57,50 @@ def _arguments(tmp_path: Path, action: str = "preflight-prepare") -> list[str]:
     if action == "postflight":
         arguments.extend(("--payload-manifest", str(tmp_path / "payload.json"), "--extension-id", "a" * 32))
     return arguments
+
+
+def test_blocked_preflight_report_preserves_process_probe_diagnostics(tmp_path: Path, monkeypatch) -> None:
+    class BlockedEngine:
+        @staticmethod
+        def preflight(*, selection_path: Path) -> dict:
+            assert selection_path == tmp_path / "selection.ini"
+            return {
+                "facts": {
+                    "system": {
+                        "probe_status": {"processes": False, "processes_targeted": False},
+                        "errors": [
+                            "powershell.processes: broad query failed",
+                            "powershell.processes_targeted: targeted query failed",
+                        ],
+                    }
+                }
+            }
+
+        @staticmethod
+        def plan(_preflight: dict) -> dict:
+            return {
+                "blocked": True,
+                "foreign_port_owners": [{"pid": 13440, "process": None}],
+            }
+
+    monkeypatch.setattr(maintenance, "_engine", lambda _args: BlockedEngine())
+    report_path = tmp_path / "r27-installer-preflight.json"
+    transaction_path = tmp_path / "r27-installer-transaction.json"
+    result = maintenance._prepare(
+        SimpleNamespace(
+            selection_path=str(tmp_path / "selection.ini"),
+            report_path=str(report_path),
+            transaction_path=str(transaction_path),
+        )
+    )
+
+    assert result == 20
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["system_probe_status"] == {"processes": False, "processes_targeted": False}
+    assert report["system_probe_errors"] == [
+        "powershell.processes: broad query failed",
+        "powershell.processes_targeted: targeted query failed",
+    ]
 
 
 def test_unexpected_exception_writes_complete_existing_report(tmp_path: Path, monkeypatch) -> None:

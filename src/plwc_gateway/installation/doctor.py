@@ -209,6 +209,73 @@ def _run_powershell_json(script: str, *, timeout_seconds: int) -> dict[str, Any]
     return dict(payload)
 
 
+def _recover_missing_port_owner_processes(facts: dict[str, Any], *, timeout_seconds: int) -> None:
+    """Target process owners that a broad Win32_Process query did not return."""
+
+    processes = facts.get("processes") if isinstance(facts.get("processes"), list) else []
+    known_pids = {
+        int(process.get("ProcessId"))
+        for process in processes
+        if isinstance(process, Mapping) and str(process.get("ProcessId", "")).isdigit()
+    }
+    ports = facts.get("port_3007") if isinstance(facts.get("port_3007"), list) else []
+    missing_pids = sorted(
+        {
+            int(port.get("OwningProcess"))
+            for port in ports
+            if isinstance(port, Mapping)
+            and str(port.get("OwningProcess", "")).isdigit()
+            and int(port.get("OwningProcess")) > 0
+            and int(port.get("OwningProcess")) not in known_pids
+        }
+    )
+    if not missing_pids:
+        return
+
+    pid_literals = ",".join(str(pid) for pid in missing_pids)
+    targeted_script = (
+        "$ErrorActionPreference='Stop';"
+        f"$ownerIds=@({pid_literals});"
+        "$items=@();"
+        "foreach($ownerId in $ownerIds){"
+        "$item=Get-CimInstance Win32_Process -Filter \"ProcessId = $ownerId\" -ErrorAction Stop | "
+        "Select-Object ProcessId,Name,ExecutablePath,CommandLine;"
+        "if($null -ne $item){$items += $item}"
+        "};"
+        "ConvertTo-Json -InputObject ([pscustomobject]@{processes=@($items)}) -Compress -Depth 5"
+    )
+    probe_status = facts.setdefault("probe_status", {})
+    errors = facts.setdefault("errors", [])
+    try:
+        payload = _run_powershell_json(targeted_script, timeout_seconds=timeout_seconds)
+        recovered = payload.get("processes")
+        recovered_items = (
+            [dict(item) for item in recovered if isinstance(item, Mapping)]
+            if isinstance(recovered, list)
+            else ([dict(recovered)] if isinstance(recovered, Mapping) else [])
+        )
+        recovered_by_pid = {
+            int(item.get("ProcessId")): item
+            for item in recovered_items
+            if str(item.get("ProcessId", "")).isdigit()
+        }
+        for pid in missing_pids:
+            item = recovered_by_pid.get(pid)
+            if item is not None:
+                processes.append(item)
+        facts["processes"] = processes
+        unresolved = [pid for pid in missing_pids if pid not in recovered_by_pid]
+        probe_status["processes_targeted"] = not unresolved
+        if unresolved:
+            errors.append(
+                "powershell.processes_targeted: no process facts for port owner(s) "
+                + ", ".join(str(pid) for pid in unresolved)
+            )
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError, ValueError) as exc:
+        probe_status["processes_targeted"] = False
+        errors.append(f"powershell.processes_targeted: {exc}")
+
+
 def collect_windows_system_facts(*, timeout_seconds: int = 20) -> dict[str, Any]:
     """Collect bounded, read-only Windows evidence used by the installation Doctor."""
 
@@ -339,6 +406,7 @@ def collect_windows_system_facts(*, timeout_seconds: int = 20) -> dict[str, Any]
         except (OSError, subprocess.SubprocessError, json.JSONDecodeError, ValueError) as exc:
             facts["probe_status"][probe_name] = False
             facts["errors"].append(f"powershell.{probe_name}: {exc}")
+    _recover_missing_port_owner_processes(facts, timeout_seconds=timeout_seconds)
     for key in ("processes", "port_3007", "scheduled_tasks", "shortcuts"):
         if isinstance(facts.get(key), list):
             facts[key] = sorted(facts[key], key=_canonical_json)

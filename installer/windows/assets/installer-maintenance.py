@@ -179,6 +179,7 @@ def _prepare(args: argparse.Namespace) -> int:
     }
     _atomic_write_json(Path(args.transaction_path), transaction)
     if plan["blocked"]:
+        system_facts = preflight.get("facts", {}).get("system", {})
         _atomic_write_json(
             Path(args.report_path),
             {
@@ -186,6 +187,12 @@ def _prepare(args: argparse.Namespace) -> int:
                 "phase": "preflight",
                 "error": "Port 3007 is owned by an unverified process. No process was stopped.",
                 "foreign_port_owners": plan["foreign_port_owners"],
+                "system_probe_status": (
+                    system_facts.get("probe_status") if isinstance(system_facts, dict) else None
+                ),
+                "system_probe_errors": (
+                    system_facts.get("errors") if isinstance(system_facts, dict) else None
+                ),
                 "transaction": str(Path(args.transaction_path).resolve(strict=False)),
             },
         )
