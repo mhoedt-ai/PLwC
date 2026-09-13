@@ -510,9 +510,22 @@ Status und Fehler beider Prozessabfragen.
 
 Die fokussierten Python-Tests bestanden mit **30/30**, die vollständige
 Python-Suite mit **218 PASS / 12 umgebungsbedingt SKIP** und die
-Windows-Installer-Vertragssuite mit **73/73**. Der Kandidat `18e94cd` ist wegen
-des Feldbefunds zurückgezogen; ein neuer unsigned Systemtestkandidat darf erst
-nach grüner CI aus dem korrigierten Stand gebaut werden.
+Windows-Installer-Vertragssuite mit **73/73**. GitHub-CI-Lauf `34747751110`
+bestand für den dokumentierten Stand `cb6ce4c` alle sechs Jobs. Der Kandidat
+`18e94cd` ist wegen des Feldbefunds zurückgezogen.
+
+Der neue unsigned Systemtestkandidat heißt
+`PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-cb6ce4c.exe`, ist 5.518.911
+Bytes groß und hat SHA-256
+`BB12314FE37E9E299F022E3D93B6F495C9F9A764E376BBFD620788BF50BE9876`.
+Seine Buildidentität hat SHA-256
+`BC72033CFCB0FFC52904C4EB981D734AE34614302FB5680878140EC35B2AE19D`,
+der eingebettete Payload-Manifest-Hash lautet
+`BF59C3A2A6BF7050283F8A27B81EE971F085CE1535B5CE01EB71B9EA92CA166A`.
+Der Build verwendete unverändert das genehmigte Runtime-Image-Manifest mit
+SHA-256
+`9EEE34D0E30530AD7CB1CA38D75E5ABE33ED0B1991FDFE55E47C641C2583C18F`;
+Authenticode meldet erwartungsgemäß `NotSigned`.
 
 ## 6. Nächster zulässiger Schritt
 
@@ -520,10 +533,9 @@ G0 bis G4 sind geschlossen. Die öffentliche GHCR-Sichtbarkeit und der anonyme,
 digestgebundene Endnutzerzugriff sind als Teil von G5 belegt. Die
 bisherigen unsigned Kandidaten sind wegen der wiederholten Imageinventur, des
 r25-ANSI-Migrationsfehlers beziehungsweise der unvollständigen
-Portbesitzerattribution zurückgezogen. Der nächste zulässige Schritt ist die
-CI-Prüfung von `18c3238` und anschließend ein neuer unsigned
-Systemtestkandidat aus exakt diesem geprüften Stand. Mit diesem Kandidaten wird
-zuerst der gezielte r25→r27-Wiederholungstest auf demselben
+Portbesitzerattribution zurückgezogen. Der nächste zulässige Schritt ist der
+gezielte r25→r27-Wiederholungstest mit exakt
+`PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-cb6ce4c.exe` auf demselben
 Windows-11-Rechner, derselben erhaltenen r25-Konfiguration und weiterhin
 aktivem Kaspersky wiederholt. Erwartet werden erfolgreicher Preflight,
 gesicherter Altbestand, abgeschlossener Postflight, drei probegeprüfte Images
