@@ -648,6 +648,37 @@ GitHub-CI-Lauf `34825179258` bestand für `ea75744` anschließend alle sechs
 Jobs: Public Snapshot, Python 3.11, Windows Installer, Node Bridge, Browser
 Extension und reproduzierbare Store-Pakete.
 
+Der reine Nachweisstand `86af812040060db16908933dc3dbc635a467e9bf` wurde
+ebenfalls gepusht und in GitHub-CI-Lauf `34825431976` nochmals exakt geprüft;
+auch dort bestanden alle sechs Jobs.
+
+### 5.9 Neuer unsigned Systemtestkandidat nach dem Feldbefund
+
+Auf Basis des lokal und in GitHub vollständig geprüften Stands `86af812` wurde
+mit dem ausdrücklichen Buildschalter `-Unsigned` ein neuer, nicht für die
+Produktion bestimmter r27-Systemtestkandidat kompiliert. Der Build verwendete
+unverändert das genehmigte Runtime-Image-Manifest aus Staginglauf `34636663782`
+mit SHA-256
+`9EEE34D0E30530AD7CB1CA38D75E5ABE33ED0B1991FDFE55E47C641C2583C18F`;
+die vorgeschaltete Manifest- und Evidenzprüfung bestand vollständig.
+
+Der Kandidat heißt
+`PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-86af812.exe`, ist 5.518.211
+Bytes groß und hat SHA-256
+`CCB9FAD7BC48CB6E4416F904494C4DF645AF16DB6280EB59CEF06A753A358C37`.
+Authenticode meldet erwartungsgemäß `NotSigned`. Die externe Buildidentität hat
+SHA-256
+`3A5D83F6A8332ED29A2B5660A179D73BE8E230A988F43D5C04E5DA7D9A8E0F78`;
+der Payload-Manifest-Hash lautet
+`5080E9FAEA5F86F3C7A63F1A4429305F537D237B21965D56C9A700B030AA0791`.
+Die im Payload enthaltenen Fassungen von `doctor.py` und
+`installer_state.py` wurden zusätzlich bytegleich gegen den geprüften
+Quellstand verifiziert.
+
+Die EXE und ihre Buildidentität liegen jeweils bytegleich unter `T:\` sowie
+`F:\Eigene Dokumente\Downloads`. Der Kandidat ersetzt keinen freigegebenen
+Produktionsinstaller und bleibt bis zum erfolgreichen G5-Systemtest gesperrt.
+
 ## 6. Nächster zulässiger Schritt
 
 G0 bis G4 sind geschlossen. Die öffentliche GHCR-Sichtbarkeit und der anonyme,
@@ -658,11 +689,10 @@ beziehungsweise der unterdrückten PowerShell-Ausgabe zurückgezogen. Die
 read-only-Bestandsaufnahme und der Wiederholungstest mit `9b2093d` sind
 abgeschlossen; auch dieser Kandidat ist wegen des erneut leeren
 Probeergebnisses und des unvollständigen Rollbacks zurückgezogen. Der nächste
-zulässige Schritt ist nach der vollständig bestandenen lokalen und
-GitHub-Verifikation ein neuer unsigned Systemtestkandidat für denselben
-Windows-11-Rechner mit weiterhin aktivem
-Kaspersky. Vor diesem Feldtest ist der externe Claude-MCPB-Altprozess manuell zu
-beenden; der Installer beendet ihn nicht. Erwartet werden erfolgreicher Preflight,
+zulässige Schritt ist der gezielte Wiederholungstest mit dem in Abschnitt 5.9
+festgehaltenen Kandidaten auf demselben Windows-11-Rechner mit weiterhin
+aktivem Kaspersky. Vor diesem Feldtest ist der externe Claude-MCPB-Altprozess
+manuell zu beenden; der Installer beendet ihn nicht. Erwartet werden erfolgreicher Preflight,
 gesicherter Altbestand, abgeschlossener Postflight, drei probegeprüfte Images
 und 8/8 Bridge. Erst danach wird die übrige Phase-6-Systemmatrix mit
 Docker-Erststart
