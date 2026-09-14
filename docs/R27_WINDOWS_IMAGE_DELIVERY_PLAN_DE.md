@@ -587,17 +587,80 @@ lokaler Windows-PowerShell-5.1-Selbsttest erzeugte den Diagnoseexport ohne
 Probe-Fehler; außerhalb seines eigenen temporären Arbeitsordners und der
 angeforderten ZIP-Datei nimmt der Sammler keine Änderungen vor.
 
+### 5.8 G5-Feldbefund: zweiter leerer Probeversuch und unvollständiger Rollback
+
+Die read-only-Bestandsaufnahme der erhaltenen Alt-/Mischinstallation wurde am
+13. September 2026 auf `KATHISPC` mit Windows PowerShell 5.1 abgeschlossen. Das
+Archiv `PLwC-r27-legacy-diagnostic-KATHISPC-20260913-183244.zip` hat SHA-256
+`3923E3E1B69FBE5B6EA519F01EC918F18042C40FEEB1D2B0EC6CBE1B177BF144`.
+Der 3,3-MB-Bericht inventarisiert 5.528 relevante Dateien und meldet keine
+Collector-Probe-Fehler.
+
+Der damit untersuchte Installationslauf verwendete nachweislich den Kandidaten
+`9b2093d` mit Setup-SHA-256
+`3E16AC332181DA4B49173859A747A1ABD274129DECE601B9BC5F72F617C53DD6`.
+Payloadhashes, Native Messaging, Installationsidentität sowie die neu gestartete
+Bridge mit exakt 8/8 Werkzeugen bestanden. Dennoch lieferten sowohl die direkte
+PowerShell-Abfrage als auch ihr stdin-Wiederholungsversuch für Prozesse und
+Shortcutziele trotz Exitcode 0 erneut keine Ausgabe. Der Postflight blieb daher
+korrekt fail-closed und endete mit Exitcode 30.
+
+Der anschließende Rollback war diesmal nicht vollständig: Das Umbenennen von
+`C:\Users\secur\AppData\Roaming\PLwC\app` in die r27-Quarantäne scheiterte mit
+`[WinError 5] Zugriff verweigert` und Exitcode 40. Die Bestandsaufnahme belegt
+gleichzeitig eine laufende aktuelle Node-Bridge sowie zwei Python-Prozesse aus
+dem aktuellen `app\gateway`. Weil die Prozessprobe leer geblieben war, konnte
+der Rollback die bewiesene PLwC-Laufzeit vor dem atomaren Verzeichniswechsel
+nicht beenden.
+
+Zusätzlich läuft ein externer alter Claude-MCPB-Prozess aus
+`Claude Extensions\local.mcpb.plwc.plwc-gateway`, der den berichteten
+19-Tool-Altbestand bestätigt. Er liegt außerhalb der vom r27-Installer
+verwalteten App-Wurzel, besitzt Port 3007 nicht und ist nicht die Ursache der
+leeren PowerShell-Ausgabe. Er wird deshalb weder automatisch beendet noch
+gelöscht und bleibt ein separat zu bereinigender beziehungsweise zu
+deinstallierender Altbestand.
+
+Docker Desktop 29.4.3 war erreichbar. Alle drei genehmigten GHCR-Images waren
+unter den festgelegten Digests vorhanden; die Anzeige `Tag=<none>` ist bei dem
+digestgebundenen Pull erwartbar und kein fehlendes Image. Daneben blieb das alte
+lokale `plwc-document-worker:0.1.0`-Image erhalten. Laufende Worker-Container
+wurden nicht gefunden.
+
+Commit `18effbabf9116305a5658dd0c677b23609534894` ergänzt nach zwei
+erfolgreichen, aber leeren stdout-Versuchen
+einen dritten read-only-PowerShell-Pfad über eine begrenzte temporäre Skript- und
+Ergebnisdatei. Damit hängt die JSON-Übergabe nicht mehr von geerbten
+stdout-Handles ab. Außerdem werden eindeutig unter `app\bridge`, `app\gateway`
+oder `app\configuration` gestartete Prozesse als aktuelle PLwC-Laufzeit
+attribuiert. Der Rollback beendet vor dem atomaren Restore alle so bewiesenen
+Prozesse statt ausschließlich des Port-3007-Besitzers. Unbewiesene oder externe
+Prozesse bleiben unangetastet.
+
+Die fokussierte Testsuite besteht mit **18/18**, einschließlich eines echten
+Windows-PowerShell-5.1-Dateiübergabetests. Die vollständige Python-Suite besteht
+mit **222 PASS / 12 umgebungsbedingt SKIP**. Die CI-identische
+Windows-Installer-Vertragssuite bestand am 14. September 2026 unter Windows
+PowerShell 5.1 und Pester 3.4.0 mit **73/73 PASS**, 0 FAIL, 0 SKIP in
+657,43 Sekunden. Der zuvor unter Pester 6.2.0 beobachtete 0/73-Lauf war ein
+inkompatibler Test-Harness-/Scope-Aufruf und kein Produktbefund.
+
 ## 6. Nächster zulässiger Schritt
 
 G0 bis G4 sind geschlossen. Die öffentliche GHCR-Sichtbarkeit und der anonyme,
 digestgebundene Endnutzerzugriff sind als Teil von G5 belegt. Die bisherigen
 unsigned Kandidaten sind wegen der wiederholten Imageinventur, des
 r25-ANSI-Migrationsfehlers, der unvollständigen Portbesitzerattribution
-beziehungsweise der unterdrückten PowerShell-Ausgabe zurückgezogen. Der nächste
-zulässige Schritt ist zunächst die read-only-Bestandsaufnahme der erhaltenen
-19-Tool-/8-Tool-Altinstallation und danach der gezielte Wiederholungstest mit
-exakt `PLwC-Setup-1.0.0-installer-r27-TEST-UNSIGNED-9b2093d.exe` auf demselben
-Windows-11-Rechner und weiterhin aktivem Kaspersky. Erwartet werden erfolgreicher Preflight,
+beziehungsweise der unterdrückten PowerShell-Ausgabe zurückgezogen. Die
+read-only-Bestandsaufnahme und der Wiederholungstest mit `9b2093d` sind
+abgeschlossen; auch dieser Kandidat ist wegen des erneut leeren
+Probeergebnisses und des unvollständigen Rollbacks zurückgezogen. Der nächste
+zulässige Schritt ist nach der vollständig bestandenen lokalen Verifikation die
+GitHub-CI-Verifikation der in Abschnitt 5.8 beschriebenen Korrektur und erst
+danach ein neuer unsigned
+Systemtestkandidat für denselben Windows-11-Rechner mit weiterhin aktivem
+Kaspersky. Vor diesem Feldtest ist der externe Claude-MCPB-Altprozess manuell zu
+beenden; der Installer beendet ihn nicht. Erwartet werden erfolgreicher Preflight,
 gesicherter Altbestand, abgeschlossener Postflight, drei probegeprüfte Images
 und 8/8 Bridge. Erst danach wird die übrige Phase-6-Systemmatrix mit
 Docker-Erststart
