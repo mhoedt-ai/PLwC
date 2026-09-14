@@ -175,7 +175,18 @@ def _proven_plwc_process(process: Mapping[str, Any], roots: list[Path]) -> bool:
     if not isinstance(command_line, str):
         return False
     folded = command_line.casefold()
-    runtime_marker = any(marker in folded for marker in ("bridge\\dist", "bridge/dist", "plwc-chat-bridge-launcher"))
+    runtime_marker = any(
+        marker in folded
+        for marker in (
+            "bridge\\dist",
+            "bridge/dist",
+            "plwc-chat-bridge-launcher",
+            "gateway\\server.py",
+            "gateway/server.py",
+            "configuration\\plwc-config.py",
+            "configuration/plwc-config.py",
+        )
+    )
     return runtime_marker and any(str(root).casefold() in folded for root in roots)
 
 
@@ -275,6 +286,11 @@ class InstallerStateEngine:
             unique[str(resolved).casefold()] = resolved
         return sorted(unique.values(), key=lambda path: str(path).casefold())
 
+    def _runtime_process_roots(self, legacy: list[Path] | None = None) -> list[Path]:
+        candidates = [self.app_root, self.gateway_root, self.bridge_root, *(legacy or [])]
+        unique = {str(path.resolve(strict=False)).casefold(): path.resolve(strict=False) for path in candidates}
+        return list(unique.values())
+
     def preflight(
         self,
         *,
@@ -287,7 +303,7 @@ class InstallerStateEngine:
         stored_bridge = _selection_value(selection, "PLwC", "BridgePath")
         legacy = self._legacy_paths(stored_bridge)
         systems = dict(system_facts) if isinstance(system_facts, Mapping) else collect_windows_system_facts()
-        approved_roots = [self.bridge_root, *legacy]
+        approved_roots = self._runtime_process_roots(legacy)
         processes = systems.get("processes") if isinstance(systems.get("processes"), list) else []
         process_attribution: list[dict[str, Any]] = []
         for process in processes:
@@ -393,7 +409,7 @@ class InstallerStateEngine:
         if not isinstance(facts, Mapping):
             raise InstallerStateError("Preflight facts are missing.")
         legacy = [Path(str(path)).resolve(strict=False) for path in facts.get("legacy_paths", [])]
-        approved_roots = [self.bridge_root, *legacy]
+        approved_roots = self._runtime_process_roots(legacy)
         system = facts.get("system") if isinstance(facts.get("system"), Mapping) else {}
         foreign = self._foreign_port_owners(system, approved_roots)
         processes = system.get("processes") if isinstance(system.get("processes"), list) else []
@@ -479,7 +495,7 @@ class InstallerStateEngine:
         current_system = dict(current_system_facts) if isinstance(current_system_facts, Mapping) else collect_windows_system_facts()
         current_processes = current_system.get("processes") if isinstance(current_system.get("processes"), list) else []
         legacy = [Path(str(path)).resolve(strict=False) for path in current_preflight.get("facts", {}).get("legacy_paths", [])]
-        approved_roots = [self.bridge_root, *legacy]
+        approved_roots = self._runtime_process_roots(legacy)
         current_foreign = self._foreign_port_owners(current_system, approved_roots)
         if current_foreign:
             raise InstallerStateError("Port 3007 is now owned by an unverified process; no process was stopped.")
@@ -747,20 +763,24 @@ class InstallerStateEngine:
         systems = dict(system_facts) if supplied_facts else collect_windows_system_facts()
         processes = systems.get("processes") if isinstance(systems.get("processes"), list) else []
         listeners = systems.get("port_3007") if isinstance(systems.get("port_3007"), list) else []
+        approved_roots = self._runtime_process_roots()
         stopped: list[int] = []
-        for listener in listeners:
-            if not isinstance(listener, Mapping):
-                continue
-            process_id = _pid(_process_value(listener, "OwningProcess", "owning_process"))
-            if process_id is None:
-                continue
-            matching = [
-                process for process in processes
-                if isinstance(process, Mapping)
-                and _pid(_process_value(process, "ProcessId", "process_id")) == process_id
-            ]
-            if not matching or not all(_proven_plwc_process(process, [self.bridge_root]) for process in matching):
-                continue
+        listener_pids = {
+            process_id
+            for listener in listeners
+            if isinstance(listener, Mapping)
+            for process_id in [_pid(_process_value(listener, "OwningProcess", "owning_process"))]
+            if process_id is not None
+        }
+        proven_pids = {
+            process_id
+            for process in processes
+            if isinstance(process, Mapping) and _proven_plwc_process(process, approved_roots)
+            for process_id in [_pid(_process_value(process, "ProcessId", "process_id"))]
+            if process_id is not None
+        }
+        ordered_pids = sorted(proven_pids, key=lambda process_id: (process_id not in listener_pids, process_id))
+        for process_id in ordered_pids:
             if not supplied_facts:
                 fresh = collect_windows_system_facts()
                 fresh_processes = fresh.get("processes") if isinstance(fresh.get("processes"), list) else []
@@ -771,9 +791,9 @@ class InstallerStateEngine:
                 ]
                 if not matching:
                     continue
-                if not all(_proven_plwc_process(process, [self.bridge_root]) for process in matching):
+                if not all(_proven_plwc_process(process, approved_roots) for process in matching):
                     raise InstallerStateError(
-                        "The rollback Bridge PID changed identity; the process was not stopped."
+                        "The rollback PLwC PID changed identity; the process was not stopped."
                     )
             completed = subprocess.run(
                 ["taskkill.exe", "/PID", str(process_id), "/T", "/F"],
@@ -786,7 +806,7 @@ class InstallerStateEngine:
             if completed.returncode != 0:
                 detail = (completed.stderr or completed.stdout).strip()
                 raise InstallerStateError(
-                    f"The verified r27 Bridge process could not be stopped before rollback: {detail}"
+                    f"The verified r27 PLwC process could not be stopped before rollback: {detail}"
                 )
             stopped.append(process_id)
         return stopped

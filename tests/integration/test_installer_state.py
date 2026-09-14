@@ -160,6 +160,43 @@ def test_powershell_json_probe_retries_empty_success_through_stdin(
     assert calls[1][1] == "read-only-probe"
 
 
+def test_powershell_json_probe_uses_temp_result_after_two_empty_successes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[list[str], str | None]] = []
+
+    def run(command: list[str], **kwargs: object):
+        environment = kwargs.get("env") if isinstance(kwargs.get("env"), dict) else None
+        calls.append((command, environment.get("PLWC_WINDOWS_PROBE_OUTPUT") if environment else None))
+        if len(calls) < 3:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        assert environment is not None
+        output = Path(environment["PLWC_WINDOWS_PROBE_OUTPUT"])
+        output.write_text('{"processes":[{"ProcessId":42}]}', encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, stdout=None, stderr="")
+
+    monkeypatch.setattr(installation_doctor.subprocess, "run", run)
+    result = installation_doctor._run_powershell_json("read-only-probe", timeout_seconds=4)
+
+    assert result == {"processes": [{"ProcessId": 42}]}
+    assert len(calls) == 3
+    assert calls[0][0][-1] == "read-only-probe"
+    assert calls[1][0][-1] == "-"
+    assert calls[2][0][-2].casefold() == "-file"
+    assert calls[2][1] is not None
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell file-result contract")
+def test_powershell_json_temp_result_executes_on_windows() -> None:
+    return_code, stdout, stderr = installation_doctor._run_powershell_json_via_temp_files(
+        "ConvertTo-Json -InputObject ([pscustomobject]@{probe='ok';items=@(1,2)}) -Compress -Depth 3",
+        timeout_seconds=10,
+    )
+
+    assert return_code == 0, stderr
+    assert json.loads(stdout) == {"probe": "ok", "items": [1, 2]}
+
+
 def test_targeted_process_probe_stays_fail_closed_and_records_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -214,6 +251,38 @@ def test_postflight_fails_closed_when_windows_fact_probe_is_incomplete(tmp_path:
     assert checks["legacy.processes"]["ok"] is False
     assert checks["scheduled_tasks.legacy"]["ok"] is True
     assert checks["port.3007_owner"]["evidence"] == ["powershell.processes: timed out"]
+
+
+def test_current_gateway_process_is_proven_and_planned_for_stop(tmp_path: Path) -> None:
+    engine, paths = _engine(tmp_path)
+    _write_selection(paths)
+    facts = _system_facts(paths)
+    gateway_pid = 7351
+    facts["processes"] = [
+        {
+            "ProcessId": gateway_pid,
+            "Name": "python.exe",
+            "ExecutablePath": r"C:\Program Files\Python\python.exe",
+            "CommandLine": f'python.exe "{paths["gateway"] / "server.py"}"',
+        }
+    ]
+
+    preflight = engine.preflight(selection_path=paths["selection"], system_facts=facts)
+    attribution = preflight["facts"]["attribution"]["processes"]
+    plan = engine.plan(preflight)
+
+    assert attribution == [
+        {
+            "pid": gateway_pid,
+            "classification": "proven",
+            "executable": r"C:\Program Files\Python\python.exe",
+            "command_line": f'python.exe "{paths["gateway"] / "server.py"}"',
+        }
+    ]
+    assert any(
+        action.get("type") == "stop_proven_plwc_process" and action.get("pid") == gateway_pid
+        for action in plan["actions"]
+    )
 
 
 def _write_selection(paths: dict[str, Path], *, stored_bridge: Path | None = None) -> None:
@@ -540,6 +609,7 @@ def test_rollback_stops_only_the_proven_target_bridge_before_atomic_restore(
     _install_payload(paths)
     target_pid = 8452
     foreign_pid = 8453
+    gateway_pid = 8454
     facts = _system_facts(paths)
     facts["processes"] = [
         {
@@ -554,6 +624,12 @@ def test_rollback_stops_only_the_proven_target_bridge_before_atomic_restore(
             "ExecutablePath": str(paths["root"].parent / "Foreign" / "foreign.exe"),
             "CommandLine": "foreign.exe --listen 3008",
         },
+        {
+            "ProcessId": gateway_pid,
+            "Name": "python.exe",
+            "ExecutablePath": r"C:\Program Files\Python\python.exe",
+            "CommandLine": f'python.exe "{paths["gateway"] / "server.py"}"',
+        },
     ]
     facts["port_3007"] = [{"LocalPort": 3007, "OwningProcess": target_pid}]
     calls: list[list[str]] = []
@@ -565,8 +641,11 @@ def test_rollback_stops_only_the_proven_target_bridge_before_atomic_restore(
     monkeypatch.setattr("src.plwc_gateway.installation.installer_state.subprocess.run", fake_run)
     result = engine.rollback(prepared, system_facts=facts)
 
-    assert calls == [["taskkill.exe", "/PID", str(target_pid), "/T", "/F"]]
-    assert result["stopped_processes"] == [target_pid]
+    assert calls == [
+        ["taskkill.exe", "/PID", str(target_pid), "/T", "/F"],
+        ["taskkill.exe", "/PID", str(gateway_pid), "/T", "/F"],
+    ]
+    assert result["stopped_processes"] == [target_pid, gateway_pid]
     assert result["result"] == "restored"
     assert (paths["app"] / "configuration" / "old.txt").read_text(encoding="utf-8") == "r25"
 

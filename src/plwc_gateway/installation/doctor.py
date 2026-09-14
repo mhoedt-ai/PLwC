@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import threading
 import zipfile
 from datetime import datetime, timezone
@@ -190,6 +191,39 @@ def _merge_shortcut_details(
     return merged
 
 
+def _run_powershell_json_via_temp_files(script: str, *, timeout_seconds: int) -> tuple[int, str, str]:
+    """Run a JSON probe without depending on inherited stdout handles."""
+
+    with tempfile.TemporaryDirectory(prefix="plwc-windows-probe-") as temporary:
+        temporary_root = Path(temporary)
+        script_path = temporary_root / "probe.ps1"
+        output_path = temporary_root / "result.json"
+        wrapped_script = (
+            "$plwcProbeResult = & {\n"
+            + script
+            + "\n}\n"
+            + "[System.IO.File]::WriteAllText("
+            + "$env:PLWC_WINDOWS_PROBE_OUTPUT, "
+            + "[string]($plwcProbeResult -join [Environment]::NewLine), "
+            + "(New-Object System.Text.UTF8Encoding($false)))\n"
+        )
+        script_path.write_text(wrapped_script, encoding="utf-8-sig", newline="\n")
+        environment = os.environ.copy()
+        environment["PLWC_WINDOWS_PROBE_OUTPUT"] = str(output_path)
+        completed = subprocess.run(
+            ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-File", str(script_path)],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout_seconds,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            env=environment,
+        )
+        stdout = output_path.read_text(encoding="utf-8-sig") if output_path.is_file() else ""
+        return completed.returncode, stdout, completed.stderr or ""
+
+
 def _run_powershell_json(script: str, *, timeout_seconds: int) -> dict[str, Any]:
     command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script]
     completed = subprocess.run(
@@ -216,6 +250,17 @@ def _run_powershell_json(script: str, *, timeout_seconds: int) -> dict[str, Any]
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         stdout = completed.stdout or ""
+    if completed.returncode == 0 and not stdout.strip():
+        # A second field configuration suppressed stdout even when the script
+        # was supplied over stdin.  Keep the probe read-only with respect to
+        # PLwC state, but move both script and JSON result through a bounded
+        # Windows temporary directory so inherited stdout handles are no
+        # longer required.
+        return_code, stdout, stderr = _run_powershell_json_via_temp_files(
+            script,
+            timeout_seconds=timeout_seconds,
+        )
+        completed = subprocess.CompletedProcess(command, return_code, stdout, stderr)
     if completed.returncode != 0 or not stdout.strip():
         detail = (completed.stderr or stdout).strip()
         raise ValueError(detail or f"PowerShell exited with code {completed.returncode}.")
