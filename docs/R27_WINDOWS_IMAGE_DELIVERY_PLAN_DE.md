@@ -644,6 +644,9 @@ Windows-Installer-Vertragssuite bestand am 14. September 2026 unter Windows
 PowerShell 5.1 und Pester 3.4.0 mit **73/73 PASS**, 0 FAIL, 0 SKIP in
 657,43 Sekunden. Der zuvor unter Pester 6.2.0 beobachtete 0/73-Lauf war ein
 inkompatibler Test-Harness-/Scope-Aufruf und kein Produktbefund.
+GitHub-CI-Lauf `34825179258` bestand für `ea75744` anschließend alle sechs
+Jobs: Public Snapshot, Python 3.11, Windows Installer, Node Bridge, Browser
+Extension und reproduzierbare Store-Pakete.
 
 ## 6. Nächster zulässiger Schritt
 
@@ -655,10 +658,9 @@ beziehungsweise der unterdrückten PowerShell-Ausgabe zurückgezogen. Die
 read-only-Bestandsaufnahme und der Wiederholungstest mit `9b2093d` sind
 abgeschlossen; auch dieser Kandidat ist wegen des erneut leeren
 Probeergebnisses und des unvollständigen Rollbacks zurückgezogen. Der nächste
-zulässige Schritt ist nach der vollständig bestandenen lokalen Verifikation die
-GitHub-CI-Verifikation der in Abschnitt 5.8 beschriebenen Korrektur und erst
-danach ein neuer unsigned
-Systemtestkandidat für denselben Windows-11-Rechner mit weiterhin aktivem
+zulässige Schritt ist nach der vollständig bestandenen lokalen und
+GitHub-Verifikation ein neuer unsigned Systemtestkandidat für denselben
+Windows-11-Rechner mit weiterhin aktivem
 Kaspersky. Vor diesem Feldtest ist der externe Claude-MCPB-Altprozess manuell zu
 beenden; der Installer beendet ihn nicht. Erwartet werden erfolgreicher Preflight,
 gesicherter Altbestand, abgeschlossener Postflight, drei probegeprüfte Images
